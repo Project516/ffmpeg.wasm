@@ -32,6 +32,27 @@ type FFMessageOptions = {
 };
 
 /**
+ * The subset of the `Worker` interface FFmpeg relies on. Lets the Node
+ * entry point (node.mts) hand in a `worker_threads` adapter instead of a
+ * real browser `Worker`.
+ */
+export interface WorkerLike {
+  postMessage(message: unknown, transfer?: Transferable[]): void;
+  terminate(): void;
+  onmessage: ((event: MessageEvent) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
+}
+
+export interface FFmpegOptions {
+  /**
+   * @internal Overrides how the worker is created; used by the Node entry
+   * point to run the worker code in `worker_threads` instead of a browser
+   * `Worker`.
+   */
+  createWorker?: (url: URL) => WorkerLike;
+}
+
+/**
  * Provides APIs to interact with ffmpeg web worker.
  *
  * @example
@@ -40,7 +61,8 @@ type FFMessageOptions = {
  * ```
  */
 export class FFmpeg {
-  #worker: Worker | null = null;
+  #worker: WorkerLike | null = null;
+  #createWorker: (url: URL) => WorkerLike;
   /**
    * #resolves and #rejects tracks Promise resolves and rejects to
    * be called when we receive message from web worker.
@@ -52,6 +74,11 @@ export class FFmpeg {
   #progressEventCallbacks: ProgressEventCallback[] = [];
 
   public loaded = false;
+
+  constructor({ createWorker }: FFmpegOptions = {}) {
+    this.#createWorker =
+      createWorker ?? ((url) => new Worker(url, { type: WORKER_TYPE }));
+  }
 
   /**
    * register worker message event handlers.
@@ -216,14 +243,10 @@ export class FFmpeg {
   ): Promise<IsFirst> => {
     if (!this.#worker) {
       this.#worker = classWorkerURL ?
-        new Worker(new URL(classWorkerURL, import.meta.url), {
-          type: WORKER_TYPE,
-        }) :
+        this.#createWorker(new URL(classWorkerURL, import.meta.url)) :
         // We need to duplicated the code here to enable webpack
         // to bundle worker.js here.
-        new Worker(new URL("./worker.js", import.meta.url), {
-          type: WORKER_TYPE,
-        });
+        this.#createWorker(new URL("./worker.js", import.meta.url));
       this.#registerHandlers();
     }
     return this.#send(

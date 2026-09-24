@@ -5,6 +5,25 @@ import {
 import { HeaderContentLength, HeaderContentEncoding } from "./const.js";
 import { ProgressCallback } from "./types.js";
 
+const isNode = (): boolean =>
+  typeof process !== "undefined" && process.versions?.node != null;
+
+/**
+ * The `webpackIgnore` comment keeps webpack from trying to resolve
+ * `node:fs/promises` for the browser bundle; it is only ever reached when
+ * `isNode()` is true.
+ */
+const importNodeFS = (): Promise<typeof import("node:fs/promises")> =>
+  import(/* webpackIgnore: true */ "node:fs/promises");
+
+const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
+  const fs = await importNodeFS();
+  return fs.readFile(path);
+};
+
+const isRemoteURL = (file: string): boolean =>
+  /^(https?|data|blob):/i.test(file);
+
 const readFromBlobOrFile = (blob: Blob | File): Promise<Uint8Array> =>
   new Promise((resolve, reject) => {
     const fileReader = new FileReader();
@@ -44,18 +63,31 @@ const readFromBlobOrFile = (blob: Blob | File): Promise<Uint8Array> =>
  * // Blob
  * const blob = new Blob(...);
  * await fetchFile(blob);
+ * // Node.js: local file path or file: URL
+ * await fetchFile("./video.mp4");
+ * await fetchFile(new URL("video.mp4", import.meta.url));
  * ```
  */
 export const fetchFile = async (
-  file?: string | File | Blob
+  file?: string | File | Blob | URL
 ): Promise<Uint8Array> => {
   let data: ArrayBuffer | number[] | Uint8Array;
 
   if (typeof file === "string") {
-    /* From base64 data URL or remote server/URL, fetch() handles both */
-    data = await (await fetch(file)).arrayBuffer();
+    if (isNode() && file.startsWith("file://")) {
+      data = await readLocalFile(new URL(file));
+    } else if (isNode() && !isRemoteURL(file)) {
+      // In Node.js, a bare path is read from disk; fetch() does not
+      // support the file: scheme there.
+      data = await readLocalFile(file);
+    } else {
+      /* From base64 data URL or remote server/URL, fetch() handles both */
+      data = await (await fetch(file)).arrayBuffer();
+    }
   } else if (file instanceof URL) {
-    data = await (await fetch(file)).arrayBuffer();
+    data = isNode() && file.protocol === "file:" ?
+      await readLocalFile(file) :
+      await (await fetch(file)).arrayBuffer();
   } else if (file instanceof File || file instanceof Blob) {
     data = await readFromBlobOrFile(file);
   } else {
@@ -175,6 +207,12 @@ export const toBlobURL = async (
   progress = false,
   cb?: ProgressCallback
 ): Promise<string> => {
+  if (typeof URL.createObjectURL !== "function") {
+    throw new Error(
+      "URL.createObjectURL() is not available in this environment; " +
+        "pass coreURL/wasmURL directly instead of going through toBlobURL()."
+    );
+  }
   const buf = progress
     ? await downloadWithProgress(url, cb)
     : await (await fetch(url)).arrayBuffer();

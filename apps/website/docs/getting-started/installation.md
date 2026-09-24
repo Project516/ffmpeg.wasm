@@ -4,7 +4,8 @@ import TabItem from '@theme/TabItem';
 # Installation
 
 :::note
-ffmpeg.wasm only supports running in browser, see [FAQ](/docs/faq) for more
+ffmpeg.wasm supports running in the browser and in Node.js, see
+[Usage](/docs/getting-started/usage#nodejs) and [FAQ](/docs/faq) for more
 details
 :::
 

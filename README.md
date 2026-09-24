@@ -9,7 +9,7 @@
 
 This is a maintained fork of [ffmpegwasm/ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm), which is no longer maintained.
 
-ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video & audio record, convert and stream right inside browsers.
+ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video & audio record, convert and stream right inside browsers, and also runs in Node.js.
 
 [![CI](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml/badge.svg)](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

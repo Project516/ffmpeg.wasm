@@ -445,3 +445,27 @@ Required:
   :::
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
+
+## Node.js
+
+`@project516/ffmpeg` runs the same code in Node.js, using a `worker_threads`
+Worker instead of a browser Worker. `load()` resolves `@project516/core` (or
+`@project516/core-mt`) from `node_modules` by default, so `coreURL` is only
+needed to pick the multithread core or a custom build.
+
+```js
+import { FFmpeg } from '@project516/ffmpeg';
+import { fetchFile } from '@project516/util';
+
+const ffmpeg = new FFmpeg();
+await ffmpeg.load();
+
+await ffmpeg.writeFile('input.webm', await fetchFile('./input.webm'));
+await ffmpeg.exec(['-i', 'input.webm', 'output.mp4']);
+const data = await ffmpeg.readFile('output.mp4');
+
+await ffmpeg.terminate();
+```
+
+`fetchFile` reads a local path or a `file:` URL directly in Node.js instead
+of going through `fetch()`.

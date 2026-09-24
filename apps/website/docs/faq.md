@@ -1,15 +1,16 @@
 # FAQ
 
-### Why ffmpeg.wasm doesn't support nodejs?
+### Does ffmpeg.wasm support Node.js?
 
-ffmpeg.wasm did support nodejs before 0.12.0, but decided to discontinue nodejs support due to:
+Yes. `@project516/ffmpeg` runs the same worker code in a `worker_threads`
+Worker under Node.js instead of a browser Worker, and `load()` resolves the
+core from `node_modules` by default instead of the jsDelivr CDN. See
+[Usage](/docs/getting-started/usage#nodejs) for an example.
 
-- It takes extra effort to maintain nodejs support
-- If you are not in browser, there are a lot of better choices than using WebAssembly for a better performance, ex:
-  - nodejs: https://www.npmjs.com/package/fluent-ffmpeg
-  - react-native: https://github.com/arthenica/ffmpeg-kit
-
-Of course, it is still highly welcome to contribute a nodejs version of ffmpeg.wasm.
+Node.js was unsupported from ffmpeg.wasm 0.12.0 through this fork's earlier
+releases; if you are pinned to one of those, use
+[fluent-ffmpeg](https://www.npmjs.com/package/fluent-ffmpeg) instead, or
+upgrade.
 
 ### Why ffmpeg.wasm is so slow comparing to ffmpeg?
 
