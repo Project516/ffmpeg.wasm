@@ -36,5 +36,5 @@ CONF_FLAGS=(
   ${FFMPEG_ST:+ --disable-pthreads --disable-w32threads --disable-os2threads}
 )
 
-emconfigure ./configure "${CONF_FLAGS[@]}" $@ || { tail -n 200 ffbuild/config.log; exit 1; }
+emconfigure ./configure "${CONF_FLAGS[@]}" $@ || { cat ffbuild/config.log; exit 1; }
 emmake make -j
