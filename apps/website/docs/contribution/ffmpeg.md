@@ -1,6 +1,6 @@
-# @project516/ffmpeg
+# @project516/ffmpeg-wasm
 
-The source code of @project516/ffmpeg locates at **/packages/ffmpeg**.
+The source code of @project516/ffmpeg-wasm locates at **/packages/ffmpeg**.
 
 ## Development
 

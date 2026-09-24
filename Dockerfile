@@ -232,7 +232,7 @@ ENV FFMPEG_LIBS \
 # A classic worker that loads the UMD core with importScripts() has the
 # wrapper worker as self.location, and pthreads would spawn that script. Point
 # them at the core instead, via the mainScriptUrlOrBlob that
-# @project516/ffmpeg passes. The grep fails the build if emsdk changes the
+# @project516/ffmpeg-wasm passes. The grep fails the build if emsdk changes the
 # line this relies on.
 RUN mkdir -p /src/dist/umd && bash -x /src/build.sh \
       ${FFMPEG_LIBS} \

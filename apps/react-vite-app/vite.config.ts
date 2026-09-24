@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ["@project516/ffmpeg", "@project516/util"],
+    exclude: ["@project516/ffmpeg-wasm", "@project516/ffmpeg-wasm-util"],
   },
   server: {
     headers: {

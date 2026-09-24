@@ -1,7 +1,7 @@
 const TIMEOUT = 60000;
 const IS_BROWSER = typeof window !== 'undefined' && typeof window.document !== 'undefined';
 const OPTIONS = {
-  corePath: IS_BROWSER ? 'http://localhost:3000/node_modules/@project516/core/dist/ffmpeg-core.js' : '@project516/core',
+  corePath: IS_BROWSER ? 'http://localhost:3000/node_modules/@project516/ffmpeg-wasm-core/dist/ffmpeg-core.js' : '@project516/ffmpeg-wasm-core',
 };
 const FLAME_MP4_LENGTH = 100374;
 const META_FLAME_MP4_LENGTH = 100408;

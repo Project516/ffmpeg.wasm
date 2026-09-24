@@ -191,7 +191,7 @@ importers:
 
   packages/ffmpeg:
     dependencies:
-      '@project516/types':
+      '@project516/ffmpeg-wasm-types':
         specifier: workspace:^
         version: link:../types
     devDependencies:

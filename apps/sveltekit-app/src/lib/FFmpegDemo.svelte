@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { FFmpeg } from '@project516/ffmpeg';
+	import { FFmpeg } from '@project516/ffmpeg-wasm';
 	// @ts-ignore
-	import type { LogEvent } from '@project516/ffmpeg/dist/esm/types';
-	import { fetchFile, toBlobURL } from '@project516/util';
+	import type { LogEvent } from '@project516/ffmpeg-wasm/dist/esm/types';
+	import { fetchFile, toBlobURL } from '@project516/ffmpeg-wasm-util';
 
 	let videoEl: HTMLVideoElement;
 
-	const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core-mt@0.13.0/dist/esm';
+	const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.13.1/dist/esm';
 	const videoURL = 'https://raw.githubusercontent.com/ffmpegwasm/testdata/master/video-15s.avi';
 
 	let message = 'Click Start to Transcode';

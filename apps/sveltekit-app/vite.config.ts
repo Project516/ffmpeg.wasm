@@ -28,7 +28,7 @@ export default defineConfig({
 		}
 	  },
 	  optimizeDeps: {
-		exclude: ['@project516/ffmpeg', '@project516/util']
+		exclude: ['@project516/ffmpeg-wasm', '@project516/ffmpeg-wasm-util']
 	  },
 	  server: {
 		headers: {

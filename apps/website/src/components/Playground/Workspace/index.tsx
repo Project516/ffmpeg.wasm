@@ -6,8 +6,8 @@ import React, {
 } from "react";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
-import { FFmpeg } from "@project516/ffmpeg";
-import { fetchFile } from "@project516/util";
+import { FFmpeg } from "@project516/ffmpeg-wasm";
+import { fetchFile } from "@project516/ffmpeg-wasm-util";
 import { downloadFile } from "@site/src/util";
 import { Node } from "./types";
 import FileSystemManager from "./FileSystemManager";

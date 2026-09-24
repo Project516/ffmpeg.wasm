@@ -143,7 +143,7 @@ const config = {
         readme: "none",
         out: "api/ffmpeg",
         sidebar: {
-          indexLabel: "@project516/ffmpeg",
+          indexLabel: "@project516/ffmpeg-wasm",
           fullNames: true,
         },
       },
@@ -157,7 +157,7 @@ const config = {
         readme: "none",
         out: "api/util",
         sidebar: {
-          indexLabel: "@project516/util",
+          indexLabel: "@project516/ffmpeg-wasm-util",
           fullNames: true,
         },
       },

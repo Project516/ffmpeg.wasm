@@ -12,8 +12,8 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
-    "@project516/ffmpeg": "*",
-    "@project516/util": "*",
+    "@project516/ffmpeg-wasm": "*",
+    "@project516/ffmpeg-wasm-util": "*",
     "vue": "^3.4.18"
   },
   "devDependencies": {

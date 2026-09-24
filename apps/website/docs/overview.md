@@ -54,8 +54,8 @@ be spawned by `ffmpeg-core` inside `ffmpeg.worker`
 :::info
 The concept of `core` in ffmpeg.wasm is like the engine of a car, it is not only
 the most important part of ffmpeg.wasm but also a swappable component. Currently
-we maintain single-thread (`@project516/core`) and multi-thread version
-(`@project516/core-mt`) cores, you can build your own core (ex. a core with x264
+we maintain single-thread (`@project516/ffmpeg-wasm-core`) and multi-thread version
+(`@project516/ffmpeg-wasm-core-mt`) cores, you can build your own core (ex. a core with x264
  lib only to minimize ffmpeg-core.wasm file size) using build scripts in the repository.
 :::
 
@@ -66,11 +66,11 @@ name space:
 
 | Name | Usage |
 | ---- | ----- |
-| @project516/ffmpeg | ffmpeg.wasm main package |
-| @project516/util | common utility functions |
-| @project516/types | TypeScript types |
-| @project516/core | single-thread ffmpeg.wasm core |
-| @project516/core-mt | multi-thread ffmpeg.wasm core |
+| @project516/ffmpeg-wasm | ffmpeg.wasm main package |
+| @project516/ffmpeg-wasm-util | common utility functions |
+| @project516/ffmpeg-wasm-types | TypeScript types |
+| @project516/ffmpeg-wasm-core | single-thread ffmpeg.wasm core |
+| @project516/ffmpeg-wasm-core-mt | multi-thread ffmpeg.wasm core |
 
 ## Libraries
 

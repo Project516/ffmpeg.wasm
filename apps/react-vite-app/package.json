@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@project516/ffmpeg": "*",
-    "@project516/util": "*",
+    "@project516/ffmpeg-wasm": "*",
+    "@project516/ffmpeg-wasm-util": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
