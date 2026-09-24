@@ -7,6 +7,30 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 
+# Migrating from @ffmpeg/* 0.12 to @project516/* 0.13
+
+This fork publishes under a new npm scope starting with 0.13.0, since it
+cannot publish to the upstream `@ffmpeg` scope. The API is unchanged; only
+package names and a couple of build-time details move.
+
+1. Swap the packages:
+
+   ```bash
+   pnpm remove @ffmpeg/ffmpeg @ffmpeg/util
+   pnpm add @project516/ffmpeg @project516/util
+   ```
+
+2. Update every import from `@ffmpeg/ffmpeg` and `@ffmpeg/util` to
+   `@project516/ffmpeg` and `@project516/util`.
+
+3. If you self-host the core, update its URL from `@ffmpeg/core` (or
+   `@ffmpeg/core-mt`) to `@project516/core` (or `@project516/core-mt`).
+
+4. Drop the `workerURL` option from `load()` if you set it, and remove any
+   reference to `ffmpeg-core.worker.js`. Current builds no longer emit that
+   file; the multi-threaded core's pthread worker is folded into
+   `ffmpeg-core.js`, and `workerURL` is now ignored.
+
 # Migrating from 0.11.x to 0.12+
 
 As 0.12+ is not backward compatible with 0.11.x, below is a quick mapping
