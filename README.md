@@ -24,11 +24,9 @@ The fork publishes under the `@project516` npm scope. The packages are drop-in r
 
 ## Documentation
 
-The docs below still point at the upstream docs site; this fork does not have its own site yet.
-
-- [Introduction](https://ffmpegwasm.netlify.app/docs/overview)
+- [Introduction](https://project516.github.io/ffmpeg.wasm/docs/overview)
 - [Getting
-    Started](https://ffmpegwasm.netlify.app/docs/getting-started/installation)
-- [API](https://ffmpegwasm.netlify.app/docs/api/ffmpeg/)
-- [FAQ](https://ffmpegwasm.netlify.app/docs/faq)
-- [Contribution](https://ffmpegwasm.netlify.app/docs/contribution/core)
+    Started](https://project516.github.io/ffmpeg.wasm/docs/getting-started/installation)
+- [API](https://project516.github.io/ffmpeg.wasm/docs/api/ffmpeg/)
+- [FAQ](https://project516.github.io/ffmpeg.wasm/docs/faq)
+- [Contribution](https://project516.github.io/ffmpeg.wasm/docs/contribution/core)

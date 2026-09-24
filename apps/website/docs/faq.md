@@ -29,8 +29,8 @@ it hard to implement RTSP protocol. Possible workarounds are still under investi
 
 There are two components inside ffmpeg.wasm:
 
-- @project516/ffmpeg (https://github.com/ffmpegwasm/ffmpeg.wasm/packages/ffmpeg)
-- @project516/core (https://github.com/ffmpegwasm/ffmpeg.wasm/packages/core)
+- @project516/ffmpeg (https://github.com/Project516/ffmpeg.wasm/tree/master/packages/ffmpeg)
+- @project516/core (https://github.com/Project516/ffmpeg.wasm/tree/master/packages/core)
 
 @project516/core contains WebAssembly code which is transpiled from original FFmpeg C code with minor modifications, but overall it still following the same licenses as FFmpeg and its external libraries (as each external libraries might have its own license).
 

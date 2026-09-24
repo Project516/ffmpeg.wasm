@@ -9,15 +9,15 @@ const config = {
   title: "ffmpeg.wasm",
   tagline:
     "ffmpeg.wasm is a pure WebAssembly / JavaScript port of FFmpeg enabling video & audio record, convert and stream right inside browsers!",
-  url: "https://ffmpegwasm.netlify.app",
-  baseUrl: "/",
+  url: "https://project516.github.io",
+  baseUrl: "/ffmpeg.wasm/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/favicon.ico",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "ffmpegwasm", // Usually your GitHub org/user name.
+  organizationName: "Project516", // Usually your GitHub org/user name.
   projectName: "ffmpeg.wasm", // Usually your repo name.
 
   // Even if you don't use internalization, you can use this field to set useful
@@ -38,14 +38,14 @@ const config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            "https://github.com/ffmpegwasm/ffmpeg.wasm/tree/main/apps/website",
+            "https://github.com/Project516/ffmpeg.wasm/tree/master/apps/website",
         },
         blog: {
           showReadingTime: true,
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            "https://github.com/ffmpegwasm/ffmpeg.wasm/tree/main/apps/website",
+            "https://github.com/Project516/ffmpeg.wasm/tree/master/apps/website",
         },
         theme: {
           customCss: [
@@ -55,10 +55,6 @@ const config = {
             require.resolve("@fontsource/roboto/500.css"),
             require.resolve("@fontsource/roboto/700.css"),
           ],
-        },
-        gtag: {
-          trackingID: "G-8NBTQ7N6RB",
-          anonymizeIP: true,
         },
       }),
     ],
@@ -83,7 +79,7 @@ const config = {
           { to: "/playground", label: "Playground", position: "left" },
           { to: "/blog", label: "Blog", position: "left" },
           {
-            href: "https://github.com/ffmpegwasm/ffmpeg.wasm",
+            href: "https://github.com/Project516/ffmpeg.wasm",
             label: "GitHub",
             position: "right",
           },
@@ -108,10 +104,6 @@ const config = {
                 label: "Stack Overflow",
                 href: "https://stackoverflow.com/questions/tagged/ffmpeg.wasm",
               },
-              {
-                label: "Discord",
-                href: "https://discord.gg/NjGMaqqfm5",
-              },
             ],
           },
           {
@@ -123,12 +115,12 @@ const config = {
               },
               {
                 label: "GitHub",
-                href: "https://github.com/ffmpegwasm/ffmpeg.wasm",
+                href: "https://github.com/Project516/ffmpeg.wasm",
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} ffmpeg.wasm, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} ffmpeg.wasm contributors. Built with Docusaurus.`,
       },
       prism: {
         theme: lightCodeTheme,
@@ -172,13 +164,6 @@ const config = {
     ],
   ],
   themes: ["@docusaurus/theme-live-codeblock"],
-  scripts: [
-    {
-      src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8688083214014126",
-      async: true,
-      crossorigin: "anonymous",
-    },
-  ],
 };
 
 module.exports = config;
