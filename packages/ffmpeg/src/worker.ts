@@ -53,17 +53,27 @@ const load = async ({
     if (!_coreURL) _coreURL = CORE_URL;
     // when web worker type is `classic`.
     importScripts(_coreURL);
-  } catch {
-    if (!_coreURL || _coreURL === CORE_URL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
-    // when web worker type is `module`.
-    (self as WorkerGlobalScope).createFFmpegCore = (
-      (await import(
-        /* @vite-ignore */ _coreURL
-      )) as ImportedFFmpegCoreModuleFactory
-    ).default;
+  } catch (importScriptsError) {
+    try {
+      if (!_coreURL || _coreURL === CORE_URL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
+      // when web worker type is `module`.
+      (self as WorkerGlobalScope).createFFmpegCore = (
+        (await import(
+          /* @vite-ignore */ _coreURL
+        )) as ImportedFFmpegCoreModuleFactory
+      ).default;
 
-    if (!(self as WorkerGlobalScope).createFFmpegCore) {
-      throw ERROR_IMPORT_FAILURE;
+      if (!(self as WorkerGlobalScope).createFFmpegCore) {
+        throw ERROR_IMPORT_FAILURE;
+      }
+    } catch (importError) {
+      // importScripts() failing is not always a worker-type mismatch, it can
+      // also be a genuine network/URL error (404, CORS, etc). Surface that
+      // original error instead of masking it behind the module-import one.
+      throw new Error(
+        `${ERROR_IMPORT_FAILURE.message}: ${(importScriptsError as Error).message}`,
+        { cause: importError }
+      );
     }
   }
 
