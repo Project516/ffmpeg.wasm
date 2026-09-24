@@ -24,6 +24,11 @@ CONF_FLAGS=(
   --dep-cc=emcc
   --extra-cflags="$CFLAGS"
   --extra-cxxflags="$CXXFLAGS"
+  # Every dependency here is a static-only build. Current upstream .pc files
+  # (vorbisenc, etc.) list their transitive deps under Requires.private,
+  # which plain `pkg-config --libs` ignores; --static tells pkg-config to
+  # include those too, or linking fails with undefined symbols/"not found".
+  --pkg-config-flags="--static"
 
   # disable thread when FFMPEG_ST is NOT defined
   ${FFMPEG_ST:+ --disable-pthreads --disable-w32threads --disable-os2threads}
