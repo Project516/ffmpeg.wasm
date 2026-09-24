@@ -187,6 +187,9 @@ importers:
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
+      puppeteer:
+        specifier: ^13.1.3
+        version: 13.7.0(supports-color@8.1.1)
       start-server-and-test:
         specifier: ^3.0.12
         version: 3.0.12(supports-color@8.1.1)
