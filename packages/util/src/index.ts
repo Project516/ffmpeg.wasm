@@ -69,7 +69,7 @@ export const fetchFile = async (
     return new Uint8Array(0);
   }
 
-  return new Uint8Array(data);
+  return data instanceof Uint8Array ? data : new Uint8Array(data);
 };
 
 /**
