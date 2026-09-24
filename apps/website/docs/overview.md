@@ -61,7 +61,7 @@ we maintain single-thread (`@project516/core`) and multi-thread version
 
 ## Packages
 
-All ffmpeg.wasm packages are under [@ffmpeg](https://www.npmjs.com/search?q=%40ffmpeg)
+All ffmpeg.wasm packages are under [@project516](https://www.npmjs.com/search?q=%40project516)
 name space:
 
 | Name | Usage |
