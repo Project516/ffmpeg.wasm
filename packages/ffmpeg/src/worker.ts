@@ -67,11 +67,13 @@ const load = async ({
         throw ERROR_IMPORT_FAILURE;
       }
     } catch (importError) {
-      // importScripts() failing is not always a worker-type mismatch, it can
-      // also be a genuine network/URL error (404, CORS, etc). Surface that
-      // original error instead of masking it behind the module-import one.
+      // Either failure can be the real one: importScripts() for a bad URL in
+      // a classic worker, import() in a module worker. The caller only sees
+      // the message, so it names both.
       throw new Error(
-        `${ERROR_IMPORT_FAILURE.message}: ${(importScriptsError as Error).message}`,
+        `${ERROR_IMPORT_FAILURE.message}: importScripts(): ${
+          (importScriptsError as Error).message
+        }; import(): ${(importError as Error).message}`,
         { cause: importError }
       );
     }
