@@ -1,4 +1,4 @@
-// Node.js tests for the @project516/ffmpeg wrapper: load, every
+// Node.js tests for the @project516/ffmpeg-wasm wrapper: load, every
 // FFMessageType the worker handles (exec, ffprobe, the filesystem calls,
 // mount/unmount, log/progress events), a timeout, and terminate, run
 // against both the st and the mt core. Select the core with
@@ -10,8 +10,8 @@
 // coverage here is what would catch the two drifting.
 import { createRequire } from "node:module";
 import { expect } from "chai";
-import { FFmpeg } from "@project516/ffmpeg";
-import { fetchFile } from "@project516/util";
+import { FFmpeg } from "@project516/ffmpeg-wasm";
+import { fetchFile } from "@project516/ffmpeg-wasm-util";
 
 const require = createRequire(import.meta.url);
 const { VIDEO_1S_MP4, b64ToUint8Array } = require("./test-helper-browser.js");
@@ -19,9 +19,10 @@ const { VIDEO_1S_MP4, b64ToUint8Array } = require("./test-helper-browser.js");
 const FFMPEG_TYPE = process.env.FFMPEG_TYPE === "mt" ? "mt" : "st";
 const genName = (name) => `[ffmpeg][node:${FFMPEG_TYPE}] ${name}`;
 
-// The st core is resolved from node_modules by FFmpeg.load() itself when no
-// coreURL is given (@project516/core). The mt core has no such default, so
-// it is pointed at explicitly; see the Node.js section of the usage docs.
+// The st core is resolved from node_modules by FFmpeg.load() itself when
+// no coreURL is given (@project516/ffmpeg-wasm-core). The mt core has no
+// such default, so it is pointed at explicitly; see the Node.js section
+// of the usage docs.
 const coreURL =
   FFMPEG_TYPE === "mt" ?
     new URL("../packages/core-mt/dist/esm/ffmpeg-core.js", import.meta.url)

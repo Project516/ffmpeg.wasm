@@ -5,7 +5,7 @@
 // is kept as its own copy instead of importing from worker.ts.
 import { parentPort } from "node:worker_threads";
 import type { TransferListItem } from "node:worker_threads";
-import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/types";
+import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
 import type {
   FFMessage,
   FFMessageLoadConfig,
@@ -37,9 +37,11 @@ if (!parentPort) {
 
 let ffmpeg: FFmpegCoreModule;
 
-// `@project516/core` resolves relative to the consuming project's own
-// node_modules, not this package, so a bare specifier is correct here.
-const defaultCoreURL = (): string => import.meta.resolve("@project516/core");
+// `@project516/ffmpeg-wasm-core` resolves relative to the consuming
+// project's own node_modules, not this package, so a bare specifier is
+// correct here.
+const defaultCoreURL = (): string =>
+  import.meta.resolve("@project516/ffmpeg-wasm-core");
 
 const load = async ({
   coreURL: _coreURL,

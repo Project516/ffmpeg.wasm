@@ -2,7 +2,7 @@
 
 ### Does ffmpeg.wasm support Node.js?
 
-Yes. `@project516/ffmpeg` runs the same worker code in a `worker_threads`
+Yes. `@project516/ffmpeg-wasm` runs the same worker code in a `worker_threads`
 Worker under Node.js instead of a browser Worker, and `load()` resolves the
 core from `node_modules` by default instead of the jsDelivr CDN. See
 [Usage](/docs/getting-started/usage#nodejs) for an example.

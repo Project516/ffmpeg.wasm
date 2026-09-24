@@ -448,15 +448,16 @@ Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/p
 
 ## Node.js
 
-`@project516/ffmpeg` runs the same code in Node.js, using a `worker_threads`
-Worker instead of a browser Worker. `load()` resolves `@project516/core`
-(the single-thread core) from `node_modules` by default, matching the
-browser default (`CORE_URL` also only points at the single-thread core), so
-`coreURL` is only needed to pick a custom build.
+`@project516/ffmpeg-wasm` runs the same code in Node.js, using a
+`worker_threads` Worker instead of a browser Worker. `load()` resolves
+`@project516/ffmpeg-wasm-core` (the single-thread core) from `node_modules`
+by default, matching the browser default (`CORE_URL` also only points at
+the single-thread core), so `coreURL` is only needed to pick a custom
+build.
 
 ```js
-import { FFmpeg } from '@project516/ffmpeg';
-import { fetchFile } from '@project516/util';
+import { FFmpeg } from '@project516/ffmpeg-wasm';
+import { fetchFile } from '@project516/ffmpeg-wasm-util';
 
 const ffmpeg = new FFmpeg();
 await ffmpeg.load();
@@ -473,14 +474,14 @@ of going through `fetch()`.
 
 ### Multithread core
 
-`@project516/core-mt` has no default resolution; install it and pass its
-`ffmpeg-core.js` path as `coreURL`:
+`@project516/ffmpeg-wasm-core-mt` has no default resolution; install it and
+pass its `ffmpeg-core.js` path as `coreURL`:
 
 ```js
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const coreURL = require.resolve('@project516/core-mt');
+const coreURL = require.resolve('@project516/ffmpeg-wasm-core-mt');
 
 const ffmpeg = new FFmpeg();
 await ffmpeg.load({ coreURL });
