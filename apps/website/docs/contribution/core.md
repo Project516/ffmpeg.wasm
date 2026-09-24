@@ -51,8 +51,8 @@ Find the stage that builds the library you want to remove and delete the entire 
 # Remove this entire block
 FROM emsdk-base AS libwebp-builder
 COPY --from=zlib-builder $INSTALL_DIR $INSTALL_DIR
-ENV LIBWEBP_BRANCH=v1.3.2
-ADD https://github.com/ffmpegwasm/libwebp.git#$LIBWEBP_BRANCH /src
+ENV LIBWEBP_BRANCH=v1.6.0
+ADD https://github.com/webmproject/libwebp.git#$LIBWEBP_BRANCH /src
 COPY build/libwebp.sh /src/build.sh
 RUN bash -x /src/build.sh
 ```
@@ -119,4 +119,4 @@ This approach gives you control over the build content and its final size.
 We would like to thank @Kaizodo, @harkdawg and other community members for sharing their knowledge!
 ## Publish
 
-Simply run `npm publish` under **packages/core** or **/packages/core-mt**.
+Simply run `pnpm publish` under **packages/core** or **/packages/core-mt**.

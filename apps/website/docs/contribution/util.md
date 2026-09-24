@@ -5,7 +5,7 @@ The source code of @project516/ffmpeg-wasm-util locates at **/packages/util**.
 ## Development
 
 ```bash
-$ npm run dev
+$ pnpm run dev
 ```
 
 ## Build
@@ -13,15 +13,15 @@ $ npm run dev
 Transpile Typescript to JavaScript.
 
 ```bash
-$ npm run build
+$ pnpm run build
 ```
 
 ## Lint
 
 ```bash
-$ npm run lint
+$ pnpm run lint
 ```
 
 ## Publish
 
-Simply run `npm publish` under **packages/util**.
+Simply run `pnpm publish` under **packages/util**.

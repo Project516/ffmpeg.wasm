@@ -8,12 +8,19 @@ ffmpeg.wasm only supports running in browser, see [FAQ](/docs/faq) for more
 details
 :::
 
-## Package Managers
+## Package managers
 
-Install ffmpeg.wasm using package managers like npm and yarn:
+Install ffmpeg.wasm using a package manager:
 
 <Tabs>
-<TabItem value="npm" label="npm" default>
+<TabItem value="pnpm" label="pnpm" default>
+
+```bash
+pnpm add @project516/ffmpeg-wasm @project516/ffmpeg-wasm-util
+```
+
+</TabItem>
+<TabItem value="npm" label="npm">
 
 ```bash
 npm install @project516/ffmpeg-wasm @project516/ffmpeg-wasm-util

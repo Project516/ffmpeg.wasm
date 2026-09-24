@@ -88,23 +88,23 @@ ffmpeg.wasm is built with toolchains / libraries:
         </TableHead>
         <TableBody>
           {[
-            {name: "Emscripten", version: "3.1.40", note: "Emscripten is a toolchain for compiling C and C++ code into WebAssembly and JavaScript, making it possible to run applications written in these languages in web browsers."},
-            {name: "FFmpeg", version: "n5.1.4", note: "FFmpeg is a powerful multimedia framework that can decode, encode, transcode, and stream audio and video files. It's widely used for media manipulation and streaming."},
-            {name: "x264", version: "0.164.x", note: "x264 is a popular video encoding library that provides high-quality H.264 video compression. It's commonly used for video encoding and transcoding."},
-            {name: "x265", version: "3.4", note: "x265 is a video encoding library that specializes in encoding videos using the H.265/HEVC codec, offering high compression efficiency for video content."},
-            {name: "libvpx", version: "v1.13.1", note: "libvpx is an open-source video codec library used for encoding and decoding VP8 and VP9 video formats, commonly used for web-based video streaming."},
-            {name: "lame", version: "3.100", note: "LAME is an audio encoder that converts audio files to the MP3 format, making it widely used for creating MP3 audio files."},
-            {name: "ogg", version: "v1.3.4", note: "Ogg is a multimedia container format, and this library provides support for encoding and decoding audio and video in the Ogg format."},
-            {name: "theora", version: "v1.1.1", note: "Theora is an open video codec designed for efficient video compression within the Ogg multimedia framework."},
-            {name: "opus", version: "v1.3.1", note: "Opus is a versatile audio codec capable of handling both voice and music with low latency and high-quality compression."},
-            {name: "vorbis", version: "v1.3.3", note: "Vorbis is an open-source audio codec known for its high audio quality and efficient compression. It's often used for audio streaming."},
-            {name: "zlib", version: "v1.2.11", note: "zlib is a compression library that provides data compression and decompression functionality, commonly used in file compression formats like gzip."},
-            {name: "libwebp", version: "v1.3.2", note: "libwebp is a library for working with the WebP image format, offering efficient image compression for web use"},
-            {name: "freetype2", version: "v2.10.4", note: "FreeType 2 is a library for rendering fonts. It is commonly used for text rendering in applications and systems."},
-            {name: "fribidi", version: "v1.0.9", note: "FriBidi is a library for handling bidirectional text (text containing both left-to-right and right-to-left scripts) and is often used in text layout and rendering."},
-            {name: "harfbuzz", version: "5.2.0", note: "HarfBuzz is a text shaping engine that allows complex script text to be rendered correctly. It's used in conjunction with font rendering libraries."},
-            {name: "libass", version: "0.15.0", note: "libass is a library for rendering and formatting subtitles in multimedia applications, making it essential for displaying subtitles alongside video content."},
-            {name: "zimg", version: "3.0.5", note: "zimg implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion."}
+            {name: "Emscripten", version: "6.0.10", note: "Emscripten is a toolchain for compiling C and C++ code into WebAssembly and JavaScript, making it possible to run applications written in these languages in web browsers. Version is the emsdk Docker image tag."},
+            {name: "FFmpeg", version: "n5.1.10", note: "FFmpeg is a powerful multimedia framework that can decode, encode, transcode, and stream audio and video files. Pinned to 5.1.x because the ffmpeg CLI needs real pthreads since 6.0; see \"FFmpeg upgrade plan\" in AGENTS.md."},
+            {name: "x264", version: "4-cores (branch)", note: "x264 is a popular video encoding library that provides high-quality H.264 video compression. Built from the ffmpegwasm mirror's 4-cores branch; upstream x264 has no stable release tags to move to."},
+            {name: "x265", version: "4.2", note: "x265 is a video encoding library that specializes in encoding videos using the H.265/HEVC codec, offering high compression efficiency for video content. Built from canonical upstream (multicoreware/x265_git)."},
+            {name: "libvpx", version: "v1.17.0", note: "libvpx is an open-source video codec library used for encoding and decoding VP8 and VP9 video formats, commonly used for web-based video streaming. Built from canonical upstream (webmproject/libvpx)."},
+            {name: "lame", version: "master (branch)", note: "LAME is an audio encoder that converts audio files to the MP3 format, making it widely used for creating MP3 audio files. Built from the ffmpegwasm mirror's master branch; upstream LAME has not tagged a release since 3.100 (2017)."},
+            {name: "ogg", version: "v1.3.6", note: "Ogg is a multimedia container format, and this library provides support for encoding and decoding audio and video in the Ogg format. Built from canonical upstream (xiph/ogg)."},
+            {name: "theora", version: "v1.1.1", note: "Theora is an open video codec designed for efficient video compression within the Ogg multimedia framework. Built from canonical upstream (xiph/theora); no release since 2010."},
+            {name: "opus", version: "v1.6.1", note: "Opus is a versatile audio codec capable of handling both voice and music with low latency and high-quality compression. Built from canonical upstream (xiph/opus)."},
+            {name: "vorbis", version: "v1.3.7", note: "Vorbis is an open-source audio codec known for its high audio quality and efficient compression. Built from canonical upstream (xiph/vorbis)."},
+            {name: "zlib", version: "v1.3.2", note: "zlib is a compression library that provides data compression and decompression functionality, commonly used in file compression formats like gzip. Built from canonical upstream (madler/zlib)."},
+            {name: "libwebp", version: "v1.6.0", note: "libwebp is a library for working with the WebP image format, offering efficient image compression for web use. Built from canonical upstream (webmproject/libwebp)."},
+            {name: "freetype2", version: "VER-2-14-3 (2.14.3)", note: "FreeType 2 is a library for rendering fonts. Built from canonical upstream, which moved to gitlab.freedesktop.org."},
+            {name: "fribidi", version: "v1.0.17", note: "FriBidi is a library for handling bidirectional text (text containing both left-to-right and right-to-left scripts) and is often used in text layout and rendering."},
+            {name: "harfbuzz", version: "8.5.0", note: "HarfBuzz is a text shaping engine that allows complex script text to be rendered correctly. Pinned to the last release before harfbuzz dropped its autotools build for meson-only."},
+            {name: "libass", version: "0.17.5", note: "libass is a library for rendering and formatting subtitles in multimedia applications, making it essential for displaying subtitles alongside video content."},
+            {name: "zimg", version: "release-3.0.6 (3.0.6)", note: "zimg implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion."}
            ].map((row) => (
             <TableRow
               key={row.name}

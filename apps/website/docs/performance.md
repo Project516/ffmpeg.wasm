@@ -1,10 +1,9 @@
 # Performance
 
-ffmpeg.wasm uses transpiled FFmpeg C source code to WebAssembly code, it is for
-certain that ffmpeg.wasm won't perform as good as FFmpeg as it is not fully
-optimized at the moment. (Even in ffmpeg.wasm multithread version). In this
-section we provide a short comparison, so that you can make decision based on your
-needs:
+ffmpeg.wasm uses transpiled FFmpeg C source code to WebAssembly code, so it
+does not perform as well as native FFmpeg, even with the multithread core.
+This section has a comparison from an earlier release, so you can size the
+gap when deciding whether ffmpeg.wasm fits your use case:
 
 ## Environment
 
