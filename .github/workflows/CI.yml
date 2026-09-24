@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node.js
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Update pkg-config database
         run: sudo ldconfig
       - name: Setup Docker Buildx
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Expose Actions cache runtime to buildx
@@ -79,7 +79,7 @@ jobs:
       - build-core-mt
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Download ffmpeg-core
         uses: actions/download-artifact@v4
         with:
