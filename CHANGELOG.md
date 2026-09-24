@@ -24,12 +24,12 @@ First release of the fork under the `@project516` npm scope.
 
 - A worker that fails to load or crashes now rejects every pending call
   instead of hanging, and is terminated so a later `load()` can recover.
-- The original `importScripts` error is now reported when a core import
-  fails, instead of a generic message.
+- When the core fails to load, the error names both the `importScripts()`
+  and the `import()` failure instead of a generic message.
 - Abort listeners are removed once a message settles, instead of
   accumulating.
-- The UMD build uses a classic worker and the ESM build a module worker,
-  fixing the UMD bundle when loaded from a plain `<script>` tag.
+- The UMD build starts a classic worker and the ESM build a module worker,
+  so each build loads the core the way its worker type supports.
 - `exec()` and `ffprobe()` now free their argv allocation and restore the
   wasm stack pointer in a `finally` block, fixing a memory leak across
   repeated calls.
@@ -61,5 +61,4 @@ First release of the fork under the `@project516` npm scope.
 ### Credits
 
 Several fixes in this release port work from upstream `ffmpegwasm/ffmpeg.wasm`
-contributors: Ben Younes, chenm, Daniel Barta, Mrmaxmeier, Todd, and
-落日归山海.
+contributors: Ben Younes, Daniel Barta, Mrmaxmeier, and 落日归山海.
