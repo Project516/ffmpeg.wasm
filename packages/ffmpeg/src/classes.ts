@@ -18,7 +18,14 @@ import {
   FFFSPath,
 } from "./types.js";
 import { getMessageID } from "./utils.js";
-import { ERROR_TERMINATED, ERROR_NOT_LOADED } from "./errors.js";
+import { ERROR_TERMINATED, ERROR_NOT_LOADED, ERROR_WORKER } from "./errors.js";
+
+declare const __FFMPEG_WORKER_TYPE__: WorkerType;
+
+// Set by webpack's DefinePlugin for the UMD build; falls back to "module"
+// for the ESM build, which runs as-is with no bundling step.
+const WORKER_TYPE: WorkerType =
+  typeof __FFMPEG_WORKER_TYPE__ === "undefined" ? "module" : __FFMPEG_WORKER_TYPE__;
 
 type FFMessageOptions = {
   signal?: AbortSignal;
@@ -87,6 +94,17 @@ export class FFmpeg {
         delete this.#resolves[id];
         delete this.#rejects[id];
       };
+      this.#worker.onerror = () => {
+        const rejects = { ...this.#rejects };
+        this.#rejects = {};
+        this.#resolves = {};
+        this.#worker?.terminate();
+        this.#worker = null;
+        this.loaded = false;
+        for (const reject of Object.values(rejects)) {
+          reject(ERROR_WORKER);
+        }
+      };
     }
   };
 
@@ -105,16 +123,24 @@ export class FFmpeg {
     return new Promise((resolve, reject) => {
       const id = getMessageID();
       this.#worker?.postMessage({ id, type, data }, trans);
-      this.#resolves[id] = resolve;
-      this.#rejects[id] = reject;
 
-      signal?.addEventListener(
-        "abort",
-        () => {
-          reject(new DOMException(`Message # ${id} was aborted`, "AbortError"));
-        },
-        { once: true }
-      );
+      const onAbort = () => {
+        reject(new DOMException(`Message # ${id} was aborted`, "AbortError"));
+      };
+      // Drop the abort listener once the message settles, so it does not
+      // stay attached for the lifetime of a long-lived signal.
+      this.#resolves[id] = (data) => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve(data);
+      };
+      this.#rejects[id] = (data) => {
+        signal?.removeEventListener("abort", onAbort);
+        // Worker errors arrive as strings, and callers catch them as is.
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+        reject(data);
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
     });
   };
 
@@ -191,12 +217,12 @@ export class FFmpeg {
     if (!this.#worker) {
       this.#worker = classWorkerURL ?
         new Worker(new URL(classWorkerURL, import.meta.url), {
-          type: "module",
+          type: WORKER_TYPE,
         }) :
         // We need to duplicated the code here to enable webpack
         // to bundle worker.js here.
         new Worker(new URL("./worker.js", import.meta.url), {
-          type: "module",
+          type: WORKER_TYPE,
         });
       this.#registerHandlers();
     }
