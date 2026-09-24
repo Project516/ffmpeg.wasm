@@ -38,8 +38,9 @@ if (!parentPort) {
 let ffmpeg: FFmpegCoreModule;
 // Set synchronously, before any `await`, so a second LOAD message that
 // arrives while the first is still loading sees this already true instead
-// of both computing `first: true`. Kept in sync with worker.ts's identical
-// guard.
+// of both computing `first: true`. Reset on failure (below, in `load`) so
+// a retry after a failed load still reports `first: true`. Kept in sync
+// with worker.ts's identical guard.
 let loadStarted = false;
 
 // `@project516/ffmpeg-wasm-core` resolves relative to the consuming
@@ -48,12 +49,10 @@ let loadStarted = false;
 const defaultCoreURL = (): string =>
   import.meta.resolve("@project516/ffmpeg-wasm-core");
 
-const load = async ({
+const doLoad = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
-}: FFMessageLoadConfig): Promise<IsFirst> => {
-  const first = !loadStarted;
-  loadStarted = true;
+}: FFMessageLoadConfig): Promise<void> => {
   const coreURL = _coreURL || defaultCoreURL();
   const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/\.js$/, ".wasm");
 
@@ -79,7 +78,20 @@ const load = async ({
   ffmpeg.setProgress((data) =>
     parentPort!.postMessage({ type: FFMessageType.PROGRESS, data })
   );
-  return first;
+};
+
+const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
+  const first = !loadStarted;
+  loadStarted = true;
+  try {
+    await doLoad(config);
+    return first;
+  } catch (e) {
+    // The core never loaded, so a later retry should get another chance
+    // to report first: true.
+    if (!ffmpeg) loadStarted = false;
+    throw e;
+  }
 };
 
 const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {

@@ -43,16 +43,14 @@ interface ImportedFFmpegCoreModuleFactory {
 let ffmpeg: FFmpegCoreModule;
 // Set synchronously, before any `await`, so a second LOAD message that
 // arrives while the first is still loading sees this already true instead
-// of both computing `first: true`.
+// of both computing `first: true`. Reset on failure (below, in `load`) so
+// a retry after a failed load still reports `first: true`.
 let loadStarted = false;
 
-const load = async ({
+const doLoad = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
-}: FFMessageLoadConfig): Promise<IsFirst> => {
-  const first = !loadStarted;
-  loadStarted = true;
-
+}: FFMessageLoadConfig): Promise<void> => {
   try {
     if (!_coreURL) _coreURL = CORE_URL;
     // when web worker type is `classic`.
@@ -105,7 +103,20 @@ const load = async ({
       data,
     })
   );
-  return first;
+};
+
+const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
+  const first = !loadStarted;
+  loadStarted = true;
+  try {
+    await doLoad(config);
+    return first;
+  } catch (e) {
+    // The core never loaded, so a later retry should get another chance
+    // to report first: true.
+    if (!ffmpeg) loadStarted = false;
+    throw e;
+  }
 };
 
 const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {

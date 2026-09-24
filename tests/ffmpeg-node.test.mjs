@@ -61,6 +61,24 @@ describe(genName("concurrent load()"), function () {
       ffmpeg.terminate();
     }
   });
+
+  it("still resolves first=true on the first successful load() after an earlier one failed", async () => {
+    const ffmpeg = new FFmpeg();
+    try {
+      let failed = false;
+      try {
+        await ffmpeg.load({ coreURL: "file:///does-not-exist.js" });
+      } catch {
+        failed = true;
+      }
+      expect(failed).to.be.true;
+
+      const first = await load(ffmpeg);
+      expect(first).to.be.true;
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
 });
 
 describe(genName("FFmpeg"), function () {

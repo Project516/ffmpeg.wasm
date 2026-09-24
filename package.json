@@ -20,7 +20,7 @@
     "test:node:core:mt": "pnpm run test:node --require tests/test-helper-mt.js tests/ffmpeg-core.test.js",
     "test:node:core:st": "pnpm run test:node --require tests/test-helper-st.js tests/ffmpeg-core.test.js",
     "test:node:ffmpeg:st": "pnpm run test:node tests/ffmpeg-node.test.mjs",
-    "test:node:ffmpeg:mt": "FFMPEG_TYPE=mt pnpm run test:node tests/ffmpeg-node.test.mjs",
+    "test:node:ffmpeg:mt": "cross-env FFMPEG_TYPE=mt pnpm run test:node tests/ffmpeg-node.test.mjs",
     "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
@@ -30,6 +30,7 @@
     "@project516/ffmpeg-wasm-core-mt": "workspace:*",
     "@project516/ffmpeg-wasm-util": "workspace:*",
     "chai": "^6.2.2",
+    "cross-env": "^10.1.0",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
     "mocha": "^12.0.2",
