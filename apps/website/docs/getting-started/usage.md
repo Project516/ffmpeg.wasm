@@ -11,12 +11,12 @@ It is recommended to read [Overview](/docs/overview) first.
 :::caution
 If you are a [vite](https://vitejs.dev/) user, use `esm` in **baseURL** instead of `umd`:
 
-~~https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd~~ => https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/esm
+~~https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd~~ => https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/esm
 :::
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile, toBlobURL } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile, toBlobURL } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -24,7 +24,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -72,8 +72,8 @@ you have have fulfilled [Security Requirements](https://developer.mozilla.org/en
 :::
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile, toBlobURL } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile, toBlobURL } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -81,7 +81,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core-mt@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -125,8 +125,8 @@ function() {
 ## Transcode video with timeout
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -134,7 +134,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -183,8 +183,8 @@ function() {
 :::
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -192,7 +192,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         // Listen to progress event instead of log.
         ffmpeg.on('progress', ({ progress, time }) => {
@@ -234,8 +234,8 @@ function() {
 ## Split video into segments of equal duration
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -243,7 +243,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -304,8 +304,8 @@ function() {
 ## Display Text on the video
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -313,7 +313,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -363,8 +363,8 @@ function() {
 ## Interlace 2 Videos
 
 ```jsx live
-// import { FFmpeg } from '@project516/ffmpeg';
-// import { fetchFile } from '@project516/util';
+// import { FFmpeg } from '@project516/ffmpeg-wasm';
+// import { fetchFile } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -372,7 +372,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core@0.13.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -426,8 +426,8 @@ function() {
 :::note
 Required:
 
-- @project516/ffmpeg@0.12.10+
-- @project516/core@0.12.4+
+- @project516/ffmpeg-wasm@0.12.10+
+- @project516/ffmpeg-wasm-core@0.12.4+
   :::
 
 Please Check this PR: [Add WORKERFS support](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/581)
@@ -437,8 +437,8 @@ Please Check this PR: [Add WORKERFS support](https://github.com/ffmpegwasm/ffmpe
 :::note
 Required:
 
-- @project516/ffmpeg@0.12.10+
-- @project516/core@0.12.4+
+- @project516/ffmpeg-wasm@0.12.10+
+- @project516/ffmpeg-wasm-core@0.12.4+
   :::
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)

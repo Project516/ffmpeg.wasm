@@ -1,6 +1,6 @@
 {
-  "name": "@project516/core-mt",
-  "version": "0.13.0",
+  "name": "@project516/ffmpeg-wasm-core-mt",
+  "version": "0.13.1",
   "description": "FFmpeg WebAssembly version (multi thread)",
   "main": "./dist/umd/ffmpeg-core.js",
   "exports": {

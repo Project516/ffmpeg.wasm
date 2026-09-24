@@ -1,6 +1,6 @@
-# @project516/util
+# @project516/ffmpeg-wasm-util
 
-The source code of @project516/util locates at **/packages/util**.
+The source code of @project516/ffmpeg-wasm-util locates at **/packages/util**.
 
 ## Development
 

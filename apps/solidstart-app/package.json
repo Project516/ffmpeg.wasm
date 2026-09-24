@@ -7,8 +7,8 @@
 		"start": "vinxi start"
 	},
 	"dependencies": {
-		"@project516/ffmpeg": "^0.13.0",
-		"@project516/util": "^0.13.0",
+		"@project516/ffmpeg-wasm": "^0.13.1",
+		"@project516/ffmpeg-wasm-util": "^0.13.1",
 		"@solidjs/router": "^0.14.1",
 		"@solidjs/start": "^1.0.4",
 		"autoprefixer": "^10.4.19",

@@ -1,6 +1,6 @@
 {
-  "name": "@project516/ffmpeg",
-  "version": "0.13.0",
+  "name": "@project516/ffmpeg-wasm",
+  "version": "0.13.1",
   "description": "FFmpeg WebAssembly version for browser",
   "main": "./dist/umd/ffmpeg.js",
   "types": "./dist/esm/index.d.ts",
@@ -64,6 +64,6 @@
     "webpack-cli": "^7.2.3"
   },
   "dependencies": {
-    "@project516/types": "workspace:^"
+    "@project516/ffmpeg-wasm-types": "workspace:^"
   }
 }

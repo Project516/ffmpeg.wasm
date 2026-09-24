@@ -16,20 +16,20 @@ Install ffmpeg.wasm using package managers like npm and yarn:
 <TabItem value="npm" label="npm" default>
 
 ```bash
-npm install @project516/ffmpeg @project516/util
+npm install @project516/ffmpeg-wasm @project516/ffmpeg-wasm-util
 ```
 
 </TabItem>
 <TabItem value="yarn" label="yarn">
 
 ```bash
-yarn add @project516/ffmpeg @project516/util
+yarn add @project516/ffmpeg-wasm @project516/ffmpeg-wasm-util
 ```
 
 </TabItem>
 </Tabs>
 
 :::info
-As `@project516/ffmpeg` spawns a web worker, you cannot import `@project516/ffmpeg` from CDN like
+As `@project516/ffmpeg-wasm` spawns a web worker, you cannot import `@project516/ffmpeg-wasm` from CDN like
 jsdelivr. It is recommended to download it and host it on your server most of the time.
 :::

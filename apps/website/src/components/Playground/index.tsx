@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FFmpeg } from "@project516/ffmpeg";
-import { toBlobURL } from "@project516/util";
+import { FFmpeg } from "@project516/ffmpeg-wasm";
+import { toBlobURL } from "@project516/ffmpeg-wasm-util";
 import Stack from "@mui/material/Stack";
 import MuiThemeProvider from "@site/src/components/common/MuiThemeProvider";
 import CoreDownloader from "./CoreDownloader";

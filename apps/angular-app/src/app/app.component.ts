@@ -1,10 +1,10 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
-import { FFmpeg } from '@project516/ffmpeg';
-import { fetchFile, toBlobURL } from '@project516/util';
+import { FFmpeg } from '@project516/ffmpeg-wasm';
+import { fetchFile, toBlobURL } from '@project516/ffmpeg-wasm-util';
 
-const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core-mt@0.13.0/dist/esm';
+const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.13.1/dist/esm';
 
 @Component({
   selector: 'app-root',

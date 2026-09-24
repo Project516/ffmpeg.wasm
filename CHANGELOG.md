@@ -3,6 +3,24 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.13.1
+
+### Breaking changes
+
+- Every package is renamed with an `ffmpeg-wasm` prefix:
+
+  | 0.13.0 | 0.13.1 |
+  | --- | --- |
+  | `@project516/ffmpeg` | `@project516/ffmpeg-wasm` |
+  | `@project516/util` | `@project516/ffmpeg-wasm-util` |
+  | `@project516/core` | `@project516/ffmpeg-wasm-core` |
+  | `@project516/core-mt` | `@project516/ffmpeg-wasm-core-mt` |
+  | `@project516/types` | `@project516/ffmpeg-wasm-types` |
+
+  The 0.13.0 packages under the old names are unpublished. The default core
+  URL now points at `@project516/ffmpeg-wasm-core` on jsDelivr. The code is
+  otherwise the same as 0.13.0.
+
 ## 0.13.0
 
 First release of the fork under the `@project516` npm scope.

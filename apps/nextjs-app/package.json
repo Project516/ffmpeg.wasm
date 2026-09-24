@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@project516/ffmpeg": "*",
-    "@project516/util": "*",
+    "@project516/ffmpeg-wasm": "*",
+    "@project516/ffmpeg-wasm-util": "*",
     "@types/node": "20.4.9",
     "@types/react": "18.2.20",
     "@types/react-dom": "18.2.7",
