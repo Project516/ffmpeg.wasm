@@ -58,9 +58,12 @@ class NodeWorkerAdapter {
   terminate(): void {
     // FFmpeg.terminate() does not await; worker_threads.terminate()
     // returns a promise but nothing here needs to wait on shutdown. The
-    // catch is only there so a failed shutdown doesn't surface as an
-    // unhandled rejection; there's nothing more useful to do with it here.
-    this.#worker.terminate().catch(() => {});
+    // catch logs rather than swallowing the error outright, so a failed
+    // shutdown is visible somewhere instead of only avoiding an unhandled
+    // rejection.
+    this.#worker.terminate().catch((e: unknown) => {
+      console.error("ffmpeg.wasm: failed to terminate the Node worker:", e);
+    });
   }
 }
 
