@@ -8,7 +8,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ffmpegwasm/ffmpeg.wasm.git"
+    "url": "git+https://github.com/Project516/ffmpeg.wasm.git"
   },
   "keywords": [
     "ffmpeg",
@@ -20,12 +20,12 @@
   "author": "Jerome Wu <jeromewus@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ffmpegwasm/ffmpeg.wasm/issues"
+    "url": "https://github.com/Project516/ffmpeg.wasm/issues"
   },
   "engines": {
-    "node": ">=16.x"
+    "node": ">=20"
   },
-  "homepage": "https://github.com/ffmpegwasm/ffmpeg.wasm#readme",
+  "homepage": "https://github.com/Project516/ffmpeg.wasm#readme",
   "publishConfig": {
     "access": "public"
   }
