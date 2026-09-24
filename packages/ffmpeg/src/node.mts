@@ -1,13 +1,15 @@
 // Node.js entry point, selected by the "node" condition in package.json.
-// classes.ts constructs its worker with a literal `new Worker(new
-// URL(...), ...)` expression; webpack's WorkerPlugin pattern-matches on
-// that exact shape to find and bundle worker.js, so classes.ts is not
-// touched here (wrapping the call in an injected factory function broke
-// that detection once already). Instead this polyfills the global `Worker`
-// that expression resolves to, with an adapter backed by `worker_threads`,
-// before classes.ts ever runs.
+// classes.ts must keep the literal `new Worker(new URL(...), ...)`
+// expression in load(); webpack's WorkerPlugin detects the worker entry
+// (worker.js) from that exact shape, so classes.ts is not touched here.
+// Instead, FFmpeg below installs a `worker_threads`-backed adapter as the
+// global `Worker` that expression resolves to, but only for the duration
+// of load()'s synchronous setup (it constructs `this.#worker` before any
+// `await`), so the rest of the process never observes a global `Worker`.
 import { Worker as NodeWorker } from "node:worker_threads";
 import type { TransferListItem } from "node:worker_threads";
+import { FFmpeg as FFmpegBase } from "./classes.js";
+import type { FFMessageLoadConfig } from "./types.js";
 
 class NodeWorkerAdapter {
   #worker: NodeWorker;
@@ -52,8 +54,39 @@ class NodeWorkerAdapter {
   }
 }
 
-(globalThis as { Worker?: unknown }).Worker = NodeWorkerAdapter;
+type GlobalWithWorker = Omit<typeof globalThis, "Worker"> & {
+  Worker?: unknown;
+};
 
-export { FFmpeg } from "./classes.js";
+export class FFmpeg extends FFmpegBase {
+  constructor() {
+    super();
+    const baseLoad = this.load;
+    // Narrow the window the global `Worker` polyfill exists in to just
+    // this synchronous call: load() reads `Worker` to construct its
+    // worker before returning (and before any await), so the assignment
+    // can be undone right after calling through, rather than staying
+    // installed for the process's lifetime.
+    this.load = ((
+      config?: FFMessageLoadConfig,
+      options?: Parameters<typeof baseLoad>[1]
+    ) => {
+      const global = globalThis as GlobalWithWorker;
+      const hadWorker = "Worker" in global;
+      const previousWorker = global.Worker;
+      global.Worker = NodeWorkerAdapter;
+      try {
+        return baseLoad(config, options);
+      } finally {
+        if (hadWorker) {
+          global.Worker = previousWorker;
+        } else {
+          delete global.Worker;
+        }
+      }
+    });
+  }
+}
+
 export * from "./types.js";
 export * from "./const.js";

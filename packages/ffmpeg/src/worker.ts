@@ -177,6 +177,8 @@ self.onmessage = async ({
   try {
     if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED; // eslint-disable-line
 
+    // KEEP THIS SWITCH IN SYNC WITH worker-node-entry.mts's: both must
+    // handle the same set of FFMessageType cases.
     switch (type) {
       case FFMessageType.LOAD:
         data = await load(_data as FFMessageLoadConfig);

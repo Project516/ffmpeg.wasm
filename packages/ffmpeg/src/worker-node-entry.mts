@@ -1,12 +1,8 @@
-// Node.js worker_threads entry point, spawned by classes.ts's Node
-// `createWorker` (see node.mts) in place of the browser Worker used by
-// worker.ts. Deliberately not sharing code with worker.ts: webpack fully
-// inlines worker.ts's own sibling imports (const.js, errors.js) into a
-// single classic-script chunk for the browser bundle, but does not resolve
-// through an extra shared module the same way, which broke that bundle.
-// This file isn't part of the webpack build at all (nothing reachable from
-// index.js imports it), so the small duplication here is the trade-off for
-// leaving worker.ts's bundling behavior alone.
+// Node.js worker_threads entry point. node.mts points its Worker adapter
+// at this file instead of the browser's worker.js. worker.ts is part of
+// webpack's bundled browser worker chunk (see node.mts's header comment
+// on why that chunk is fragile to touch), so the message dispatch below
+// is kept as its own copy instead of importing from worker.ts.
 import { parentPort } from "node:worker_threads";
 import type { TransferListItem } from "node:worker_threads";
 import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/types";
@@ -148,6 +144,8 @@ const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
   try {
     if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED; // eslint-disable-line
 
+    // KEEP THIS SWITCH IN SYNC WITH worker.ts's: both must handle the same
+    // set of FFMessageType cases.
     switch (type) {
       case FFMessageType.LOAD:
         result = await load((data ?? {}) as FFMessageLoadConfig);
