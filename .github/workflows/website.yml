@@ -52,6 +52,9 @@ jobs:
       - name: Install website dependencies
         working-directory: apps/website
         run: pnpm install --frozen-lockfile
+      - name: Typecheck website
+        working-directory: apps/website
+        run: pnpm run typecheck
       - name: Build website
         working-directory: apps/website
         run: pnpm build

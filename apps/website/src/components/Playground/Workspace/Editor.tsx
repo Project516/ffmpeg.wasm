@@ -44,7 +44,7 @@ export default function Editor({
   onExec,
 }: EditorProps) {
   const { colorMode } = useColorMode();
-  const [output, setOutput] = useState<Ace.Editor>();
+  const [output, setOutput] = useState<AceAjax.Editor>();
 
   useEffect(() => {
     // scroll logs to the end.
@@ -107,7 +107,11 @@ export default function Editor({
         />
         <Typography>Transcoding Progress:</Typography>
         <LinearProgressWithLabel value={progress} />
-        <Stack direction="row" spacing={2} justifyContent="space-between">
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ justifyContent: "space-between" }}
+        >
           <Typography>
             {time === 0 ? "" : `Time Elapsed: ${(time / 1000).toFixed(2)} s`}
           </Typography>

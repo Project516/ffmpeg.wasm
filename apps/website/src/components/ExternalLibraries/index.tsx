@@ -63,7 +63,12 @@ const libs: LibraryItem[] = [
   },
 ];
 
-function Library({ title, desc, img, isBlackBackground = false }: LibraryItem) {
+const Library: React.FC<LibraryItem> = ({
+  title,
+  desc,
+  img,
+  isBlackBackground = false,
+}) => {
   return (
     <div className={clsx("col col--2")}>
       <div className="text--center">
@@ -81,9 +86,9 @@ function Library({ title, desc, img, isBlackBackground = false }: LibraryItem) {
       </div>
     </div>
   );
-}
+};
 
-export default function ExternalLibraries(): JSX.Element {
+export default function ExternalLibraries(): React.JSX.Element {
   return (
     <section className={styles.libraries}>
       <div className="container">
@@ -95,7 +100,7 @@ export default function ExternalLibraries(): JSX.Element {
         </h4>
         <div className="row">
           {libs.map((props, idx) => (
-            <Library key={idx} {...props} />
+            <Library {...props} key={idx} />
           ))}
         </div>
       </div>
