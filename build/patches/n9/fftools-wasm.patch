@@ -611,3 +611,39 @@ diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
  }
 
  void av_cpu_force_count(int count)
+diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
+--- a/fftools/ffmpeg_sched.c	2026-09-24 14:46:32.708700749 -0500
++++ b/fftools/ffmpeg_sched.c	2026-09-24 14:46:22.990288416 -0500
+@@ -2713,6 +2713,18 @@
+     }
+ }
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: identify which scheduler task a cooperative fiber is running
++ * when it never returns to the scheduler, since av_log goes through
++ * bind.js's Module.logger (a no-op unless a caller sets one). Remove once
++ * the st core's transcode hang under src/pthread-fiber is root-caused. */
++#include <emscripten.h>
++EM_JS(void, wasm_st_task_trace, (int type, unsigned idx, int starting), {
++    console.error("task_wrapper: " + (starting ? "enter" : "exit") +
++                  " type=" + type + " idx=" + idx);
++});
++#endif
++
+ static void *task_wrapper(void *arg)
+ {
+     SchTask  *task = arg;
+@@ -2720,7 +2732,13 @@
+     int ret;
+     int err = 0;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_task_trace(task->node.type, task->node.idx, 1);
++#endif
+     ret = task->func(task->func_arg);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_task_trace(task->node.type, task->node.idx, 0);
++#endif
+     if (ret < 0)
+         av_log(task->func_arg, AV_LOG_ERROR,
+                "Task finished with error code: %d (%s)\n", ret, av_err2str(ret));
