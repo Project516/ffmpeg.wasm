@@ -68,3 +68,8 @@ SAVE
 END
 EOF
 emmake make install -j
+
+# x265.pc lists host runtime libs (gcc_s, rt, dl, pthread, numa) in
+# Libs.private. They do not exist under emscripten, and FFmpeg's configure
+# reads them because it runs pkg-config with --static.
+sed -i -E '/^Libs.private:/s/ -l(gcc|gcc_s|rt|dl|pthread|numa)\b//g' $INSTALL_DIR/lib/pkgconfig/x265.pc
