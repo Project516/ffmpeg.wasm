@@ -17,7 +17,22 @@ const importNodeFS = (): Promise<typeof import("node:fs/promises")> =>
   import(NODE_FS_SPECIFIER) as Promise<typeof import("node:fs/promises")>;
 
 const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
-  const fs = await importNodeFS();
+  let fs;
+  try {
+    fs = await importNodeFS();
+  } catch (e) {
+    // isNode() is true (process.versions.node is set) in some restricted
+    // environments that still can't load node:fs/promises, notably an
+    // Electron renderer without nodeIntegration. Fail with something more
+    // useful than the raw import error.
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      "fetchFile() detected Node.js but could not load node:fs/promises " +
+        "to read a local path; if you're in an Electron renderer, enable " +
+        `nodeIntegration or fetch the file yourself and pass the bytes ` +
+        `directly. (${reason})`
+    );
+  }
   return fs.readFile(path);
 };
 

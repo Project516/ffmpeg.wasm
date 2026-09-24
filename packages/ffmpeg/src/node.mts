@@ -11,10 +11,18 @@ import type { TransferListItem } from "node:worker_threads";
 import { FFmpeg as FFmpegBase } from "./classes.js";
 import type { FFMessageLoadConfig } from "./types.js";
 
+// classes.ts's onmessage/onerror handlers only read `.data` and `.message`
+// off the browser's MessageEvent/ErrorEvent, so NodeWorkerAdapter declares
+// just that much instead of the full DOM event shape, and builds plain
+// objects for it rather than casting a worker_threads value to a DOM type
+// it never actually is.
+type MinimalMessageEvent = { data: unknown };
+type MinimalErrorEvent = { message: string };
+
 class NodeWorkerAdapter {
   #worker: NodeWorker;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessage: ((event: MinimalMessageEvent) => void) | null = null;
+  onerror: ((event: MinimalErrorEvent) => void) | null = null;
 
   // classes.ts always passes a WorkerOptions second argument ({ type }),
   // which only matters for a real browser Worker; nothing here reads it.
@@ -30,16 +38,10 @@ class NodeWorkerAdapter {
 
     this.#worker = new NodeWorker(entryURL);
     this.#worker.on("message", (data: unknown) => {
-      // classes.ts's onmessage handler only reads `.data` off this object;
-      // a real MessageEvent's other fields (origin, ports, ...) have no
-      // Node worker_threads equivalent and are never read.
-      this.onmessage?.({ data } as MessageEvent);
+      this.onmessage?.({ data });
     });
     this.#worker.on("error", (error: Error) => {
-      // classes.ts's onerror handler only reads `.message`, which a plain
-      // Error has too, so this stands in for the browser's ErrorEvent
-      // without needing a real one.
-      this.onerror?.(error as unknown as ErrorEvent);
+      this.onerror?.({ message: error.message });
     });
   }
 
