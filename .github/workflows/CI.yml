@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v5
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -91,7 +91,7 @@ jobs:
           name: ffmpeg-core-mt
           path: packages/core-mt/dist
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
