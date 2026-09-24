@@ -8,7 +8,6 @@ export const CORE_SIZE = {
   [`https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@${CORE_VERSION}/dist/umd/ffmpeg-core.wasm`]: 32129114,
   [`https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@${CORE_VERSION}/dist/umd/ffmpeg-core.js`]: 132680,
   [`https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@${CORE_VERSION}/dist/umd/ffmpeg-core.wasm`]: 32609891,
-  [`https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@${CORE_VERSION}/dist/umd/ffmpeg-core.worker.js`]: 2915,
 };
 
 export const SAMPLE_FILES = {

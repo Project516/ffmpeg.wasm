@@ -30,6 +30,7 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
   const [progress, setProgress] = useState(0);
   const [time, setTime] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
+  const [samplesLoading, setSamplesLoading] = useState(false);
 
   const ffmpeg = _ffmpeg.current;
 
@@ -123,16 +124,29 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
   };
 
   const onLoadSamples = async () => {
-    for (const name of Object.keys(SAMPLE_FILES)) {
-      await ffmpeg.writeFile(name, await fetchFile(SAMPLE_FILES[name]));
+    setSamplesLoading(true);
+    try {
+      for (const name of Object.keys(SAMPLE_FILES)) {
+        await ffmpeg.writeFile(name, await fetchFile(SAMPLE_FILES[name]));
+      }
+      refreshDir(path);
+    } finally {
+      setSamplesLoading(false);
     }
-    refreshDir(path);
   };
 
   const onExec = async () => {
     setProgress(0);
     setTime(0);
+    // The current core reports its exit by calling emscripten's abort(),
+    // which logs a bare "Aborted()" line even on success. Drop that line
+    // and report the resolved exit code ourselves instead.
+    let aborted = false;
     const logListener = ({ message }) => {
+      if (message.trim() === "Aborted()") {
+        aborted = true;
+        return;
+      }
       setLogs((_logs) => [..._logs, message]);
     };
     const progListener = ({ progress: prog }) => {
@@ -141,15 +155,25 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
     ffmpeg.on("log", logListener);
     ffmpeg.on("progress", progListener);
     const start = performance.now();
-    await ffmpeg.exec(JSON.parse(args));
+    const code = await ffmpeg.exec(JSON.parse(args));
     setTime(performance.now() - start);
     ffmpeg.off("log", logListener);
     ffmpeg.off("progress", progListener);
+    setLogs((_logs) => [
+      ..._logs,
+      aborted
+        ? `ffmpeg exited with code ${code} (aborted)`
+        : `ffmpeg exited with code ${code}`,
+    ]);
     refreshDir(path);
   };
 
   useEffect(() => {
-    refreshDir(path);
+    // Load the sample files as soon as the workspace mounts, the same way
+    // the "Load Sample Files" button does, so the default command works on
+    // first Run. This is not awaited so it does not block the UI; the
+    // samplesLoading state below covers the download instead.
+    onLoadSamples();
   }, []);
 
   return (
@@ -170,6 +194,7 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
             onDirCreate={onDirCreate}
             onRename={onRename}
             onLoadSamples={onLoadSamples}
+            samplesLoading={samplesLoading}
             onRefresh={() => refreshDir(path)}
           />
         </Grid>

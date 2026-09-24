@@ -39,6 +39,7 @@ interface FileSystemManagerProps {
   onRename: (old_name: string, new_name: string) => () => Promise<void>;
   onRefresh: () => Promise<void>;
   onLoadSamples: () => Promise<void>;
+  samplesLoading?: boolean;
 }
 
 const modalStyle = {
@@ -73,6 +74,7 @@ export default function FileSystemManager({
   onRename = () => () => Promise.resolve(),
   onRefresh = () => Promise.resolve(),
   onLoadSamples = () => Promise.resolve(),
+  samplesLoading = false,
 }: FileSystemManagerProps) {
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [dirName, setDirName] = useState("");
@@ -176,7 +178,14 @@ export default function FileSystemManager({
               )}
             </List>
           </>
-          <Button onClick={onLoadSamples}>Load Sample Files</Button>
+          <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+            <Button onClick={onLoadSamples} disabled={samplesLoading}>
+              Load Sample Files
+            </Button>
+            {samplesLoading && (
+              <Typography variant="body2">Loading sample files...</Typography>
+            )}
+          </Stack>
         </Stack>
       </Paper>
       <Modal
