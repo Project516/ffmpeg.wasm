@@ -135,6 +135,8 @@ export class FFmpeg {
       };
       this.#rejects[id] = (data) => {
         signal?.removeEventListener("abort", onAbort);
+        // Worker errors arrive as strings, and callers catch them as is.
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
         reject(data);
       };
 
