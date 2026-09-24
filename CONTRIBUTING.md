@@ -4,7 +4,7 @@
 - Build the JS packages: `pnpm build`
 - Lint: `pnpm lint`
 
-The `@ffmpeg/core` and `@ffmpeg/core-mt` packages are prebuilt WebAssembly
+The `@project516/core` and `@project516/core-mt` packages are prebuilt WebAssembly
 artifacts. Building them requires Docker and runs through the Makefile:
 `make prd` for the single-thread core, `make prd-mt` for the multi-thread
 core. These builds are heavy; CI runs them on pushes to `master` and on pull

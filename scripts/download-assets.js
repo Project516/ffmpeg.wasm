@@ -14,10 +14,10 @@ const UTIL_TGZ = `util-${UTIL_VERSION}.tgz`;
 const CORE_TGZ = `core-${CORE_VERSION}.tgz`;
 const CORE_MT_TGZ = `core-mt-${CORE_MT_VERSION}.tgz`;
 
-const FFMPEG_TGZ_URL = `${NPM_URL}/@ffmpeg/ffmpeg/-/${FFMPEG_TGZ}`;
-const UTIL_TGZ_URL = `${NPM_URL}/@ffmpeg/util/-/${UTIL_TGZ}`;
-const CORE_TGZ_URL = `${NPM_URL}/@ffmpeg/core/-/${CORE_TGZ}`;
-const CORE_MT_TGZ_URL = `${NPM_URL}/@ffmpeg/core-mt/-/${CORE_MT_TGZ}`;
+const FFMPEG_TGZ_URL = `${NPM_URL}/@project516/ffmpeg/-/${FFMPEG_TGZ}`;
+const UTIL_TGZ_URL = `${NPM_URL}/@project516/util/-/${UTIL_TGZ}`;
+const CORE_TGZ_URL = `${NPM_URL}/@project516/core/-/${CORE_TGZ}`;
+const CORE_MT_TGZ_URL = `${NPM_URL}/@project516/core-mt/-/${CORE_MT_TGZ}`;
 
 const mkdir = (dir) => {
   !fs.existsSync(dir) && fs.mkdirSync(dir);
@@ -26,7 +26,7 @@ const mkdir = (dir) => {
 const downloadAndUntar = async (url, tgzName, dst) => {
   const dir = `${ROOT}/${dst}`;
   if (fs.existsSync(dir)) {
-    console.log(`found @ffmpeg/${dst} assets.`);
+    console.log(`found @project516/${dst} assets.`);
     return;
   }
   console.log(`download and untar ${url}`);

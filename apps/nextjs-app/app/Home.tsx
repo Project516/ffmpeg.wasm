@@ -1,7 +1,7 @@
 "use client";
 
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { FFmpeg } from "@project516/ffmpeg";
+import { fetchFile, toBlobURL } from "@project516/util";
 import { useRef, useState } from "react";
 
 export default function Home() {
@@ -13,7 +13,7 @@ export default function Home() {
 
   const load = async () => {
     setIsLoading(true);
-    const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+    const baseURL = "https://cdn.jsdelivr.net/npm/@project516/core@0.12.10/dist/umd";
     const ffmpeg = ffmpegRef.current;
     ffmpeg.on("log", ({ message }) => {
       if (messageRef.current) messageRef.current.innerHTML = message;

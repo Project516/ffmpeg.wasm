@@ -1,7 +1,7 @@
 {
-  "name": "@ffmpeg/util",
+  "name": "@project516/util",
   "version": "0.12.2",
-  "description": "browser utils for @ffmpeg/*",
+  "description": "browser utils for @project516/*",
   "main": "./dist/cjs/index.js",
   "type": "module",
   "types": "./dist/cjs/index.d.ts",

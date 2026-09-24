@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { toBlobURL, fetchFile } from "@ffmpeg/util";
+import { FFmpeg } from "@project516/ffmpeg";
+import { toBlobURL, fetchFile } from "@project516/util";
 
 function App() {
   const [loaded, setLoaded] = useState(false);
@@ -9,7 +9,7 @@ function App() {
   const messageRef = useRef<HTMLParagraphElement | null>(null);
 
   const load = async () => {
-    const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm";
+    const baseURL = "https://cdn.jsdelivr.net/npm/@project516/core-mt@0.12.10/dist/esm";
     const ffmpeg = ffmpegRef.current;
     ffmpeg.on("log", ({ message }) => {
       if (messageRef.current) messageRef.current.innerHTML = message;

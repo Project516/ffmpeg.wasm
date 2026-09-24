@@ -151,7 +151,7 @@ const config = {
         readme: "none",
         out: "api/ffmpeg",
         sidebar: {
-          indexLabel: "@ffmpeg/ffmpeg",
+          indexLabel: "@project516/ffmpeg",
           fullNames: true,
         },
       },
@@ -165,7 +165,7 @@ const config = {
         readme: "none",
         out: "api/util",
         sidebar: {
-          indexLabel: "@ffmpeg/util",
+          indexLabel: "@project516/util",
           fullNames: true,
         },
       },

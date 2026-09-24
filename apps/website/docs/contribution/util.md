@@ -1,6 +1,6 @@
-# @ffmpeg/util
+# @project516/util
 
-The source code of @ffmpeg/util locates at **/packages/util**.
+The source code of @project516/util locates at **/packages/util**.
 
 ## Development
 

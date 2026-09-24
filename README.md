@@ -14,6 +14,14 @@ ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video 
 [![CI](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml/badge.svg)](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Install
+
+```sh
+pnpm add @project516/ffmpeg @project516/util
+```
+
+The fork publishes under the `@project516` npm scope. The packages are drop-in replacements for `@ffmpeg/ffmpeg`, `@ffmpeg/util`, `@ffmpeg/core`, and `@ffmpeg/core-mt`: change the import paths and keep the same API.
+
 ## Documentation
 
 The docs below still point at the upstream docs site; this fork does not have its own site yet.

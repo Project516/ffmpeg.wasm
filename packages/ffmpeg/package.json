@@ -1,5 +1,5 @@
 {
-  "name": "@ffmpeg/ffmpeg",
+  "name": "@project516/ffmpeg",
   "version": "0.12.15",
   "description": "FFmpeg WebAssembly version for browser",
   "main": "./dist/umd/ffmpeg.js",
@@ -64,6 +64,6 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "@ffmpeg/types": "workspace:^"
+    "@project516/types": "workspace:^"
   }
 }

@@ -1,7 +1,7 @@
 # ffmpeg.wasm
 
 FFmpeg compiled to WebAssembly, plus a small TypeScript wrapper
-(`@ffmpeg/ffmpeg`, `@ffmpeg/util`) for running FFmpeg in browsers. A
+(`@project516/ffmpeg`, `@project516/util`) for running FFmpeg in browsers. A
 maintained fork of the abandoned `ffmpegwasm/ffmpeg.wasm`.
 
 ## Direction

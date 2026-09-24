@@ -1,6 +1,6 @@
-# @ffmpeg/ffmpeg
+# @project516/ffmpeg
 
-The source code of @ffmpeg/ffmpeg locates at **/packages/ffmpeg**.
+The source code of @project516/ffmpeg locates at **/packages/ffmpeg**.
 
 ## Development
 
