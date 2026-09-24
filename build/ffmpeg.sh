@@ -34,6 +34,12 @@ CONF_FLAGS=(
 
   # disable thread when FFMPEG_ST is NOT defined
   ${FFMPEG_ST:+ --disable-pthreads --disable-w32threads --disable-os2threads}
+
+  # FFmpeg n9's default (--stdc=c17) is strict ISO C, which rejects the GNU
+  # statement-expression extension emscripten's EM_ASM/EM_JS macros need
+  # (see build/patches/n9). n5.1.10 does not set --stdc at all, so clang's
+  # gnu17 default already allows it there.
+  ${FFMPEG_MT:+ --stdc=gnu17}
 )
 
 emconfigure ./configure "${CONF_FLAGS[@]}" $@ || { cat ffbuild/config.log; exit 1; }

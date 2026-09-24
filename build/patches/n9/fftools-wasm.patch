@@ -1,6 +1,6 @@
 diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
 --- a/fftools/cmdutils.c	2026-09-24 09:59:45.053923228 -0500
-+++ b/fftools/cmdutils.c	2026-09-24 09:59:45.056239218 -0500
++++ b/fftools/cmdutils.c	2026-09-24 10:37:54.347008933 -0500
 @@ -29,6 +29,8 @@
     Studio) will not omit unused inline functions and create undefined
     references to libraries that are not being built. */
@@ -30,7 +30,7 @@ diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
      av_dict_free(&swr_opts);
 diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
 --- a/fftools/cmdutils.h	2026-09-24 09:59:45.054651101 -0500
-+++ b/fftools/cmdutils.h	2026-09-24 09:59:45.056934980 -0500
++++ b/fftools/cmdutils.h	2026-09-24 10:37:54.348033658 -0500
 @@ -557,4 +557,20 @@
                       const char *name, const char *indent,
                       int log_level);
@@ -54,7 +54,7 @@ diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
  #endif /* FFTOOLS_CMDUTILS_H */
 diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 --- a/fftools/ffmpeg.c	2026-09-24 09:59:45.053969654 -0500
-+++ b/fftools/ffmpeg.c	2026-09-24 09:59:45.056278293 -0500
++++ b/fftools/ffmpeg.c	2026-09-24 10:37:54.347053729 -0500
 @@ -32,6 +32,7 @@
  #include <stdlib.h>
  #include <string.h>
@@ -63,7 +63,15 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
  
  #if HAVE_IO_H
  #include <io.h>
-@@ -155,7 +156,7 @@
+@@ -78,6 +79,7 @@
+ #include "libavdevice/avdevice.h"
+ 
+ #include "cmdutils.h"
++#include "opt_common.h"
+ #if CONFIG_MEDIACODEC
+ #include "compat/android/binder.h"
+ #endif
+@@ -155,7 +157,7 @@
          ret = write(2/*STDERR_FILENO*/, "Received > 3 system signals, hard exiting\n",
                      strlen("Received > 3 system signals, hard exiting\n"));
          if (ret < 0) { /* Do nothing */ };
@@ -72,7 +80,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      }
  }
  
-@@ -569,6 +570,27 @@
+@@ -569,6 +571,27 @@
      }
  }
  
@@ -100,7 +108,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
  static void print_report(int is_last_report, int64_t timer_start, int64_t cur_time, int64_t pts)
  {
      AVBPrint buf, buf_script;
-@@ -642,6 +664,27 @@
+@@ -642,6 +665,27 @@
              pts -= copy_ts_first_pts;
      }
  
@@ -128,7 +136,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      us    = FFABS64U(pts) % AV_TIME_BASE;
      secs  = FFABS64U(pts) / AV_TIME_BASE % 60;
      mins  = FFABS64U(pts) / AV_TIME_BASE / 60 % 60;
-@@ -704,7 +747,9 @@
+@@ -704,7 +748,9 @@
      av_bprintf(&buf, " elapsed=%"PRId64":%02d:%02d.%02d", hours, mins, secs, ms / 10);
  
      if (print_stats || is_last_report) {
@@ -139,7 +147,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
          if (print_stats==1 && AV_LOG_INFO > av_log_get_level()) {
              fprintf(stderr, "%s    %c", buf.str, end);
          } else
-@@ -906,6 +951,13 @@
+@@ -906,6 +952,13 @@
      while (!sch_wait(sch, stats_period, &transcode_ts)) {
          int64_t cur_time= av_gettime_relative();
  
@@ -153,7 +161,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
          if (received_nb_signals)
              break;
  
-@@ -978,13 +1030,52 @@
+@@ -978,13 +1031,55 @@
  #endif
  }
  
@@ -193,8 +201,11 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 +/*
 + * This is a rename of main(): "main" is not a special entry point when
 + * ffmpeg.wasm's ffmpeg() and ffprobe() are linked into the same module and
-+ * called from JS as ordinary exported functions (see bind.js's exec()).
++ * called from JS as ordinary exported functions (see bind.js's exec()). The
++ * prototype is only needed to satisfy -Wmissing-prototypes; nothing else in
++ * this module calls ffmpeg() by name, it is invoked from JS as `_ffmpeg`.
 + */
++int ffmpeg(int argc, char **argv);
 +int ffmpeg(int argc, char **argv)
  {
      Scheduler *sch = NULL;
@@ -207,7 +218,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      init_dynload();
  
      setvbuf(stderr,NULL,_IONBF,0); /* win32 runtime needs this */
-@@ -1054,5 +1145,10 @@
+@@ -1054,5 +1149,10 @@
      av_log(NULL, AV_LOG_VERBOSE, "\n");
      av_log(NULL, AV_LOG_VERBOSE, "Exiting with exit code %d\n", ret);
  
@@ -220,7 +231,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
  }
 diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
 --- a/fftools/ffmpeg.h	2026-09-24 09:59:45.054675120 -0500
-+++ b/fftools/ffmpeg.h	2026-09-24 09:59:45.056958184 -0500
++++ b/fftools/ffmpeg.h	2026-09-24 10:37:54.348056640 -0500
 @@ -824,6 +824,12 @@
  
  int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch);
@@ -236,7 +247,7 @@ diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
                       uint64_t frame_num);
 diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
 --- a/fftools/ffmpeg_opt.c	2026-09-24 09:59:45.054269711 -0500
-+++ b/fftools/ffmpeg_opt.c	2026-09-24 09:59:45.056590053 -0500
++++ b/fftools/ffmpeg_opt.c	2026-09-24 10:37:54.347542101 -0500
 @@ -87,6 +87,45 @@
  int copy_unknown_streams = 0;
  int recast_media = 0;
@@ -285,7 +296,7 @@ diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
  typedef struct GlobalOptionsContext {
 diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
 --- a/fftools/ffprobe.c	2026-09-24 09:59:45.054459971 -0500
-+++ b/fftools/ffprobe.c	2026-09-24 09:59:45.056772220 -0500
++++ b/fftools/ffprobe.c	2026-09-24 10:37:54.347813750 -0500
 @@ -70,6 +70,7 @@
  #include "opt_common.h"
  
@@ -360,16 +371,24 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      print_str("compiler_ident", CC_IDENT);
      print_str("configuration", FFMPEG_CONFIGURATION);
      avtext_print_section_footer(tfc);
-@@ -3042,7 +3043,7 @@
+@@ -3042,7 +3043,15 @@
      return print_input_filename ? 0 : AVERROR(ENOMEM);
  }
  
 -void show_help_default(const char *opt, const char *arg)
++/*
++ * Renamed from show_help_default() to avoid a duplicate symbol with
++ * ffmpeg_opt.c's copy when both are linked into one module (opt_common.c's
++ * show_help() calls the unrenamed name, so it always resolves to ffmpeg's
++ * usage text; ffprobe's own -h output is a known, pre-existing gap). The
++ * prototype below only satisfies -Wmissing-prototypes.
++ */
++void show_help_default_ffprobe(const char *opt, const char *arg);
 +void show_help_default_ffprobe(const char *opt, const char *arg)
  {
      av_log_set_callback(log_callback_help);
      show_usage();
-@@ -3363,7 +3364,90 @@
+@@ -3363,7 +3372,93 @@
              do_show_##varname = 1;                                      \
      } while (0)
  
@@ -457,11 +476,14 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
 +    av_log_set_callback(av_log_default_callback);
 +}
 +
++/* Prototype only to satisfy -Wmissing-prototypes; see the comment on
++ * ffmpeg()'s equivalent forward declaration in ffmpeg.c. */
++int ffprobe(int argc, char **argv);
 +int ffprobe(int argc, char **argv)
  {
      const AVTextFormatter *f;
      AVTextFormatContext *tctx;
-@@ -3373,6 +3457,8 @@
+@@ -3373,6 +3468,8 @@
      int ret, input_ret;
      AVTextFormatDataDump data_dump_format_id = AV_TEXTFORMAT_DATADUMP_XXD;
  
@@ -470,7 +492,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      init_dynload();
  
      setvbuf(stderr, NULL, _IONBF, 0); /* win32 runtime needs this */
-@@ -3504,7 +3590,7 @@
+@@ -3504,7 +3601,7 @@
               (!do_show_program_version && !do_show_library_versions && !do_show_pixel_formats))) {
              show_usage();
              av_log(NULL, AV_LOG_ERROR, "You have to specify one input file.\n");
@@ -479,7 +501,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
              ret = AVERROR(EINVAL);
          } else if (input_filename) {
              ret = probe_file(tctx, input_filename, print_input_filename);
-@@ -3540,5 +3626,10 @@
+@@ -3540,5 +3637,10 @@
  
      avformat_network_deinit();
  
@@ -493,7 +515,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  }
 diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
 --- a/fftools/opt_common.c	2026-09-24 09:59:45.054534508 -0500
-+++ b/fftools/opt_common.c	2026-09-24 09:59:45.056854887 -0500
++++ b/fftools/opt_common.c	2026-09-24 10:37:54.347937695 -0500
 @@ -152,6 +152,17 @@
  
  static int warned_cfg = 0;
@@ -514,7 +536,7 @@ diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
  #define SHOW_CONFIG   4
 diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
 --- a/fftools/opt_common.h	2026-09-24 09:59:45.054806658 -0500
-+++ b/fftools/opt_common.h	2026-09-24 09:59:45.057081296 -0500
++++ b/fftools/opt_common.h	2026-09-24 10:37:54.348266492 -0500
 @@ -229,4 +229,11 @@
      { "hide_banner",  OPT_TYPE_BOOL, OPT_EXPERT,            {&hide_banner},                   "do not show program banner", "hide_banner" }, \
      CMDUTILS_COMMON_OPTIONS_AVDEVICE                                                                                    \
