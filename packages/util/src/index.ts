@@ -8,13 +8,13 @@ import { ProgressCallback } from "./types.js";
 const isNode = (): boolean =>
   typeof process !== "undefined" && process.versions?.node != null;
 
-/**
- * The `webpackIgnore` comment keeps webpack from trying to resolve
- * `node:fs/promises` for the browser bundle; it is only ever reached when
- * `isNode()` is true.
- */
+// Built from a variable rather than a string literal so bundlers (webpack,
+// Vite/Rollup, esbuild) cannot statically resolve or bundle this for the
+// browser build; it is only ever reached when `isNode()` is true.
+const NODE_FS_SPECIFIER = "node:fs/promises";
+
 const importNodeFS = (): Promise<typeof import("node:fs/promises")> =>
-  import(/* webpackIgnore: true */ "node:fs/promises");
+  import(NODE_FS_SPECIFIER) as Promise<typeof import("node:fs/promises")>;
 
 const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
   const fs = await importNodeFS();

@@ -51,7 +51,10 @@ const load = async ({
   const coreURL = _coreURL || defaultCoreURL();
   const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/\.js$/, ".wasm");
 
-  const mod = (await import(/* webpackIgnore: true */ coreURL)) as {
+  // This file is never reachable from index.js's import graph, so no
+  // bundler magic comment is needed here the way util/src/index.ts needs
+  // one for its shared, browser-reachable fs import.
+  const mod = (await import(coreURL)) as {
     default?: FFmpegCoreModuleFactory;
   };
   const createFFmpegCore = mod.default;
@@ -203,5 +206,11 @@ const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
 };
 
 parentPort.on("message", (message: FFMessage) => {
-  void handleMessage(message);
+  // handleMessage() catches everything it can (including a failed core
+  // load) and replies with an ERROR message, but a postMessage() call
+  // itself throwing (e.g. a closed port) would otherwise be an unhandled
+  // rejection.
+  handleMessage(message).catch((e: unknown) => {
+    console.error("ffmpeg.wasm worker failed to report a message:", e);
+  });
 });
