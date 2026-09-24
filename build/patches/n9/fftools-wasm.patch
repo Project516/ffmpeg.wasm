@@ -584,3 +584,30 @@ diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
 +void opt_common_reset(void);
 +
  #endif /* FFTOOLS_OPT_COMMON_H */
+diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
+--- a/libavutil/cpu.c	2026-09-24 09:59:45.053923228 -0500
++++ b/libavutil/cpu.c	2026-09-24 11:44:10.274825873 -0500
+@@ -227,6 +227,15 @@
+
+ int av_cpu_count(void)
+ {
++#ifdef FFMPEG_WASM_ST
++    /* The st core has no SharedArrayBuffer, so FFmpeg's own codec threading
++     * stays off at runtime regardless of what auto-detection would say.
++     * Slice/frame-threaded codecs compute their "auto" thread count as
++     * FFMIN(av_cpu_count() + 1, MAX_AUTO_THREADS) (libavcodec/pthread_slice.c),
++     * so even a correctly-detected single core would still try to spin up 2
++     * threads; forcing this to 1 is what actually keeps it at 1. */
++    return 1;
++#else
+     static atomic_int printed = 0;
+
+     int nb_cpus = 1;
+@@ -277,6 +286,7 @@
+     }
+
+     return nb_cpus;
++#endif
+ }
+
+ void av_cpu_force_count(int count)
