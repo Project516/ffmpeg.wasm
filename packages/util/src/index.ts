@@ -26,13 +26,19 @@ const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
     // Electron renderer without nodeIntegration. Fail with something more
     // useful than the raw import error.
     const reason = e instanceof Error ? e.message : String(e);
-    throw new Error(
+    const error = new Error(
       "fetchFile() detected Node.js but could not load node:fs/promises " +
         "to read a local path; if you're in an Electron renderer, enable " +
         `nodeIntegration or fetch the file yourself and pass the bytes ` +
-        `directly. (${reason})`,
-      { cause: e }
+        `directly. (${reason})`
     );
+    // Set as a plain property, rather than the ES2022 Error(message, {
+    // cause }) constructor form, so this doesn't need a newer `lib` than
+    // the rest of this package's type checking uses (the cjs build
+    // targets es2015, and typedoc reads this package's base tsconfig
+    // directly).
+    (error as Error & { cause?: unknown }).cause = e;
+    throw error;
   }
   return fs.readFile(path);
 };
