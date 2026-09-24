@@ -39,7 +39,7 @@ static void pf_debug(const char *fmt, ...)
 {
     /* Cap output: a genuine tight-loop deadlock would otherwise print
      * unbounded lines and drown the CI log before anything can read it. */
-    static int budget = 60;
+    static int budget = 200;
     char buf[256];
     va_list ap;
     if (budget <= 0)
@@ -449,13 +449,18 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
     pfiber_ensure_main();
     pf_cond_ensure(cond);
     void *cond_ptr = (void *)cond;
+    double now0 = pf_now_ms();
     double deadline = (double)abstime->tv_sec * 1000.0 + (double)abstime->tv_nsec / 1e6;
     int timed_out = 0;
+    int loops = 0;
 
+    pf_debug("cond_timedwait: enter cond=%p fiber=%d now=%.0f deadline=%.0f (delta=%.0f)",
+             cond_ptr, pfiber_index_of(g_current), now0, deadline, deadline - now0);
     __wrap_pthread_mutex_unlock(mutex);
     g_current->wait_on = cond_ptr;
     g_current->state = PF_BLOCKED;
     while (g_current->wait_on == cond_ptr) {
+        loops++;
         if (pf_now_ms() >= deadline) {
             g_current->wait_on = NULL;
             g_current->state = PF_RUNNABLE;
@@ -466,6 +471,8 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
     }
 
     __wrap_pthread_mutex_lock(mutex);
+    pf_debug("cond_timedwait: exit cond=%p fiber=%d timed_out=%d loops=%d",
+             cond_ptr, pfiber_index_of(g_current), timed_out, loops);
     return timed_out ? ETIMEDOUT : 0;
 }
 
