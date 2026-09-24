@@ -4,6 +4,12 @@ set -euo pipefail
 
 BASE_FLAGS=(
   -DCMAKE_TOOLCHAIN_FILE=$EM_TOOLCHAIN_FILE
+  # Emscripten's toolchain file reports CMAKE_SYSTEM_PROCESSOR=x86 by default
+  # (for OpenCV-style bitness checks). x265's CMakeLists.txt treats any
+  # 32-bit x86 target as real ia32 and force-adds `-march=i686`, which emcc's
+  # clang rejects outright for wasm32. Report a processor name x265 has no
+  # special case for so it skips that codepath instead.
+  -DEMSCRIPTEN_SYSTEM_PROCESSOR=wasm32
   -DENABLE_LIBNUMA=OFF
   -DENABLE_SHARED=OFF
   -DENABLE_CLI=OFF
@@ -61,4 +67,24 @@ ADDLIB libx265_main12.a
 SAVE
 END
 EOF
+
+# Emscripten's single-thread libc has sem_open but not sem_close or
+# sem_unlink. x265 only calls them for cross-process shared memory, which
+# ffmpeg.wasm never enables, so stub them into the archive to satisfy the
+# linker.
+if [ -n "${FFMPEG_ST:-}" ]; then
+  cat > sem_stub.c <<STUB
+#include <errno.h>
+#include <semaphore.h>
+int sem_close(sem_t *sem) { (void)sem; return 0; }
+int sem_unlink(const char *name) { (void)name; errno = ENOSYS; return -1; }
+STUB
+  emcc $CFLAGS -c sem_stub.c -o sem_stub.o
+  emar rs libx265.a sem_stub.o
+fi
 emmake make install -j
+
+# x265.pc lists host runtime libs (gcc_s, rt, dl, pthread, numa) in
+# Libs.private. They do not exist under emscripten, and FFmpeg's configure
+# reads them because it runs pkg-config with --static.
+sed -i -E '/^Libs.private:/s/ -l(gcc|gcc_s|rt|dl|pthread|numa)\b//g' $INSTALL_DIR/lib/pkgconfig/x265.pc

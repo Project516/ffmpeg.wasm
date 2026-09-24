@@ -19,10 +19,12 @@ export interface FFMessageLoadConfig {
    */
   wasmURL?: string;
   /**
-   * `ffmpeg-core.worker.js` URL. This worker is spawned when using multithread version of ffmpeg-core.
+   * `ffmpeg-core.worker.js` URL.
    *
-   * @ref: https://ffmpegwasm.netlify.app/docs/overview#architecture
-   * @defaultValue `https://cdn.jsdelivr.net/npm/@project516/core-mt@${CORE_VERSION}/dist/umd/ffmpeg-core.worker.js`;
+   * @deprecated Multi-threaded cores built with emsdk >= 3.1.68 fold the
+   * pthread worker into the main core script, so there is no separate
+   * worker.js to point at anymore. Accepted for backward compatibility but
+   * has no effect.
    */
   workerURL?: string;
   /**

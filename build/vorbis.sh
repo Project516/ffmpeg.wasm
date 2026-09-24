@@ -16,5 +16,9 @@ CONF_FLAGS=(
   --disable-dependency-tracking                       # speed up one-time build
 )
 
-emconfigure ./autogen.sh "${CONF_FLAGS[@]}"
+# Current upstream autogen.sh is a thin `autoreconf -if` wrapper and no
+# longer runs configure itself (older autogen.sh used to), so configure has
+# to be invoked as a separate step.
+emconfigure ./autogen.sh
+emconfigure ./configure "${CONF_FLAGS[@]}"
 emmake make install -j

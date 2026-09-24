@@ -52,26 +52,58 @@ function printErr(message) {
     Module["logger"]({ type: "stderr", message });
 }
 
+function freeArgs(argc, argvPtr) {
+  for (let i = 0; i < argc; i++) {
+    Module["_free"](Module["getValue"](argvPtr + SIZE_I32 * i, "i32"));
+  }
+  Module["_free"](argvPtr);
+}
+
+/**
+ * ffmpeg and ffprobe finish by calling exit(), which Emscripten implements by
+ * throwing. That exception unwinds the JavaScript frames, but nothing
+ * unwinds the WebAssembly stack, so the stack pointer is left wherever the C
+ * code happened to leave it and every call permanently consumes a little
+ * more of the stack. Saving it before the call and restoring it in a
+ * `finally` is what Emscripten's own invoke_* helpers do for exactly this
+ * situation (ffmpegwasm/ffmpeg.wasm#943).
+ *
+ * The argv strings and the argv pointer array built by stringsToPtr() are a
+ * second, independent leak: nothing ever freed them, so repeated exec()/
+ * ffprobe() calls slowly exhaust the heap on top of the stack leak above.
+ */
 function exec(..._args) {
   const args = [...Module["DEFAULT_ARGS"], ..._args];
+  const argc = args.length;
+  const sp = stackSave();
+  const argvPtr = stringsToPtr(args);
   try {
-    Module["_ffmpeg"](args.length, stringsToPtr(args));
+    Module["_ffmpeg"](argc, argvPtr);
   } catch (e) {
     if (!e.message.startsWith("Aborted")) {
       throw e;
     }
+  } finally {
+    freeArgs(argc, argvPtr);
+    stackRestore(sp);
   }
   return Module["ret"];
 }
 
 function ffprobe(..._args) {
   const args = [...Module["DEFAULT_ARGS_FFPROBE"], ..._args];
+  const argc = args.length;
+  const sp = stackSave();
+  const argvPtr = stringsToPtr(args);
   try {
-    Module["_ffprobe"](args.length, stringsToPtr(args));
+    Module["_ffprobe"](argc, argvPtr);
   } catch (e) {
     if (!e.message.startsWith("Aborted")) {
       throw e;
     }
+  } finally {
+    freeArgs(argc, argvPtr);
+    stackRestore(sp);
   }
   return Module["ret"];
 }
@@ -98,32 +130,29 @@ function reset() {
 }
 
 /**
- * In multithread version of ffmpeg.wasm, the bootstrap process is like:
- * 1. Execute ffmpeg-core.js
- * 2. ffmpeg-core.js spawns workers by calling `new Worker("ffmpeg-core.worker.js")`
- * 3. ffmpeg-core.worker.js imports ffmpeg-core.js
- * 4. ffmpeg-core.js imports ffmpeg-core.wasm
+ * When ffmpeg-core.js and ffmpeg-core.wasm are served from different
+ * locations (e.g. a Blob URL for the JS, a CDN URL for the wasm), Emscripten
+ * has no way to know the custom wasm URL on its own.
  *
- * It is a straightforward process when all files are in the same location.
- * But when files are in different location (or Blob URL), #4 fails because
- * there is no way to pass custom ffmpeg-core.wasm URL to ffmpeg-core.worker.js
- * when it imports ffmpeg-core.js in #3.
+ * The hack here is leveraging mainScriptUrlOrBlob by adding wasmURL in
+ * base64 format as a hash fragment. ex:
  *
- * To fix this issue, a hack here is leveraging mainScriptUrlOrBlob variable by
- * adding wasmURL and workerURL in base64 format as query string. ex:
+ *   http://example.com/ffmpeg-core.js#{btoa(JSON.stringify({"wasmURL": "..."}))}
  *
- *   http://example.com/ffmpeg-core.js#{btoa(JSON.stringify({"wasmURL": "...", "workerURL": "..."}))}
+ * Thus, we can successfully extract the custom URL using _locateFile.
  *
- * Thus, we can successfully extract custom URLs using _locateFile funciton.
+ * The multi-threaded core used to need the same trick for a companion
+ * ffmpeg-core.worker.js, spawned by ffmpeg-core.js to run pthreads. emsdk
+ * >= 3.1.68 folds that worker into the main core script, so there is no
+ * separate worker.js file to locate anymore.
  */
 function _locateFile(path, prefix) {
   const mainScriptUrlOrBlob = Module["mainScriptUrlOrBlob"];
   if (mainScriptUrlOrBlob) {
-    const { wasmURL, workerURL } = JSON.parse(
+    const { wasmURL } = JSON.parse(
       atob(mainScriptUrlOrBlob.slice(mainScriptUrlOrBlob.lastIndexOf("#") + 1))
     );
     if (path.endsWith(".wasm")) return wasmURL;
-    if (path.endsWith(".worker.js")) return workerURL;
   }
   return prefix + path;
 }
