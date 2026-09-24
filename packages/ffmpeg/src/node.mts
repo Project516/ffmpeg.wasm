@@ -30,9 +30,15 @@ class NodeWorkerAdapter {
 
     this.#worker = new NodeWorker(entryURL);
     this.#worker.on("message", (data: unknown) => {
+      // classes.ts's onmessage handler only reads `.data` off this object;
+      // a real MessageEvent's other fields (origin, ports, ...) have no
+      // Node worker_threads equivalent and are never read.
       this.onmessage?.({ data } as MessageEvent);
     });
     this.#worker.on("error", (error: Error) => {
+      // classes.ts's onerror handler only reads `.message`, which a plain
+      // Error has too, so this stands in for the browser's ErrorEvent
+      // without needing a real one.
       this.onerror?.(error as unknown as ErrorEvent);
     });
   }
@@ -49,8 +55,10 @@ class NodeWorkerAdapter {
 
   terminate(): void {
     // FFmpeg.terminate() does not await; worker_threads.terminate()
-    // returns a promise but nothing here needs to wait on shutdown.
-    void this.#worker.terminate();
+    // returns a promise but nothing here needs to wait on shutdown. The
+    // catch is only there so a failed shutdown doesn't surface as an
+    // unhandled rejection; there's nothing more useful to do with it here.
+    this.#worker.terminate().catch(() => {});
   }
 }
 
@@ -63,10 +71,12 @@ export class FFmpeg extends FFmpegBase {
     super();
     const baseLoad = this.load;
     // Narrow the window the global `Worker` polyfill exists in to just
-    // this synchronous call: load() reads `Worker` to construct its
-    // worker before returning (and before any await), so the assignment
-    // can be undone right after calling through, rather than staying
-    // installed for the process's lifetime.
+    // this call: classes.ts's load() is a plain (non-async) function that
+    // constructs `this.#worker` before returning, with no `await` in that
+    // path, so the whole install-construct-restore sequence below runs in
+    // one synchronous turn and two `load()` calls can never interleave.
+    // If classes.ts's load() ever became async before constructing the
+    // worker, this window would need to move with it.
     this.load = ((
       config?: FFMessageLoadConfig,
       options?: Parameters<typeof baseLoad>[1]
