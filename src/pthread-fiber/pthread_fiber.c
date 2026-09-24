@@ -78,6 +78,9 @@ typedef struct pfiber {
     int detached;
     struct pfiber *join_waiter;  /* fiber blocked in pthread_join on this one */
     void *wait_on;               /* mutex/cond pointer this fiber is blocked on */
+    int has_deadline;            /* set while blocked in pthread_cond_timedwait */
+    double deadline_ms;          /* pf_now_ms() value this fiber's wait expires at */
+    int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -107,6 +110,16 @@ static pfiber_t *pfiber_at(int idx)
 static int pfiber_index_of(pfiber_t *f)
 {
     return (f == &g_main) ? -1 : (int)(f - g_table);
+}
+
+/* Wall-clock milliseconds, matching av_gettime()'s gettimeofday() basis:
+ * fftools builds pthread_cond_timedwait's abstime from av_gettime(), so this
+ * needs to be comparable to that, not CLOCK_MONOTONIC. */
+static double pf_now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
 }
 
 static void pfiber_ensure_main(void)
@@ -167,6 +180,29 @@ static void pfiber_reschedule(void)
                 f->c_stack = NULL;
                 f->asyncify_stack = NULL;
                 f->state = PF_FREE;
+            }
+        }
+
+        /*
+         * Expire any pthread_cond_timedwait whose deadline has passed. This
+         * must happen here, in the scheduler itself, not just as a check in
+         * cond_timedwait's own retry loop: that loop only gets control back
+         * via this function returning, and the loop below only returns
+         * control to a fiber by finding it PF_RUNNABLE. A fiber that put
+         * itself to sleep as PF_BLOCKED with a deadline would otherwise
+         * never be picked again once no *other* fiber is runnable either,
+         * since nothing marks it runnable on its behalf -- that was the
+         * st core's transcode hang: main's sch_wait() timedwait parked
+         * forever once every worker fiber was also blocked, because nobody
+         * ever declared the deadline itself as a reason to run again.
+         */
+        for (int i = -1; i < PFIBER_MAX; i++) {
+            pfiber_t *f = pfiber_at(i);
+            if (f->state == PF_BLOCKED && f->has_deadline && pf_now_ms() >= f->deadline_ms) {
+                f->wait_on = NULL;
+                f->has_deadline = 0;
+                f->woke_by_timeout = 1;
+                f->state = PF_RUNNABLE;
             }
         }
 
@@ -436,13 +472,6 @@ int __wrap_pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
     return 0;
 }
 
-static double pf_now_ms(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
-}
-
 int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
                                    const struct timespec *abstime)
 {
@@ -451,29 +480,29 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
     void *cond_ptr = (void *)cond;
     double now0 = pf_now_ms();
     double deadline = (double)abstime->tv_sec * 1000.0 + (double)abstime->tv_nsec / 1e6;
-    int timed_out = 0;
     int loops = 0;
 
     pf_debug("cond_timedwait: enter cond=%p fiber=%d now=%.0f deadline=%.0f (delta=%.0f)",
              cond_ptr, pfiber_index_of(g_current), now0, deadline, deadline - now0);
     __wrap_pthread_mutex_unlock(mutex);
     g_current->wait_on = cond_ptr;
+    g_current->has_deadline = 1;
+    g_current->deadline_ms = deadline;
+    g_current->woke_by_timeout = 0;
     g_current->state = PF_BLOCKED;
+    /* The scheduler (pfiber_reschedule's deadline sweep) is what actually
+     * flips wait_on/state once `deadline` passes, even if no other fiber
+     * ever becomes runnable in the meantime -- see the comment there. */
     while (g_current->wait_on == cond_ptr) {
         loops++;
-        if (pf_now_ms() >= deadline) {
-            g_current->wait_on = NULL;
-            g_current->state = PF_RUNNABLE;
-            timed_out = 1;
-            break;
-        }
         pfiber_reschedule();
     }
+    g_current->has_deadline = 0;
 
     __wrap_pthread_mutex_lock(mutex);
     pf_debug("cond_timedwait: exit cond=%p fiber=%d timed_out=%d loops=%d",
-             cond_ptr, pfiber_index_of(g_current), timed_out, loops);
-    return timed_out ? ETIMEDOUT : 0;
+             cond_ptr, pfiber_index_of(g_current), g_current->woke_by_timeout, loops);
+    return g_current->woke_by_timeout ? ETIMEDOUT : 0;
 }
 
 int __wrap_pthread_cond_signal(pthread_cond_t *cond)
