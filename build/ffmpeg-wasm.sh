@@ -64,6 +64,10 @@ if [ -n "${FFMPEG_ST:-}" ]; then
   PTHREAD_FIBER_FLAGS+=(
     -sASYNCIFY
     -sASYNCIFY_STACK_SIZE=65536
+    # TEMPORARY: prints pthread_fiber.c's scheduler decisions straight to
+    # console.error to find the st core's transcode hang; remove once
+    # root-caused (see pthread_fiber.c's pf_debug comment).
+    -DPFIBER_DEBUG=1
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach

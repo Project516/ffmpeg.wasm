@@ -22,10 +22,40 @@
 
 #include <pthread.h>
 #include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
+/* Temporary: FFmpeg's own av_log output goes through bind.js's Module.logger,
+ * which is a no-op unless a caller sets one, so it is invisible to CI's
+ * diagnostic capture. EM_JS prints straight to console.error, bypassing
+ * that, to find the st core's transcode hang. Remove once root-caused. */
+#ifdef PFIBER_DEBUG
+EM_JS(void, pf_debug_js, (const char *s), { console.error(UTF8ToString(s)); });
+static void pf_debug(const char *fmt, ...)
+{
+    /* Cap output: a genuine tight-loop deadlock would otherwise print
+     * unbounded lines and drown the CI log before anything can read it. */
+    static int budget = 500;
+    char buf[256];
+    va_list ap;
+    if (budget <= 0)
+        return;
+    if (--budget == 0) {
+        pf_debug_js("pf_debug: budget exhausted, silencing further output");
+        return;
+    }
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    pf_debug_js(buf);
+}
+#else
+static void pf_debug(const char *fmt, ...) { (void)fmt; }
+#endif
 
 #define PFIBER_MAX 48
 /* 2MB per worker fiber's C stack; FFmpeg/libopus can need deep stacks. The
@@ -157,6 +187,7 @@ static void pfiber_reschedule(void)
 
         if (next) {
             pfiber_t *prev = g_current;
+            pf_debug("reschedule: %d -> %d", pfiber_index_of(prev), pfiber_index_of(next));
             g_current = next;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             return;
@@ -165,6 +196,8 @@ static void pfiber_reschedule(void)
         if (g_current->state == PF_RUNNABLE)
             return;
 
+        pf_debug("reschedule: nothing runnable, current=%d blocked on %p, sleeping",
+                 pfiber_index_of(g_current), g_current->wait_on);
         emscripten_sleep(1);
     }
 }
@@ -229,6 +262,7 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
      * front, then immediately blocks) will hand it a turn on its own next
      * blocking point. */
     *thread = (pthread_t)(uintptr_t)f;
+    pf_debug("pthread_create: idx=%d fn=%p", pfiber_index_of(f), (void *)start_routine);
     return 0;
 }
 
@@ -237,11 +271,13 @@ int __wrap_pthread_join(pthread_t thread, void **retval)
     pfiber_ensure_main();
     pfiber_t *f = (pfiber_t *)(uintptr_t)thread;
 
+    pf_debug("pthread_join: enter idx=%d state=%d", pfiber_index_of(f), f->state);
     f->join_waiter = g_current;
     g_current->state = PF_BLOCKED;
     while (f->state != PF_DONE)
         pfiber_reschedule();
     g_current->state = PF_RUNNABLE;
+    pf_debug("pthread_join: done idx=%d", pfiber_index_of(f));
 
     if (retval)
         *retval = f->retval;
@@ -323,6 +359,9 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
     pf_mutex_t *m = pf_mutex_ensure(mutex);
+    if (m->owner != NULL)
+        pf_debug("mutex_lock: %p contended, owner=%d, waiter=%d",
+                 (void *)mutex, pfiber_index_of(m->owner), pfiber_index_of(g_current));
     while (m->owner != NULL) {
         g_current->wait_on = (void *)mutex;
         g_current->state = PF_BLOCKED;
@@ -385,6 +424,7 @@ int __wrap_pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
     pf_cond_ensure(cond);
     void *cond_ptr = (void *)cond;
 
+    pf_debug("cond_wait: enter cond=%p fiber=%d", cond_ptr, pfiber_index_of(g_current));
     __wrap_pthread_mutex_unlock(mutex);
     g_current->wait_on = cond_ptr;
     g_current->state = PF_BLOCKED;
@@ -392,6 +432,7 @@ int __wrap_pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
         pfiber_reschedule();
 
     __wrap_pthread_mutex_lock(mutex);
+    pf_debug("cond_wait: woke cond=%p fiber=%d", cond_ptr, pfiber_index_of(g_current));
     return 0;
 }
 
@@ -430,12 +471,14 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
 
 int __wrap_pthread_cond_signal(pthread_cond_t *cond)
 {
+    pf_debug("cond_signal: cond=%p from fiber=%d", (void *)cond, pfiber_index_of(g_current));
     pf_wake_waiters_on((void *)cond);
     return 0;
 }
 
 int __wrap_pthread_cond_broadcast(pthread_cond_t *cond)
 {
+    pf_debug("cond_broadcast: cond=%p from fiber=%d", (void *)cond, pfiber_index_of(g_current));
     pf_wake_waiters_on((void *)cond);
     return 0;
 }

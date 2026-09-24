@@ -59,18 +59,22 @@ page.on("requestfailed", (req) =>
 console.log(`[diagnostic] navigating to ${url}`);
 await page.goto(url, { waitUntil: "load", timeout: WAIT_MS });
 
+// mocha-headless-chrome's own completion signal (window.__mochaResult__) is
+// set by a shim it injects into its own page before navigating; this is a
+// separate page/browser instance without that shim, so it will never be set
+// here. Just stay open for the same window CI's run got, and print whatever
+// #mocha-stats shows at the end; console/pageerror/worker output arrives via
+// the event listeners above as it happens, regardless of this loop.
 const deadline = Date.now() + WAIT_MS;
-let stats = null;
 while (Date.now() < deadline) {
-  stats = await page.evaluate(() => {
-    const el = document.querySelector("#mocha-stats");
-    if (!el) return null;
-    return el.innerText;
-  });
-  if (stats) break;
-  await new Promise((r) => setTimeout(r, 1000));
+  await new Promise((r) => setTimeout(r, 5000));
+  try {
+    const stats = await page.evaluate(() => document.querySelector("#mocha-stats")?.innerText ?? null);
+    console.log(`[diagnostic] mocha-stats at +${Math.round((Date.now() - (deadline - WAIT_MS)) / 1000)}s: ${stats}`);
+  } catch (err) {
+    console.log(`[diagnostic] evaluate failed: ${err.message}`);
+    break;
+  }
 }
-
-console.log(stats ? `[diagnostic] mocha-stats:\n${stats}` : "[diagnostic] mocha never reported stats within 60s");
 
 await browser.close();
