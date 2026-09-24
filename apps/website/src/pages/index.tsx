@@ -15,7 +15,7 @@ function HomepageHeader() {
       <div className="container">
         <h1 className="hero__title">{siteConfig.title}</h1>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <p>
+        <p className={styles.forkNotice}>
           This is a maintained fork of{" "}
           <Link to="https://github.com/ffmpegwasm/ffmpeg.wasm">
             ffmpegwasm/ffmpeg.wasm
