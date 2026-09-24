@@ -12,6 +12,17 @@ maintained fork of the abandoned `ffmpegwasm/ffmpeg.wasm`.
 - No breaking API changes without a major version bump.
 - Simple code over clever code.
 
+## FFmpeg upgrade plan
+
+The cores stay on FFmpeg 5.1.x for now. Since 6.0 the ffmpeg CLI in fftools
+runs a threaded scheduler and needs real pthreads, which the st core does not
+have. The plan:
+
+1. Move the build toolchain (emsdk and libraries) to current releases on 5.1.x.
+2. Port the fftools patches to the current FFmpeg release for the mt core.
+3. Give the st core a cooperative pthread shim on Emscripten fibers so the
+   same fftools run without `SharedArrayBuffer`.
+
 ## Layout
 
 - `packages/core`, `packages/core-mt`: built wasm artifacts (single-thread,

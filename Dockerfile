@@ -8,7 +8,7 @@ ARG FFMPEG_ST
 ARG FFMPEG_MT
 ENV INSTALL_DIR=/opt
 # We cannot upgrade past n5.x as ffmpeg's CLI has required real threads
-# (the fftools scheduler) since n6.0; see AGENTS.md for the staged plan.
+# (the fftools scheduler) since n6.0; see "FFmpeg upgrade plan" in AGENTS.md.
 ENV FFMPEG_VERSION=n5.1.10
 # Clang shipped with emsdk 6.0.10 defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
