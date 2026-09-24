@@ -1,6 +1,6 @@
-# @ffmpeg/core
+# @project516/core
 
-To build @ffmpeg/core, make sure your docker is version 23.0+ as
+To build @project516/core, make sure your docker is version 23.0+ as
 [buildx](https://docs.docker.com/build/architecture/) is adopted. Also
 You will need to install `make` to run build scripts.
 

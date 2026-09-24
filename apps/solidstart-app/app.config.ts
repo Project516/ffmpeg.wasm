@@ -7,7 +7,7 @@ export default defineConfig({
     },
     vite: {
         optimizeDeps: {
-            exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+            exclude: ['@project516/ffmpeg', '@project516/util']
         },
     }
 });

@@ -13,7 +13,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+    exclude: ['@project516/ffmpeg', '@project516/util']
   },
   server: {
     headers: {

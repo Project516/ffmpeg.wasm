@@ -1,6 +1,6 @@
 import React from "react";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { FFmpeg } from "@project516/ffmpeg";
+import { fetchFile, toBlobURL } from "@project516/util";
 
 // Add react-live imports you need here
 const ReactLiveScope = {
