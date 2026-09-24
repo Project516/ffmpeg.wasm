@@ -32,6 +32,7 @@ CONF_FLAGS=(
   $LDFLAGS 
   -sENVIRONMENT=worker
   -sWASM_BIGINT                            # enable big int support
+  -sDEFAULT_TO_CXX                         # link libc++, which x265 needs
   -sUSE_SDL=2                              # use emscripten SDL2 lib port
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library

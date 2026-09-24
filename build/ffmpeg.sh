@@ -29,6 +29,8 @@ CONF_FLAGS=(
   # which plain `pkg-config --libs` ignores; --static tells pkg-config to
   # include those too, or linking fails with undefined symbols/"not found".
   --pkg-config-flags="--static"
+  # x265 is C++, and emcc only links libc++ when told to.
+  --extra-ldflags="-sDEFAULT_TO_CXX"
 
   # disable thread when FFMPEG_ST is NOT defined
   ${FFMPEG_ST:+ --disable-pthreads --disable-w32threads --disable-os2threads}
