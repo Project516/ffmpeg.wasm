@@ -99,6 +99,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm build
       - name: Install Chrome
         id: chrome
         uses: browser-actions/setup-chrome@v2
@@ -109,15 +111,14 @@ jobs:
           CHROME_HEADLESS: 1
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.chrome-path }}
           CHROME_FLAGS: "--headless --disable-gpu --no-sandbox --enable-features=SharedArrayBuffer,CrossOriginIsolation"
-          HEADERS: '{"Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Embedder-Policy": "require-corp"}'
         run: |
           set -o pipefail
 
-          pnpm run serve -- --headers "$HEADERS" &
+          pnpm run serve &
           sleep 15
 
           echo "Checking security headers and isolation status..."
-          curl -v http://localhost:3000/tests/ffmpeg-core-st.test.html 2>&1 | grep -i "cross-origin"
+          curl -sfI http://localhost:3000/tests/ffmpeg-core-st.test.html | grep -i "cross-origin-embedder-policy: require-corp"
 
           echo "Running single-threaded core test..."
           npx mocha-headless-chrome \

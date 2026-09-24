@@ -7,7 +7,7 @@
     "lint:root": "eslint tests",
     "build": "pnpm --if-present -r run build",
     "pretest": "pnpm run build",
-    "serve": "http-server -c-1 -s -p 3000 . --cors --headers '{\"Cross-Origin-Embedder-Policy\":\"require-corp\",\"Cross-Origin-Opener-Policy\":\"same-origin\",\"Cross-Origin-Resource-Policy\":\"cross-origin\",\"Origin-Agent-Cluster\":\"?1\"}'",
+    "serve": "node scripts/serve.mjs 3000",
     "test": "server-test test:browser:server 3000 test:all",
     "test:all": "npm-run-all test:browser:*:*",
     "test:browser": "mocha-headless-chrome -a enable-features=SharedArrayBuffer",
@@ -24,7 +24,6 @@
   "devDependencies": {
     "chai": "^4.3.7",
     "eslint": "^8.57.1",
-    "http-server": "^14.1.1",
     "mocha": "^10.2.0",
     "mocha-headless-chrome": "^4.0.0",
     "npm-run-all": "^4.1.5",
