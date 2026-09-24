@@ -7,7 +7,7 @@ import ExampleCard from "@site/src/components/common/ExampleCard";
 You can find how to use ffmpeg.wasm with frameworks here.
 
 :::caution
-Do remember to run `npm run build` in the root of the repository before trying
+Do remember to run `pnpm build` in the root of the repository before trying
 any of the examples.
 :::
 

@@ -67,8 +67,12 @@ function() {
 ## Transcode webm to mp4 video (multi-thread)
 
 :::caution
-As SharedArrayBuffer is required for multithread version, make sure
-you have have fulfilled [Security Requirements](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer#security_requirements).
+The multithread core needs `SharedArrayBuffer`, which needs the page to be
+cross-origin isolated. Serve the page with the headers
+`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` (or `credentialless`). See MDN's
+[SharedArrayBuffer security requirements](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer#security_requirements)
+for details.
 :::
 
 ```jsx live
@@ -92,7 +96,6 @@ function() {
         await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
         });
         setLoaded(true);
     }
