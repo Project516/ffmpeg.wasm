@@ -1,4 +1,7 @@
 const path = require("path");
+const webpack = require("webpack");
+
+const UMD_WORKER_TYPE = "classic";
 
 module.exports = {
   mode: "production",
@@ -15,5 +18,10 @@ module.exports = {
   },
   stats: {
     warnings:false
-  }
+  },
+  plugins: [
+    new webpack.DefinePlugin({
+      __FFMPEG_WORKER_TYPE__: JSON.stringify(UMD_WORKER_TYPE),
+    }),
+  ],
 };

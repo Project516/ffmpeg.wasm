@@ -20,6 +20,13 @@ import {
 import { getMessageID } from "./utils.js";
 import { ERROR_TERMINATED, ERROR_NOT_LOADED, ERROR_WORKER } from "./errors.js";
 
+declare const __FFMPEG_WORKER_TYPE__: WorkerType;
+
+// Set by webpack's DefinePlugin for the UMD build; falls back to "module"
+// for the ESM build, which runs as-is with no bundling step.
+const WORKER_TYPE: WorkerType =
+  typeof __FFMPEG_WORKER_TYPE__ === "undefined" ? "module" : __FFMPEG_WORKER_TYPE__;
+
 type FFMessageOptions = {
   signal?: AbortSignal;
 };
@@ -201,12 +208,12 @@ export class FFmpeg {
     if (!this.#worker) {
       this.#worker = classWorkerURL ?
         new Worker(new URL(classWorkerURL, import.meta.url), {
-          type: "module",
+          type: WORKER_TYPE,
         }) :
         // We need to duplicated the code here to enable webpack
         // to bundle worker.js here.
         new Worker(new URL("./worker.js", import.meta.url), {
-          type: "module",
+          type: WORKER_TYPE,
         });
       this.#registerHandlers();
     }
