@@ -229,9 +229,16 @@ ENV FFMPEG_LIBS \
       -lharfbuzz \
       -lass \
       -lzimg
+# A classic worker that loads the UMD core with importScripts() has the
+# wrapper worker as self.location, and pthreads would spawn that script. Point
+# them at the core instead, via the mainScriptUrlOrBlob that
+# @project516/ffmpeg passes. The grep fails the build if emsdk changes the
+# line this relies on.
 RUN mkdir -p /src/dist/umd && bash -x /src/build.sh \
       ${FFMPEG_LIBS} \
-      -o dist/umd/ffmpeg-core.js
+      -o dist/umd/ffmpeg-core.js && \
+    sed -i 's/_scriptName=self.location.href/_scriptName=Module["mainScriptUrlOrBlob"]||self.location.href/' dist/umd/ffmpeg-core.js && \
+    grep -q 'mainScriptUrlOrBlob"\]||self.location.href' dist/umd/ffmpeg-core.js
 RUN mkdir -p /src/dist/esm && bash -x /src/build.sh \
       ${FFMPEG_LIBS} \
       -sEXPORT_ES6 \
