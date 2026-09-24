@@ -1,8 +1,9 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const lightCodeTheme = require("prism-react-renderer/themes/github");
-const darkCodeTheme = require("prism-react-renderer/themes/dracula");
+const { themes: prismThemes } = require("prism-react-renderer");
+const lightCodeTheme = prismThemes.github;
+const darkCodeTheme = prismThemes.dracula;
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -12,7 +13,11 @@ const config = {
   url: "https://project516.github.io",
   baseUrl: "/ffmpeg.wasm/",
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+    },
+  },
   favicon: "img/favicon.ico",
 
   // GitHub pages deployment config.
@@ -141,10 +146,9 @@ const config = {
         entryPoints: ["../../packages/ffmpeg/src/index.ts"],
         tsconfig: "../../packages/ffmpeg/tsconfig.json",
         readme: "none",
-        out: "api/ffmpeg",
+        out: "docs/api/ffmpeg",
         sidebar: {
-          indexLabel: "@project516/ffmpeg",
-          fullNames: true,
+          autoConfiguration: true,
         },
       },
     ],
@@ -155,10 +159,9 @@ const config = {
         entryPoints: ["../../packages/util/src/index.ts"],
         tsconfig: "../../packages/util/tsconfig.json",
         readme: "none",
-        out: "api/util",
+        out: "docs/api/util",
         sidebar: {
-          indexLabel: "@project516/util",
-          fullNames: true,
+          autoConfiguration: true,
         },
       },
     ],
