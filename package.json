@@ -11,7 +11,6 @@
     "test": "server-test test:browser:server 3000 test:all",
     "test:all": "npm-run-all test:browser:*:*",
     "test:browser": "mocha-headless-chrome -a enable-features=SharedArrayBuffer",
-    "test:browser:core:mt": "pnpm run test:browser -f http://localhost:3000/tests/ffmpeg-core-mt.test.html",
     "test:browser:core:st": "pnpm run test:browser -f http://localhost:3000/tests/ffmpeg-core-st.test.html",
     "test:browser:ffmpeg:mt": "pnpm run test:browser -f http://localhost:3000/tests/ffmpeg-mt.test.html",
     "test:browser:ffmpeg:st": "pnpm run test:browser -f http://localhost:3000/tests/ffmpeg-st.test.html",

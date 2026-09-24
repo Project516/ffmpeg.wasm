@@ -112,34 +112,18 @@ jobs:
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.chrome-path }}
           CHROME_FLAGS: "--headless --disable-gpu --no-sandbox --enable-features=SharedArrayBuffer,CrossOriginIsolation"
         run: |
-          set -o pipefail
-
           pnpm run serve &
-          sleep 15
+          sleep 5
+          curl -sfI http://localhost:3000/tests/ffmpeg-st.test.html | grep -i "cross-origin-embedder-policy: require-corp"
 
-          echo "Checking security headers and isolation status..."
-          curl -sfI http://localhost:3000/tests/ffmpeg-core-st.test.html | grep -i "cross-origin-embedder-policy: require-corp"
-
-          echo "Running single-threaded core test..."
-          npx mocha-headless-chrome \
-            --args="$CHROME_FLAGS" \
-            -a no-sandbox \
-            -f http://localhost:3000/tests/ffmpeg-core-st.test.html 2>&1 | tee st-core-test.log
-
-          echo "Running single-threaded ffmpeg test..."
-          npx mocha-headless-chrome \
-            --args="$CHROME_FLAGS" \
-            -a no-sandbox \
-            -f http://localhost:3000/tests/ffmpeg-st.test.html 2>&1 | tee st-test.log
-
-          echo "Running multi-threaded core test..."
-          npx mocha-headless-chrome \
-            --args="$CHROME_FLAGS" \
-            -a no-sandbox \
-            -f http://localhost:3000/tests/ffmpeg-core-mt.test.html 2>&1 | tee mt-core-test.log
-
-          echo "Running multi-threaded ffmpeg test..."
-          npx mocha-headless-chrome \
-            --args="$CHROME_FLAGS" \
-            -a no-sandbox \
-            -f http://localhost:3000/tests/ffmpeg-mt.test.html 2>&1 | tee mt-test.log
+          failed=""
+          for page in ffmpeg-core-st ffmpeg-st ffmpeg-mt; do
+            echo "::group::$page"
+            npx mocha-headless-chrome --args="$CHROME_FLAGS" -a no-sandbox \
+              -f "http://localhost:3000/tests/$page.test.html" || failed="$failed $page"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::failed test pages:$failed"
+            exit 1
+          fi
