@@ -3,7 +3,10 @@ import globals from "globals";
 
 // Lints tests/, run as `eslint tests`. Mirrors the old tests/.eslintrc.json.
 export default [
-  js.configs.recommended,
+  {
+    files: ["tests/**/*.js"],
+    ...js.configs.recommended,
+  },
   {
     files: ["tests/**/*.js"],
     languageOptions: {
