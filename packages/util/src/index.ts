@@ -13,7 +13,7 @@ const readFromBlobOrFile = (blob: Blob | File): Promise<Uint8Array> =>
       if (result instanceof ArrayBuffer) {
         resolve(new Uint8Array(result));
       } else {
-        resolve(new Uint8Array());
+        resolve(new Uint8Array(0));
       }
     };
     fileReader.onerror = (event) => {
@@ -49,7 +49,7 @@ const readFromBlobOrFile = (blob: Blob | File): Promise<Uint8Array> =>
 export const fetchFile = async (
   file?: string | File | Blob
 ): Promise<Uint8Array> => {
-  let data: ArrayBuffer | number[];
+  let data: ArrayBuffer | number[] | Uint8Array;
 
   if (typeof file === "string") {
     /* From base64 format */
@@ -66,10 +66,10 @@ export const fetchFile = async (
   } else if (file instanceof File || file instanceof Blob) {
     data = await readFromBlobOrFile(file);
   } else {
-    return new Uint8Array();
+    return new Uint8Array(0);
   }
 
-  return new Uint8Array(data);
+  return data instanceof Uint8Array ? data : new Uint8Array(data);
 };
 
 /**
