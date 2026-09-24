@@ -127,13 +127,13 @@ export const downloadWithProgress = async (
 
       if (done) {
         if (total != -1 && total !== received) throw ERROR_INCOMPLETED_DOWNLOAD;
-        cb && cb({ url, total, received, delta, done });
+        cb?.({ url, total, received, delta, done });
         break;
       }
 
       chunks.push(value);
       received += delta;
-      cb && cb({ url, total, received, delta, done });
+      cb?.({ url, total, received, delta, done });
     }
 
     const data = new Uint8Array(received);
@@ -148,14 +148,13 @@ export const downloadWithProgress = async (
     console.log(`failed to send download progress event: `, e);
     // Fetch arrayBuffer directly when it is not possible to get progress.
     buf = await fallback.arrayBuffer();
-    cb &&
-      cb({
-        url,
-        total: buf.byteLength,
-        received: buf.byteLength,
-        delta: 0,
-        done: true,
-      });
+    cb?.({
+      url,
+      total: buf.byteLength,
+      received: buf.byteLength,
+      delta: 0,
+      done: true,
+    });
   }
 
   return buf;
