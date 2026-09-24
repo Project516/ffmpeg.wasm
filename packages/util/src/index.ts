@@ -2,7 +2,7 @@ import {
   ERROR_RESPONSE_BODY_READER,
   ERROR_INCOMPLETED_DOWNLOAD,
 } from "./errors.js";
-import { HeaderContentLength } from "./const.js";
+import { HeaderContentLength, HeaderContentEncoding } from "./const.js";
 import { ProgressCallback } from "./types.js";
 
 const readFromBlobOrFile = (blob: Blob | File): Promise<Uint8Array> =>
@@ -110,8 +110,18 @@ export const downloadWithProgress = async (
   let buf;
 
   try {
-    // Set total to -1 to indicate that there is not Content-Type Header.
-    const total = parseInt(resp.headers.get(HeaderContentLength) || "-1");
+    // A response is compressed when Content-Encoding is present and not
+    // "identity". Content-Length then reflects the compressed transfer size
+    // while the body reader yields decompressed bytes, so it cannot be used
+    // to track progress: treat the total as unknown (-1) in that case.
+    // Otherwise total is -1 when there is no Content-Length header.
+    const compressed = (resp.headers.get(HeaderContentEncoding) || "")
+      .split(",")
+      .map((encoding) => encoding.trim().toLowerCase())
+      .some((encoding) => encoding !== "" && encoding !== "identity");
+    const total = compressed
+      ? -1
+      : parseInt(resp.headers.get(HeaderContentLength) || "-1");
 
     const reader = resp.body?.getReader();
     if (!reader) throw ERROR_RESPONSE_BODY_READER;
