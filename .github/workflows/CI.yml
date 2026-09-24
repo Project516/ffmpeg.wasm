@@ -44,6 +44,8 @@ jobs:
         run: sudo ldconfig
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Expose Actions cache runtime to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
       - name: Build ffmpeg-core
         run: make prd EXTRA_ARGS="--cache-from=type=gha,scope=st --cache-to=type=gha,mode=max,scope=st"
       - name: Upload core
@@ -59,6 +61,8 @@ jobs:
         uses: actions/checkout@v5
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Expose Actions cache runtime to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
       - name: Build ffmpeg-core-mt
         run: make prd-mt EXTRA_ARGS="--cache-from=type=gha,scope=mt --cache-to=type=gha,mode=max,scope=mt"
       - name: Upload core-mt
@@ -96,13 +100,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Chrome
-        uses: browser-actions/setup-chrome@latest
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
         with:
           chrome-version: stable
       - name: Run tests
         env:
           CHROME_HEADLESS: 1
-          CHROME_PATH: chrome
+          PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.chrome-path }}
           CHROME_FLAGS: "--headless --disable-gpu --no-sandbox --enable-features=SharedArrayBuffer,CrossOriginIsolation"
           HEADERS: '{"Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Embedder-Policy": "require-corp"}'
         run: |

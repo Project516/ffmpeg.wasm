@@ -5,11 +5,12 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Scoped to the root pnpm workspace (packages/*). The apps/ examples are
-  # standalone and out of scope; they are not listed in pnpm-workspace.yaml
-  # so dependabot never touches them from this entry.
+  # The root pnpm workspace (packages/*). The apps/ examples are standalone
+  # and excluded.
   - package-ecosystem: "npm"
     directory: "/"
+    exclude-paths:
+      - "apps/**"
     schedule:
       interval: "weekly"
     groups:
