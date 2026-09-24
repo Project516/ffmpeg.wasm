@@ -4,7 +4,7 @@ import { RouterOutlet } from '@angular/router';
 import { FFmpeg } from '@project516/ffmpeg';
 import { fetchFile, toBlobURL } from '@project516/util';
 
-const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core-mt@0.12.10/dist/esm';
+const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/core-mt@0.13.0/dist/esm';
 
 @Component({
   selector: 'app-root',

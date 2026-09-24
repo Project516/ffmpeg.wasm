@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/CI.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+      - name: Download ffmpeg-core
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core
+          path: packages/core/dist
+      - name: Download ffmpeg-core-mt
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core-mt
+          path: packages/core-mt/dist
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check versions match the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          bad=""
+          for p in packages/*/package.json; do
+            v=$(node -p "require('./$p').version")
+            [ "$v" = "$version" ] || bad="$bad $p=$v"
+          done
+          # Every *_VERSION constant pins a published package version.
+          for f in packages/ffmpeg/src/const.ts apps/website/src/components/Playground/const.ts scripts/download-assets.js; do
+            grep -q "_VERSION = \"$version\"" "$f" || bad="$bad $f"
+            if grep -E '_VERSION = "[0-9]' "$f" | grep -vq "\"$version\""; then
+              bad="$bad $f"
+            fi
+          done
+          if [ -n "$bad" ]; then
+            echo "::error::versions do not match $GITHUB_REF_NAME:$bad"
+            exit 1
+          fi
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm -r publish --access public --provenance --no-git-checks
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
