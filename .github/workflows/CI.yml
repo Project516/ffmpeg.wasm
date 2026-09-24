@@ -33,6 +33,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint
         run: pnpm lint
+      - name: Check docs library table matches the Dockerfile
+        run: node scripts/check-doc-versions.mjs
       - name: Build
         run: pnpm build
 

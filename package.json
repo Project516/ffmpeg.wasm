@@ -5,6 +5,7 @@
   "scripts": {
     "lint": "pnpm run lint:root && pnpm --if-present -r run lint",
     "lint:root": "eslint tests",
+    "check:doc-versions": "node scripts/check-doc-versions.mjs",
     "build": "pnpm --if-present -r run build",
     "pretest": "pnpm run build",
     "serve": "node scripts/serve.mjs 3000",
