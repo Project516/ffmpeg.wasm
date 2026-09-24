@@ -49,7 +49,13 @@ jobs:
             v=$(node -p "require('./$p').version")
             [ "$v" = "$version" ] || bad="$bad $p=$v"
           done
-          grep -q "CORE_VERSION = \"$version\"" packages/ffmpeg/src/const.ts || bad="$bad CORE_VERSION"
+          # Every *_VERSION constant pins a published package version.
+          for f in packages/ffmpeg/src/const.ts apps/website/src/components/Playground/const.ts scripts/download-assets.js; do
+            grep -q "_VERSION = \"$version\"" "$f" || bad="$bad $f"
+            if grep -E '_VERSION = "[0-9]' "$f" | grep -vq "\"$version\""; then
+              bad="$bad $f"
+            fi
+          done
           if [ -n "$bad" ]; then
             echo "::error::versions do not match $GITHUB_REF_NAME:$bad"
             exit 1
