@@ -4,6 +4,12 @@ set -euo pipefail
 
 BASE_FLAGS=(
   -DCMAKE_TOOLCHAIN_FILE=$EM_TOOLCHAIN_FILE
+  # Emscripten's toolchain file reports CMAKE_SYSTEM_PROCESSOR=x86 by default
+  # (for OpenCV-style bitness checks). x265's CMakeLists.txt treats any
+  # 32-bit x86 target as real ia32 and force-adds `-march=i686`, which emcc's
+  # clang rejects outright for wasm32. Report a processor name x265 has no
+  # special case for so it skips that codepath instead.
+  -DEMSCRIPTEN_SYSTEM_PROCESSOR=wasm32
   -DENABLE_LIBNUMA=OFF
   -DENABLE_SHARED=OFF
   -DENABLE_CLI=OFF
