@@ -3,6 +3,13 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Changed
+
+- The multithread core now builds FFmpeg 9.0.2 instead of 5.1.10. The
+  single-thread core is unaffected and stays on FFmpeg 5.1.10.
+
 ## 0.13.1
 
 ### Breaking changes

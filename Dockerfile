@@ -7,9 +7,13 @@ ARG EXTRA_LDFLAGS
 ARG FFMPEG_ST
 ARG FFMPEG_MT
 ENV INSTALL_DIR=/opt
-# We cannot upgrade past n5.x as ffmpeg's CLI has required real threads
-# (the fftools scheduler) since n6.0; see "FFmpeg upgrade plan" in AGENTS.md.
-ENV FFMPEG_VERSION=n5.1.10
+# The st core stays on n5.1.10: its libraries build with --disable-pthreads,
+# and FFmpeg's CLI has needed real threads (the fftools scheduler) since
+# n6.0. The mt core has real pthreads, so it builds fftools from current
+# FFmpeg with the patches under build/patches/n9; see "FFmpeg upgrade plan"
+# in AGENTS.md. ffmpeg-base below picks between the two based on FFMPEG_MT.
+ENV FFMPEG_VERSION_ST=n5.1.10
+ENV FFMPEG_VERSION_MT=n9.0.2
 # Clang shipped with emsdk 6.0.10 defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
 # int/pointer conversions) to hard errors. n5.1.10 and its bundled libraries
@@ -24,7 +28,7 @@ ENV PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$EM_PKG_CONFIG_PATH
 ENV FFMPEG_ST=$FFMPEG_ST
 ENV FFMPEG_MT=$FFMPEG_MT
 RUN apt-get update && \
-      apt-get install -y pkg-config autoconf automake libtool ragel meson ninja-build
+      apt-get install -y pkg-config autoconf automake libtool ragel meson ninja-build git
 
 # Build x264
 # No stable release tags exist upstream; the ffmpegwasm mirror's `4-cores`
@@ -172,7 +176,19 @@ RUN bash -x /src/build.sh
 # Base ffmpeg image with dependencies and source code populated.
 FROM emsdk-base AS ffmpeg-base
 RUN embuilder build sdl2 sdl2-mt
-ADD https://github.com/FFmpeg/FFmpeg.git#$FFMPEG_VERSION /src
+# Pick the FFmpeg release per FFMPEG_MT (see the FFMPEG_VERSION_ST/MT comment
+# above), then apply the mt-only fftools patches. build/patches/n9 ports the
+# same wasm-runtime changes that src/fftools carries as vendored, already
+# patched files for the st build: renaming main()/duplicate ffprobe symbols,
+# routing exit()/exit codes through Module.ret instead of tearing down the
+# runtime, progress and timeout reporting, and resetting globals that
+# fftools's upstream assumes are only ever initialized once per process.
+COPY build/patches /src-patches
+RUN if [ -n "$FFMPEG_MT" ]; then FFMPEG_VERSION="$FFMPEG_VERSION_MT"; else FFMPEG_VERSION="$FFMPEG_VERSION_ST"; fi && \
+    git clone --depth 1 --branch "$FFMPEG_VERSION" https://github.com/FFmpeg/FFmpeg.git /src && \
+    if [ -n "$FFMPEG_MT" ]; then \
+      cd /src && patch -p1 < /src-patches/n9/fftools-wasm.patch; \
+    fi
 COPY --from=x264-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=x265-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=libvpx-builder $INSTALL_DIR $INSTALL_DIR

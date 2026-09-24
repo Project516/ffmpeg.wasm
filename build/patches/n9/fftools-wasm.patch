@@ -1,0 +1,586 @@
+diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
+--- a/fftools/cmdutils.c	2026-09-24 09:59:45.053923228 -0500
++++ b/fftools/cmdutils.c	2026-09-24 11:13:01.074661179 -0500
+@@ -29,6 +29,8 @@
+    Studio) will not omit unused inline functions and create undefined
+    references to libraries that are not being built. */
+ 
++#include <emscripten.h>
++
+ #include "config.h"
+ #include "compat/va_copy.h"
+ #include "libavformat/avformat.h"
+@@ -59,6 +61,17 @@
+ 
+ int hide_banner = 0;
+ 
++void wasm_exit(int code)
++{
++    EM_ASM({ Module.ret = $0; }, code);
++    abort();
++}
++
++void cmdutils_reset(void)
++{
++    hide_banner = 0;
++}
++
+ void uninit_opts(void)
+ {
+     av_dict_free(&swr_opts);
+diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
+--- a/fftools/cmdutils.h	2026-09-24 09:59:45.054651101 -0500
++++ b/fftools/cmdutils.h	2026-09-24 11:13:01.075396180 -0500
+@@ -557,4 +557,20 @@
+                      const char *name, const char *indent,
+                      int log_level);
+ 
++/*
++ * ffmpeg.wasm runs ffmpeg()/ffprobe() as functions inside a long-lived
++ * emscripten module instead of a process, so a bare exit() would tear down
++ * the whole runtime. wasm_exit() stores the exit code where bind.js reads it
++ * (Module.ret) and then aborts, which bind.js's exec()/ffprobe() wrappers
++ * catch as a JS exception instead of letting it escape.
++ */
++void wasm_exit(int code);
++
++/*
++ * Reset cmdutils.c's cross-program state (hide_banner) so a later
++ * ffmpeg()/ffprobe() call in the same module does not inherit it from an
++ * earlier call that passed -hide_banner.
++ */
++void cmdutils_reset(void);
++
+ #endif /* FFTOOLS_CMDUTILS_H */
+diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
+--- a/fftools/ffmpeg.c	2026-09-24 09:59:45.053969654 -0500
++++ b/fftools/ffmpeg.c	2026-09-24 11:13:01.074704772 -0500
+@@ -32,6 +32,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <time.h>
++#include <emscripten.h>
+ 
+ #if HAVE_IO_H
+ #include <io.h>
+@@ -78,6 +79,7 @@
+ #include "libavdevice/avdevice.h"
+ 
+ #include "cmdutils.h"
++#include "opt_common.h"
+ #if CONFIG_MEDIACODEC
+ #include "compat/android/binder.h"
+ #endif
+@@ -155,7 +157,7 @@
+         ret = write(2/*STDERR_FILENO*/, "Received > 3 system signals, hard exiting\n",
+                     strlen("Received > 3 system signals, hard exiting\n"));
+         if (ret < 0) { /* Do nothing */ };
+-        exit(123);
++        wasm_exit(123);
+     }
+ }
+ 
+@@ -569,6 +571,34 @@
+     }
+ }
+ 
++/*
++ * send_progress reports progress (0..1) and the current output timestamp
++ * (in AV_TIME_BASE units) to the JS side; setProgress()'s handler receives
++ * it as Module.receiveProgress. Duration is the longest of all input files,
++ * so trims and multi-input concats still report against something.
++ */
++EM_JS(void, send_progress, (double progress, double time), {
++    Module.receiveProgress(progress, time);
++});
++
++/*
++ * is_timeout reports whether transcode() has been running longer than
++ * Module.timeout milliseconds (-1 disables it). Checked from the transcode
++ * loop so a stuck or long-running command can be ended without exit()ing
++ * the whole module.
++ */
++EM_JS(int, is_timeout, (int64_t elapsed_ms), {
++    if (Module.timeout === -1) return 0;
++    return Module.timeout <= elapsed_ms;
++});
++
++/* has_timeout reports whether Module.timeout is set, so transcode() knows
++ * to poll sch_wait() finely enough to catch a timeout before a short job
++ * finishes on its own. */
++EM_JS(int, has_timeout, (void), {
++    return Module.timeout !== -1;
++});
++
+ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_time, int64_t pts)
+ {
+     AVBPrint buf, buf_script;
+@@ -642,6 +672,27 @@
+             pts -= copy_ts_first_pts;
+     }
+ 
++    /*
++     * Report progress against the longest input file's duration. This only
++     * lines up when input and output durations match (e.g. not a trim);
++     * good enough for a 0..1 progress bar in the common case.
++     */
++    {
++        int64_t duration = -1;
++        int64_t pts_abs = FFABS64U(pts);
++
++        for (int i = 0; i < nb_input_files; i++) {
++            int64_t file_duration = input_files[i]->ctx->duration;
++            if (file_duration > duration)
++                duration = file_duration;
++        }
++
++        send_progress((double)pts_abs / (double)duration, (double)pts_abs);
++        /* Make sure progress always ends at 1. */
++        if (is_last_report && pts_abs != duration)
++            send_progress(1, (double)pts_abs);
++    }
++
+     us    = FFABS64U(pts) % AV_TIME_BASE;
+     secs  = FFABS64U(pts) / AV_TIME_BASE % 60;
+     mins  = FFABS64U(pts) / AV_TIME_BASE / 60 % 60;
+@@ -704,7 +755,9 @@
+     av_bprintf(&buf, " elapsed=%"PRId64":%02d:%02d.%02d", hours, mins, secs, ms / 10);
+ 
+     if (print_stats || is_last_report) {
+-        const char end = is_last_report ? '\n' : '\r';
++        /* Always end on a newline; there is no terminal to overwrite a
++         * carriage-returned line in. */
++        const char end = '\n';
+         if (print_stats==1 && AV_LOG_INFO > av_log_get_level()) {
+             fprintf(stderr, "%s    %c", buf.str, end);
+         } else
+@@ -903,9 +956,27 @@
+ 
+     timer_start = av_gettime_relative();
+ 
+-    while (!sch_wait(sch, stats_period, &transcode_ts)) {
++    /* sch_wait() below blocks for up to its timeout argument, or until the
++     * command finishes, whichever comes first, and only lets us check
++     * is_timeout() on the calls that return "not finished yet". With the
++     * normal report cadence (stats_period, 500ms) a short command can finish
++     * inside a single call and never hit that check. Poll finely instead
++     * when Module.timeout is set, so a run stops close to the requested
++     * timeout instead of up to a report period late (or not at all, for a
++     * command that finishes before the first report is due). */
++    const int64_t wait_us = has_timeout() ? 5000 : stats_period;
++    int timed_out = 0;
++
++    while (!sch_wait(sch, wait_us, &transcode_ts)) {
+         int64_t cur_time= av_gettime_relative();
+ 
++        /* Module.timeout (ms) stops a running command cleanly instead of
++         * exit()ing the module; exec() then reports this exit code. */
++        if (is_timeout((cur_time - timer_start) / 1000)) {
++            timed_out = 1;
++            break;
++        }
++
+         if (received_nb_signals)
+             break;
+ 
+@@ -931,6 +1002,12 @@
+     /* dump report by using the first video and audio streams */
+     print_report(1, timer_start, av_gettime_relative(), transcode_ts);
+ 
++    /* err_merge() only preserves negative AVERROR codes, collapsing any
++     * non-negative ret to 0; apply the timeout after it so exec() still
++     * reports it even when sch_stop()/of_write_trailer() succeeded. */
++    if (timed_out)
++        ret = 1;
++
+     return ret;
+ }
+ 
+@@ -978,13 +1055,55 @@
+ #endif
+ }
+ 
+-int main(int argc, char **argv)
++/*
++ * ffmpeg() runs repeatedly in one module instance instead of once per
++ * process, so the globals below (normally zero-initialized once at process
++ * start) need to be put back to their startup values before each call.
++ * ffmpeg_cleanup() already frees and NULLs input_files/output_files/
++ * filtergraphs/decoders on every exit path; it does not reset their counts
++ * or the other globals here, so a second call would otherwise read past the
++ * now-empty arrays or inherit option state left over from the previous run.
++ */
++static void init_globals(void)
++{
++    received_sigterm = 0;
++    received_nb_signals = 0;
++    atomic_store(&transcode_init_done, 0);
++    ffmpeg_exited = 0;
++    copy_ts_first_pts = AV_NOPTS_VALUE;
++    atomic_store(&nb_output_dumped, 0);
++
++    input_files = NULL;
++    nb_input_files = 0;
++    output_files = NULL;
++    nb_output_files = 0;
++    filtergraphs = NULL;
++    nb_filtergraphs = 0;
++    decoders = NULL;
++    nb_decoders = 0;
++
++    ffmpeg_opt_reset();
++    opt_common_reset();
++    cmdutils_reset();
++}
++
++/*
++ * This is a rename of main(): "main" is not a special entry point when
++ * ffmpeg.wasm's ffmpeg() and ffprobe() are linked into the same module and
++ * called from JS as ordinary exported functions (see bind.js's exec()). The
++ * prototype is only needed to satisfy -Wmissing-prototypes; nothing else in
++ * this module calls ffmpeg() by name, it is invoked from JS as `_ffmpeg`.
++ */
++int ffmpeg(int argc, char **argv);
++int ffmpeg(int argc, char **argv)
+ {
+     Scheduler *sch = NULL;
+ 
+     int ret;
+     BenchmarkTimeStamps ti;
+ 
++    init_globals();
++
+     init_dynload();
+ 
+     setvbuf(stderr,NULL,_IONBF,0); /* win32 runtime needs this */
+@@ -1054,5 +1173,10 @@
+     av_log(NULL, AV_LOG_VERBOSE, "\n");
+     av_log(NULL, AV_LOG_VERBOSE, "Exiting with exit code %d\n", ret);
+ 
++    /* bind.js's exec() reads Module.ret after calling _ffmpeg(); this used
++     * to happen through exit_program(), which upstream removed in favor of
++     * ffmpeg() returning its exit code directly. */
++    EM_ASM({ Module.ret = $0; }, ret);
++
+     return ret;
+ }
+diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
+--- a/fftools/ffmpeg.h	2026-09-24 09:59:45.054675120 -0500
++++ b/fftools/ffmpeg.h	2026-09-24 11:13:01.075424810 -0500
+@@ -824,6 +824,12 @@
+ 
+ int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch);
+ 
++/*
++ * Reset ffmpeg_opt.c's option globals to their defaults; see the comment on
++ * the definition in ffmpeg_opt.c.
++ */
++void ffmpeg_opt_reset(void);
++
+ void enc_stats_write(OutputStream *ost, EncStats *es,
+                      const AVFrame *frame, const AVPacket *pkt,
+                      uint64_t frame_num);
+diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
+--- a/fftools/ffmpeg_opt.c	2026-09-24 09:59:45.054269711 -0500
++++ b/fftools/ffmpeg_opt.c	2026-09-24 11:13:01.075007198 -0500
+@@ -87,6 +87,45 @@
+ int copy_unknown_streams = 0;
+ int recast_media = 0;
+ 
++/*
++ * ffmpeg() runs repeatedly in one module instance. OptionDef parsing only
++ * assigns these when the matching flag is present on the command line, so a
++ * later call without a flag would otherwise keep the value an earlier call
++ * left behind. Reset them to their declared defaults; pointer-valued options
++ * (filter_nbthreads, print_graphs_file/format, vstats_filename) are freed
++ * and NULLed by ffmpeg_cleanup() already and do not need to be repeated here.
++ */
++void ffmpeg_opt_reset(void)
++{
++    dts_delta_threshold   = 10;
++    dts_error_threshold   = 3600 * 30;
++    frame_drop_threshold  = 0;
++    do_benchmark          = 0;
++    do_benchmark_all      = 0;
++    do_hex_dump           = 0;
++    do_pkt_dump           = 0;
++    copy_ts               = 0;
++    start_at_zero         = 0;
++    copy_tb               = -1;
++    debug_ts              = 0;
++    exit_on_error         = 0;
++    abort_on_flags        = 0;
++    print_stats           = -1;
++    stdin_interaction     = 1;
++    max_error_rate        = 2.0 / 3;
++    filter_complex_nbthreads = 0;
++    filter_buffered_frames  = 0;
++    vstats_version        = 2;
++    print_graphs          = 0;
++    auto_conversion_filters = 1;
++    stats_period          = 500000;
++    ignore_unknown_streams = 0;
++    copy_unknown_streams  = 0;
++    recast_media          = 0;
++    file_overwrite        = 0;
++    no_file_overwrite     = 0;
++}
++
+ // this struct is passed as the optctx argument
+ // to func_arg() for global options
+ typedef struct GlobalOptionsContext {
+diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
+--- a/fftools/ffprobe.c	2026-09-24 09:59:45.054459971 -0500
++++ b/fftools/ffprobe.c	2026-09-24 11:13:01.075214087 -0500
+@@ -70,6 +70,7 @@
+ #include "opt_common.h"
+ 
+ #include "libavutil/thread.h"
++#include <emscripten.h>
+ 
+ // attached as opaque_ref to packets/frames
+ typedef struct FrameData {
+@@ -90,8 +91,8 @@
+     int       nb_streams;
+ } InputFile;
+ 
+-const char program_name[] = "ffprobe";
+-const int program_birth_year = 2007;
++const char program_name_ffprobe[] = "ffprobe";
++const int program_birth_year_ffprobe = 2007;
+ 
+ static int do_analyze_frames = 0;
+ static int do_bitexact = 0;
+@@ -2614,7 +2615,7 @@
+ 
+     ifile->streams = av_calloc(fmt_ctx->nb_streams, sizeof(*ifile->streams));
+     if (!ifile->streams)
+-        exit(1);
++        wasm_exit(1);
+     ifile->nb_streams = fmt_ctx->nb_streams;
+ 
+     /* bind a decoder to each input stream */
+@@ -2635,15 +2636,15 @@
+             err = filter_codec_opts(codec_opts, stream->codecpar->codec_id,
+                                     fmt_ctx, stream, codec, &opts, NULL);
+             if (err < 0)
+-                exit(1);
++                wasm_exit(1);
+ 
+             ist->dec_ctx = avcodec_alloc_context3(codec);
+             if (!ist->dec_ctx)
+-                exit(1);
++                wasm_exit(1);
+ 
+             err = avcodec_parameters_to_context(ist->dec_ctx, stream->codecpar);
+             if (err < 0)
+-                exit(1);
++                wasm_exit(1);
+ 
+             if (do_show_log) {
+                 // For logging it is needed to disable at least frame threads as otherwise
+@@ -2659,7 +2660,7 @@
+             if (avcodec_open2(ist->dec_ctx, codec, &opts) < 0) {
+                 av_log(NULL, AV_LOG_WARNING, "Could not open codec for input stream %d\n",
+                        stream->index);
+-                exit(1);
++                wasm_exit(1);
+             }
+ 
+             if ((t = av_dict_iterate(opts, NULL))) {
+@@ -2785,7 +2786,7 @@
+ static void show_usage(void)
+ {
+     av_log(NULL, AV_LOG_INFO, "Simple multimedia streams analyzer\n");
+-    av_log(NULL, AV_LOG_INFO, "usage: %s [OPTIONS] INPUT_FILE\n", program_name);
++    av_log(NULL, AV_LOG_INFO, "usage: %s [OPTIONS] INPUT_FILE\n", program_name_ffprobe);
+     av_log(NULL, AV_LOG_INFO, "\n");
+ }
+ 
+@@ -2797,7 +2798,7 @@
+     avtext_print_section_header(tfc, NULL, SECTION_ID_PROGRAM_VERSION);
+     print_str("version", FFMPEG_VERSION);
+     print_fmt("copyright", "Copyright (c) %d-%d the FFmpeg developers",
+-              program_birth_year, CONFIG_THIS_YEAR);
++              program_birth_year_ffprobe, CONFIG_THIS_YEAR);
+     print_str("compiler_ident", CC_IDENT);
+     print_str("configuration", FFMPEG_CONFIGURATION);
+     avtext_print_section_footer(tfc);
+@@ -3042,7 +3043,15 @@
+     return print_input_filename ? 0 : AVERROR(ENOMEM);
+ }
+ 
+-void show_help_default(const char *opt, const char *arg)
++/*
++ * Renamed from show_help_default() to avoid a duplicate symbol with
++ * ffmpeg_opt.c's copy when both are linked into one module (opt_common.c's
++ * show_help() calls the unrenamed name, so it always resolves to ffmpeg's
++ * usage text; ffprobe's own -h output is a known, pre-existing gap). The
++ * prototype below only satisfies -Wmissing-prototypes.
++ */
++void show_help_default_ffprobe(const char *opt, const char *arg);
++void show_help_default_ffprobe(const char *opt, const char *arg)
+ {
+     av_log_set_callback(log_callback_help);
+     show_usage();
+@@ -3363,7 +3372,93 @@
+             do_show_##varname = 1;                                      \
+     } while (0)
+ 
+-int main(int argc, char **argv)
++/*
++ * ffprobe() runs repeatedly in one module instance. The `end:` cleanup at
++ * the bottom of ffprobe() frees the option strings it allocates, but leaves
++ * their pointers and the show/do_show_* flags at whatever the previous call
++ * set them to, and never touches the per-run buffers below at all. Put
++ * everything back to its startup value so a call that omits a flag does not
++ * inherit it from an earlier call.
++ */
++static void ffprobe_reset(void)
++{
++    do_analyze_frames = 0;
++    do_bitexact = 0;
++    do_count_frames = 0;
++    do_count_packets = 0;
++    do_read_frames  = 0;
++    do_read_packets = 0;
++    do_show_chapters = 0;
++    do_show_error   = 0;
++    do_show_format  = 0;
++    do_show_frames  = 0;
++    do_show_packets = 0;
++    do_show_programs = 0;
++    do_show_stream_groups = 0;
++    do_show_stream_group_components = 0;
++    do_show_streams = 0;
++    do_show_stream_disposition = 0;
++    do_show_stream_group_disposition = 0;
++    do_show_data    = 0;
++    do_show_program_version  = 0;
++    do_show_library_versions = 0;
++    do_show_pixel_formats = 0;
++    do_show_pixel_format_flags = 0;
++    do_show_pixel_format_components = 0;
++    do_show_log = 0;
++
++    do_show_chapter_tags = 0;
++    do_show_format_tags = 0;
++    do_show_frame_tags = 0;
++    do_show_program_tags = 0;
++    do_show_stream_group_tags = 0;
++    do_show_stream_tags = 0;
++    do_show_packet_tags = 0;
++
++    show_value_unit              = 0;
++    use_value_prefix             = 0;
++    use_byte_value_binary_prefix = 0;
++    use_value_sexagesimal_format = 0;
++    show_private_data            = 1;
++
++    audio_codec_name    = NULL;
++    data_codec_name     = NULL;
++    subtitle_codec_name = NULL;
++    video_codec_name    = NULL;
++
++    show_optional_fields = SHOW_OPTIONAL_FIELDS_AUTO;
++
++    av_freep(&output_format);
++    av_freep(&stream_specifier);
++    av_freep(&show_data_hash);
++    av_freep(&data_dump_format);
++
++    av_freep(&read_intervals);
++    read_intervals_nb = 0;
++
++    find_stream_info = 1;
++
++    av_freep(&input_filename);
++    av_freep(&print_input_filename);
++    iformat = NULL;
++    av_freep(&output_filename);
++
++    nb_streams = 0;
++    av_freep(&selected_streams);
++    av_freep(&streams_with_closed_captions);
++    av_freep(&streams_with_film_grain);
++    av_freep(&nb_streams_packets);
++    av_freep(&nb_streams_frames);
++
++    clear_log(1);
++    av_freep(&log_buffer);
++    av_log_set_callback(av_log_default_callback);
++}
++
++/* Prototype only to satisfy -Wmissing-prototypes; see the comment on
++ * ffmpeg()'s equivalent forward declaration in ffmpeg.c. */
++int ffprobe(int argc, char **argv);
++int ffprobe(int argc, char **argv)
+ {
+     const AVTextFormatter *f;
+     AVTextFormatContext *tctx;
+@@ -3373,6 +3468,8 @@
+     int ret, input_ret;
+     AVTextFormatDataDump data_dump_format_id = AV_TEXTFORMAT_DATADUMP_XXD;
+ 
++    ffprobe_reset();
++
+     init_dynload();
+ 
+     setvbuf(stderr, NULL, _IONBF, 0); /* win32 runtime needs this */
+@@ -3504,7 +3601,7 @@
+              (!do_show_program_version && !do_show_library_versions && !do_show_pixel_formats))) {
+             show_usage();
+             av_log(NULL, AV_LOG_ERROR, "You have to specify one input file.\n");
+-            av_log(NULL, AV_LOG_ERROR, "Use -h to get full help or, even better, run 'man %s'.\n", program_name);
++            av_log(NULL, AV_LOG_ERROR, "Use -h to get full help or, even better, run 'man %s'.\n", program_name_ffprobe);
+             ret = AVERROR(EINVAL);
+         } else if (input_filename) {
+             ret = probe_file(tctx, input_filename, print_input_filename);
+@@ -3540,5 +3637,10 @@
+ 
+     avformat_network_deinit();
+ 
+-    return ret < 0;
++    ret = ret < 0;
++
++    /* bind.js's exec() reads Module.ret after calling _ffprobe(). */
++    EM_ASM({ Module.ret = $0; }, ret);
++
++    return ret;
+ }
+diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
+--- a/fftools/opt_common.c	2026-09-24 09:59:45.054534508 -0500
++++ b/fftools/opt_common.c	2026-09-24 11:13:01.075303291 -0500
+@@ -152,6 +152,17 @@
+ 
+ static int warned_cfg = 0;
+ 
++void opt_common_reset(void)
++{
++    if (report_file) {
++        fclose(report_file);
++        report_file = NULL;
++        av_log_set_callback(NULL);
++    }
++    report_file_level = AV_LOG_DEBUG;
++    warned_cfg = 0;
++}
++
+ #define INDENT        1
+ #define SHOW_VERSION  2
+ #define SHOW_CONFIG   4
+diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
+--- a/fftools/opt_common.h	2026-09-24 09:59:45.054806658 -0500
++++ b/fftools/opt_common.h	2026-09-24 11:13:01.075575662 -0500
+@@ -229,4 +229,11 @@
+     { "hide_banner",  OPT_TYPE_BOOL, OPT_EXPERT,            {&hide_banner},                   "do not show program banner", "hide_banner" }, \
+     CMDUTILS_COMMON_OPTIONS_AVDEVICE                                                                                    \
+ 
++/*
++ * ffmpeg()/ffprobe() run repeatedly in one module instance. Reset opt_common's
++ * file-scope state (the -report log file and its "already warned" flag) so a
++ * later call does not inherit state left behind by an earlier one.
++ */
++void opt_common_reset(void);
++
+ #endif /* FFTOOLS_OPT_COMMON_H */
