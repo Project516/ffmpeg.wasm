@@ -98,6 +98,7 @@ export class FFmpeg {
         const rejects = { ...this.#rejects };
         this.#rejects = {};
         this.#resolves = {};
+        this.#worker?.terminate();
         this.#worker = null;
         this.loaded = false;
         for (const reject of Object.values(rejects)) {
