@@ -12,7 +12,10 @@
   <body>
     <div id="mocha"></div>
     <script src="../node_modules/mocha/mocha.js"></script>
-    <script src="../node_modules/chai/chai.js"></script>
+    <script type="module">
+      import * as chai from "../node_modules/chai/index.js";
+      window.chai = chai;
+    </script>
     <script src="../packages/ffmpeg/dist/umd/ffmpeg.js"></script>
     <script src="./test-helper-browser.js"></script>
     <script type="text/javascript">
@@ -25,8 +28,8 @@
       mocha.timeout(60000);
     </script>
     <script src="./ffmpeg.test.js"></script>
-    <script>
-      window.expect = chai.expect;
+    <script type="module">
+      window.expect = window.chai.expect;
       mocha.run();
     </script>
   </body>
