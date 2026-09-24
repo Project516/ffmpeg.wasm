@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Scoped to the root pnpm workspace (packages/*). The apps/ examples are
+  # standalone and out of scope; they are not listed in pnpm-workspace.yaml
+  # so dependabot never touches them from this entry.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
