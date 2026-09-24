@@ -104,7 +104,7 @@ export class FFmpeg {
 
     return new Promise((resolve, reject) => {
       const id = getMessageID();
-      this.#worker && this.#worker.postMessage({ id, type, data }, trans);
+      this.#worker?.postMessage({ id, type, data }, trans);
       this.#resolves[id] = resolve;
       this.#rejects[id] = reject;
 
