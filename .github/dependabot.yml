@@ -13,6 +13,10 @@ updates:
       - "apps/**"
     schedule:
       interval: "weekly"
+    ignore:
+      # typescript-eslint supports TypeScript below 6.1 only.
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
     groups:
       minor-and-patch:
         update-types:
