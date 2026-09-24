@@ -41,19 +41,10 @@ export default function Playground() {
       true,
       setProgress
     );
-    const workerURL = mt
-      ? await toBlobURL(
-          CORE_MT_URL.replace(/.js$/g, ".worker.js"),
-          "text/javascript",
-          true,
-          setProgress
-        )
-      : "";
     ffmpeg.current.terminate();
     await ffmpeg.current.load({
       coreURL,
       wasmURL,
-      workerURL,
     });
     setState(State.LOADED);
   };

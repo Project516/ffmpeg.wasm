@@ -5,13 +5,15 @@ const { themes: prismThemes } = require("prism-react-renderer");
 const lightCodeTheme = prismThemes.github;
 const darkCodeTheme = prismThemes.dracula;
 
+const baseUrl = "/ffmpeg.wasm/";
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "ffmpeg.wasm",
   tagline:
     "ffmpeg.wasm is a pure WebAssembly / JavaScript port of FFmpeg enabling video & audio record, convert and stream right inside browsers!",
   url: "https://project516.dev",
-  baseUrl: "/ffmpeg.wasm/",
+  baseUrl,
   onBrokenLinks: "throw",
   markdown: {
     hooks: {
@@ -167,6 +169,28 @@ const config = {
     ],
   ],
   themes: ["@docusaurus/theme-live-codeblock"],
+  // coi-serviceworker (vendored in static/, MIT licensed) adds the
+  // COOP/COEP response headers GitHub Pages cannot send itself, so
+  // SharedArrayBuffer (and the multithreaded core) works cross-origin
+  // isolated. `coepCredentialless`/`coepDegrade` are forced off because
+  // Safari (including iPadOS) does not support COEP `credentialless`;
+  // require-corp is the only mode that works everywhere the mt core needs
+  // to run. Registering it via headTags, rather than a body script, gets
+  // it in front of the browser as early as possible so the reload it
+  // triggers on first visit also protects the very first page load.
+  headTags: [
+    {
+      tagName: "script",
+      attributes: {},
+      innerHTML: `window.coi = { coepCredentialless: () => false, coepDegrade: () => false };`,
+    },
+    {
+      tagName: "script",
+      attributes: {
+        src: `${baseUrl}coi-serviceworker.js`,
+      },
+    },
+  ],
 };
 
 module.exports = config;
