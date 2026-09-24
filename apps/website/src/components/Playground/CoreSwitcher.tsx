@@ -15,7 +15,7 @@ interface CoreSwitcherProps {
 export default function CoreSwitcher({ checked, onChange }: CoreSwitcherProps) {
   return (
     <>
-      <Stack direction="row" justifyContent="flex-end">
+      <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
         <FormGroup>
           <FormControlLabel
             control={<Switch checked={checked} onChange={onChange} />}

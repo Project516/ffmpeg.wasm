@@ -69,12 +69,17 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
         setNewName("");
         setRenameOpen(true);
         break;
-      case "download":
-        downloadFile(
-          name,
-          ((await ffmpeg.readFile(fullPath, "binary")) as Uint8Array).buffer
-        );
+      case "download": {
+        const fileData = (await ffmpeg.readFile(
+          fullPath,
+          "binary"
+        )) as Uint8Array;
+        // Copy into a plain ArrayBuffer-backed view: @project516/ffmpeg's
+        // FileData type predates TS 5.7's generic typed arrays, so it widens
+        // to Uint8Array<ArrayBufferLike>, which Blob's BlobPart rejects.
+        downloadFile(name, new Uint8Array(fileData));
         break;
+      }
       case "download-text":
         downloadFile(name, await ffmpeg.readFile(fullPath, "utf8"));
         break;
@@ -150,7 +155,7 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
   return (
     <Box sx={{ flexGrow: 1 }}>
       <Grid container spacing={{ xs: 1 }} columns={{ xs: 4, md: 12 }}>
-        <Grid item xs={4}>
+        <Grid size={{ xs: 4 }}>
           <FileSystemManager
             path={path}
             nodes={nodes}
@@ -168,7 +173,7 @@ export default function Workspace({ ffmpeg: _ffmpeg }: WorkspaceProps) {
             onRefresh={() => refreshDir(path)}
           />
         </Grid>
-        <Grid item xs={8}>
+        <Grid size={{ xs: 8 }}>
           <Editor
             args={args}
             logs={logs}
