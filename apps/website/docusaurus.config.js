@@ -9,7 +9,7 @@ const config = {
   title: "ffmpeg.wasm",
   tagline:
     "ffmpeg.wasm is a pure WebAssembly / JavaScript port of FFmpeg enabling video & audio record, convert and stream right inside browsers!",
-  url: "https://project516.github.io",
+  url: "https://project516.dev",
   baseUrl: "/ffmpeg.wasm/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",

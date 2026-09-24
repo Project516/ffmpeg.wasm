@@ -24,9 +24,9 @@ The fork publishes under the `@project516` npm scope. The packages are drop-in r
 
 ## Documentation
 
-- [Introduction](https://project516.github.io/ffmpeg.wasm/docs/overview)
+- [Introduction](https://project516.dev/ffmpeg.wasm/docs/overview)
 - [Getting
-    Started](https://project516.github.io/ffmpeg.wasm/docs/getting-started/installation)
-- [API](https://project516.github.io/ffmpeg.wasm/docs/api/ffmpeg/)
-- [FAQ](https://project516.github.io/ffmpeg.wasm/docs/faq)
-- [Contribution](https://project516.github.io/ffmpeg.wasm/docs/contribution/core)
+    Started](https://project516.dev/ffmpeg.wasm/docs/getting-started/installation)
+- [API](https://project516.dev/ffmpeg.wasm/docs/api/ffmpeg/)
+- [FAQ](https://project516.dev/ffmpeg.wasm/docs/faq)
+- [Contribution](https://project516.dev/ffmpeg.wasm/docs/contribution/core)
