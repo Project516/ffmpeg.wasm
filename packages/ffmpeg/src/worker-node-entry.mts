@@ -1,13 +1,37 @@
-// Node.js worker_threads entry point. Spawned by classes.ts's Node
-// `createWorker` in place of the browser Worker used by worker.ts. Runs the
-// same message dispatcher (worker-core.js), talking to the parent thread
-// over `parentPort` instead of `postMessage`/`onmessage`.
+// Node.js worker_threads entry point, spawned by classes.ts's Node
+// `createWorker` (see node.mts) in place of the browser Worker used by
+// worker.ts. Deliberately not sharing code with worker.ts: webpack fully
+// inlines worker.ts's own sibling imports (const.js, errors.js) into a
+// single classic-script chunk for the browser bundle, but does not resolve
+// through an extra shared module the same way, which broke that bundle.
+// This file isn't part of the webpack build at all (nothing reachable from
+// index.js imports it), so the small duplication here is the trade-off for
+// leaving worker.ts's bundling behavior alone.
 import { parentPort } from "node:worker_threads";
 import type { TransferListItem } from "node:worker_threads";
-import type { FFmpegCoreModuleFactory } from "@project516/types";
-import type { FFMessage, CallbackData } from "./types.js";
+import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/types";
+import type {
+  FFMessage,
+  FFMessageLoadConfig,
+  FFMessageExecData,
+  FFMessageWriteFileData,
+  FFMessageReadFileData,
+  FFMessageDeleteFileData,
+  FFMessageRenameData,
+  FFMessageCreateDirData,
+  FFMessageListDirData,
+  FFMessageDeleteDirData,
+  FFMessageMountData,
+  FFMessageUnmountData,
+  CallbackData,
+  IsFirst,
+  OK,
+  ExitCode,
+  FSNode,
+  FileData,
+} from "./types.js";
 import { FFMessageType } from "./const.js";
-import { createDispatcher } from "./worker-core.js";
+import { ERROR_UNKNOWN_MESSAGE_TYPE, ERROR_NOT_LOADED } from "./errors.js";
 
 if (!parentPort) {
   throw new Error(
@@ -15,36 +39,155 @@ if (!parentPort) {
   );
 }
 
-interface ImportedFFmpegCoreModuleFactory {
-  default?: FFmpegCoreModuleFactory;
-}
-
-const importCore = async (
-  coreURL: string
-): Promise<FFmpegCoreModuleFactory> => {
-  const mod = (await import(
-    /* webpackIgnore: true */ coreURL
-  )) as ImportedFFmpegCoreModuleFactory;
-  const factory = mod.default;
-  if (!factory) {
-    throw new Error(`failed to import ffmpeg-core from ${coreURL}`);
-  }
-  return factory;
-};
+let ffmpeg: FFmpegCoreModule;
 
 // `@project516/core` resolves relative to the consuming project's own
 // node_modules, not this package, so a bare specifier is correct here.
-const defaultCoreURL = import.meta.resolve("@project516/core");
+const defaultCoreURL = (): string => import.meta.resolve("@project516/core");
 
-const dispatch = createDispatcher(
-  { importCore, defaultCoreURL },
-  (message) => parentPort!.postMessage(message)
-);
+const load = async ({
+  coreURL: _coreURL,
+  wasmURL: _wasmURL,
+}: FFMessageLoadConfig): Promise<IsFirst> => {
+  const first = !ffmpeg;
+  const coreURL = _coreURL || defaultCoreURL();
+  const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/\.js$/, ".wasm");
+
+  const mod = (await import(/* webpackIgnore: true */ coreURL)) as {
+    default?: FFmpegCoreModuleFactory;
+  };
+  const createFFmpegCore = mod.default;
+  if (!createFFmpegCore) {
+    throw new Error(`failed to import ffmpeg-core from ${coreURL}`);
+  }
+
+  ffmpeg = await createFFmpegCore({
+    // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
+    // Encoded wasmURL in the URL as a hack to fix locateFile issue.
+    mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
+  });
+  ffmpeg.setLogger((data) =>
+    parentPort!.postMessage({ type: FFMessageType.LOG, data })
+  );
+  ffmpeg.setProgress((data) =>
+    parentPort!.postMessage({ type: FFMessageType.PROGRESS, data })
+  );
+  return first;
+};
+
+const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
+  ffmpeg.setTimeout(timeout);
+  ffmpeg.exec(...args);
+  const ret = ffmpeg.ret;
+  ffmpeg.reset();
+  return ret;
+};
+
+const ffprobe = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
+  ffmpeg.setTimeout(timeout);
+  ffmpeg.ffprobe(...args);
+  const ret = ffmpeg.ret;
+  ffmpeg.reset();
+  return ret;
+};
+
+const writeFile = ({ path, data }: FFMessageWriteFileData): OK => {
+  ffmpeg.FS.writeFile(path, data);
+  return true;
+};
+
+const readFile = ({ path, encoding }: FFMessageReadFileData): FileData =>
+  ffmpeg.FS.readFile(path, { encoding });
+
+const deleteFile = ({ path }: FFMessageDeleteFileData): OK => {
+  ffmpeg.FS.unlink(path);
+  return true;
+};
+
+const rename = ({ oldPath, newPath }: FFMessageRenameData): OK => {
+  ffmpeg.FS.rename(oldPath, newPath);
+  return true;
+};
+
+const createDir = ({ path }: FFMessageCreateDirData): OK => {
+  ffmpeg.FS.mkdir(path);
+  return true;
+};
+
+const listDir = ({ path }: FFMessageListDirData): FSNode[] => {
+  const names = ffmpeg.FS.readdir(path);
+  const nodes: FSNode[] = [];
+  for (const name of names) {
+    const stat = ffmpeg.FS.stat(`${path}/${name}`);
+    const isDir = ffmpeg.FS.isDir(stat.mode);
+    nodes.push({ name, isDir });
+  }
+  return nodes;
+};
+
+const deleteDir = ({ path }: FFMessageDeleteDirData): OK => {
+  ffmpeg.FS.rmdir(path);
+  return true;
+};
+
+const mount = ({ fsType, options, mountPoint }: FFMessageMountData): OK => {
+  const str = fsType as keyof typeof ffmpeg.FS.filesystems;
+  const fs = ffmpeg.FS.filesystems[str];
+  if (!fs) return false;
+  ffmpeg.FS.mount(fs, options, mountPoint);
+  return true;
+};
+
+const unmount = ({ mountPoint }: FFMessageUnmountData): OK => {
+  ffmpeg.FS.unmount(mountPoint);
+  return true;
+};
 
 const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
   let result: CallbackData;
   try {
-    result = await dispatch(type, data);
+    if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED; // eslint-disable-line
+
+    switch (type) {
+      case FFMessageType.LOAD:
+        result = await load((data ?? {}) as FFMessageLoadConfig);
+        break;
+      case FFMessageType.EXEC:
+        result = exec(data as FFMessageExecData);
+        break;
+      case FFMessageType.FFPROBE:
+        result = ffprobe(data as FFMessageExecData);
+        break;
+      case FFMessageType.WRITE_FILE:
+        result = writeFile(data as FFMessageWriteFileData);
+        break;
+      case FFMessageType.READ_FILE:
+        result = readFile(data as FFMessageReadFileData);
+        break;
+      case FFMessageType.DELETE_FILE:
+        result = deleteFile(data as FFMessageDeleteFileData);
+        break;
+      case FFMessageType.RENAME:
+        result = rename(data as FFMessageRenameData);
+        break;
+      case FFMessageType.CREATE_DIR:
+        result = createDir(data as FFMessageCreateDirData);
+        break;
+      case FFMessageType.LIST_DIR:
+        result = listDir(data as FFMessageListDirData);
+        break;
+      case FFMessageType.DELETE_DIR:
+        result = deleteDir(data as FFMessageDeleteDirData);
+        break;
+      case FFMessageType.MOUNT:
+        result = mount(data as FFMessageMountData);
+        break;
+      case FFMessageType.UNMOUNT:
+        result = unmount(data as FFMessageUnmountData);
+        break;
+      default:
+        throw ERROR_UNKNOWN_MESSAGE_TYPE; // eslint-disable-line @typescript-eslint/no-unsafe-argument
+    }
   } catch (e) {
     parentPort!.postMessage({
       id,

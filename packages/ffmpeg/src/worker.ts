@@ -2,11 +2,33 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-import type { FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
-import type { FFMessageEvent, CallbackData } from "./types.js";
+import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
+import type {
+  FFMessageEvent,
+  FFMessageLoadConfig,
+  FFMessageExecData,
+  FFMessageWriteFileData,
+  FFMessageReadFileData,
+  FFMessageDeleteFileData,
+  FFMessageRenameData,
+  FFMessageCreateDirData,
+  FFMessageListDirData,
+  FFMessageDeleteDirData,
+  FFMessageMountData,
+  FFMessageUnmountData,
+  CallbackData,
+  IsFirst,
+  OK,
+  ExitCode,
+  FSNode,
+  FileData,
+} from "./types";
 import { CORE_URL, FFMessageType } from "./const.js";
-import { createDispatcher } from "./worker-core.js";
-import { ERROR_IMPORT_FAILURE } from "./errors.js";
+import {
+  ERROR_UNKNOWN_MESSAGE_TYPE,
+  ERROR_NOT_LOADED,
+  ERROR_IMPORT_FAILURE,
+} from "./errors.js";
 
 declare global {
   interface WorkerGlobalScope {
@@ -18,26 +40,31 @@ interface ImportedFFmpegCoreModuleFactory {
   default: FFmpegCoreModuleFactory;
 }
 
-const importCore = async (
-  coreURL: string
-): Promise<FFmpegCoreModuleFactory> => {
+let ffmpeg: FFmpegCoreModule;
+
+const load = async ({
+  coreURL: _coreURL,
+  wasmURL: _wasmURL,
+}: FFMessageLoadConfig): Promise<IsFirst> => {
+  const first = !ffmpeg;
+
   try {
+    if (!_coreURL) _coreURL = CORE_URL;
     // when web worker type is `classic`.
-    importScripts(coreURL);
-    return (self as WorkerGlobalScope).createFFmpegCore;
+    importScripts(_coreURL);
   } catch (importScriptsError) {
     try {
-      const esmURL =
-        coreURL === CORE_URL ? CORE_URL.replace("/umd/", "/esm/") : coreURL;
+      if (!_coreURL || _coreURL === CORE_URL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
       // when web worker type is `module`.
-      const factory = (
+      (self as WorkerGlobalScope).createFFmpegCore = (
         (await import(
-          /* @vite-ignore */ esmURL
+          /* @vite-ignore */ _coreURL
         )) as ImportedFFmpegCoreModuleFactory
       ).default;
 
-      if (!factory) throw ERROR_IMPORT_FAILURE;
-      return factory;
+      if (!(self as WorkerGlobalScope).createFFmpegCore) {
+        throw ERROR_IMPORT_FAILURE;
+      }
     } catch (importError) {
       // Either failure can be the real one: importScripts() for a bad URL in
       // a classic worker, import() in a module worker. The caller only sees
@@ -50,19 +77,146 @@ const importCore = async (
       );
     }
   }
+
+  const coreURL = _coreURL;
+  const wasmURL = _wasmURL ? _wasmURL : _coreURL.replace(/.js$/g, ".wasm");
+
+  ffmpeg = await (self as WorkerGlobalScope).createFFmpegCore({
+    // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
+    // Encoded wasmURL in the URL as a hack to fix locateFile issue.
+    mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
+  });
+  ffmpeg.setLogger((data) =>
+    self.postMessage({ type: FFMessageType.LOG, data })
+  );
+  ffmpeg.setProgress((data) =>
+    self.postMessage({
+      type: FFMessageType.PROGRESS,
+      data,
+    })
+  );
+  return first;
 };
 
-const dispatch = createDispatcher(
-  { importCore, defaultCoreURL: CORE_URL },
-  (message) => self.postMessage(message)
-);
+const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
+  ffmpeg.setTimeout(timeout);
+  ffmpeg.exec(...args);
+  const ret = ffmpeg.ret;
+  ffmpeg.reset();
+  return ret;
+};
+
+const ffprobe = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
+  ffmpeg.setTimeout(timeout);
+  ffmpeg.ffprobe(...args);
+  const ret = ffmpeg.ret;
+  ffmpeg.reset();
+  return ret;
+};
+
+const writeFile = ({ path, data }: FFMessageWriteFileData): OK => {
+  ffmpeg.FS.writeFile(path, data);
+  return true;
+};
+
+const readFile = ({ path, encoding }: FFMessageReadFileData): FileData =>
+  ffmpeg.FS.readFile(path, { encoding });
+
+// TODO: check if deletion works.
+const deleteFile = ({ path }: FFMessageDeleteFileData): OK => {
+  ffmpeg.FS.unlink(path);
+  return true;
+};
+
+const rename = ({ oldPath, newPath }: FFMessageRenameData): OK => {
+  ffmpeg.FS.rename(oldPath, newPath);
+  return true;
+};
+
+// TODO: check if creation works.
+const createDir = ({ path }: FFMessageCreateDirData): OK => {
+  ffmpeg.FS.mkdir(path);
+  return true;
+};
+
+const listDir = ({ path }: FFMessageListDirData): FSNode[] => {
+  const names = ffmpeg.FS.readdir(path);
+  const nodes: FSNode[] = [];
+  for (const name of names) {
+    const stat = ffmpeg.FS.stat(`${path}/${name}`);
+    const isDir = ffmpeg.FS.isDir(stat.mode);
+    nodes.push({ name, isDir });
+  }
+  return nodes;
+};
+
+// TODO: check if deletion works.
+const deleteDir = ({ path }: FFMessageDeleteDirData): OK => {
+  ffmpeg.FS.rmdir(path);
+  return true;
+};
+
+const mount = ({ fsType, options, mountPoint }: FFMessageMountData): OK => {
+  const str = fsType as keyof typeof ffmpeg.FS.filesystems;
+  const fs = ffmpeg.FS.filesystems[str];
+  if (!fs) return false;
+  ffmpeg.FS.mount(fs, options, mountPoint);
+  return true;
+};
+
+const unmount = ({ mountPoint }: FFMessageUnmountData): OK => {
+  ffmpeg.FS.unmount(mountPoint);
+  return true;
+};
 
 self.onmessage = async ({
-  data: { id, type, data },
+  data: { id, type, data: _data },
 }: FFMessageEvent): Promise<void> => {
-  let result: CallbackData;
+  const trans = [];
+  let data: CallbackData;
   try {
-    result = await dispatch(type, data);
+    if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED; // eslint-disable-line
+
+    switch (type) {
+      case FFMessageType.LOAD:
+        data = await load(_data as FFMessageLoadConfig);
+        break;
+      case FFMessageType.EXEC:
+        data = exec(_data as FFMessageExecData);
+        break;
+      case FFMessageType.FFPROBE:
+        data = ffprobe(_data as FFMessageExecData);
+        break;
+      case FFMessageType.WRITE_FILE:
+        data = writeFile(_data as FFMessageWriteFileData);
+        break;
+      case FFMessageType.READ_FILE:
+        data = readFile(_data as FFMessageReadFileData);
+        break;
+      case FFMessageType.DELETE_FILE:
+        data = deleteFile(_data as FFMessageDeleteFileData);
+        break;
+      case FFMessageType.RENAME:
+        data = rename(_data as FFMessageRenameData);
+        break;
+      case FFMessageType.CREATE_DIR:
+        data = createDir(_data as FFMessageCreateDirData);
+        break;
+      case FFMessageType.LIST_DIR:
+        data = listDir(_data as FFMessageListDirData);
+        break;
+      case FFMessageType.DELETE_DIR:
+        data = deleteDir(_data as FFMessageDeleteDirData);
+        break;
+      case FFMessageType.MOUNT:
+        data = mount(_data as FFMessageMountData);
+        break;
+      case FFMessageType.UNMOUNT:
+        data = unmount(_data as FFMessageUnmountData);
+        break;
+      default:
+        throw ERROR_UNKNOWN_MESSAGE_TYPE;
+    }
   } catch (e) {
     self.postMessage({
       id,
@@ -71,6 +225,8 @@ self.onmessage = async ({
     });
     return;
   }
-  const trans = result instanceof Uint8Array ? [result.buffer] : [];
-  self.postMessage({ id, type, data: result }, trans);
+  if (data instanceof Uint8Array) {
+    trans.push(data.buffer);
+  }
+  self.postMessage({ id, type, data }, trans);
 };
