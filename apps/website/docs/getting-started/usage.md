@@ -486,3 +486,14 @@ const coreURL = require.resolve('@project516/ffmpeg-wasm-core-mt');
 const ffmpeg = new FFmpeg();
 await ffmpeg.load({ coreURL });
 ```
+
+### Known gaps
+
+- The default `coreURL` resolution relies on Node's ordinary
+  `node_modules` directory walk, so it works under npm's hoisted layout
+  and pnpm. It does not work under Yarn PnP, which only resolves a
+  package's own declared dependencies; pass `coreURL` explicitly there.
+- `coreURL` is caller-supplied configuration, the same as it is in the
+  browser. Node's `import()` has no browser-style CORS/CSP restriction on
+  what it loads, so treat `coreURL` like any other application-controlled
+  path passed to `import()`, not like untrusted user input.
