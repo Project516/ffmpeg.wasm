@@ -4,7 +4,7 @@ import globals from "globals";
 // Lints tests/, run as `eslint tests`. Mirrors the old tests/.eslintrc.json.
 export default [
   {
-    files: ["tests/**/*.js"],
+    files: ["tests/**/*.js", "tests/**/*.mjs"],
     ...js.configs.recommended,
   },
   {
@@ -23,6 +23,20 @@ export default [
         b64ToUint8Array: true,
         createFFmpegCore: true,
         expect: true,
+      },
+    },
+  },
+  {
+    // The Node.js test suite (tests/ffmpeg-node.test.mjs): real ES modules,
+    // run with `node`/mocha, not loaded on a test page like the .js files
+    // above.
+    files: ["tests/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+        ...globals.mocha,
       },
     },
   },

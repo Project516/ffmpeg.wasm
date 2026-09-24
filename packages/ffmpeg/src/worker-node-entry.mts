@@ -153,7 +153,7 @@ const unmount = ({ mountPoint }: FFMessageUnmountData): OK => {
 const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
   let result: CallbackData;
   try {
-    if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED; // eslint-disable-line
+    if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED;
 
     // KEEP THIS SWITCH IN SYNC WITH worker.ts's: both must handle the same
     // set of FFMessageType cases.
@@ -195,7 +195,7 @@ const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
         result = unmount(data as FFMessageUnmountData);
         break;
       default:
-        throw ERROR_UNKNOWN_MESSAGE_TYPE; // eslint-disable-line @typescript-eslint/no-unsafe-argument
+        throw ERROR_UNKNOWN_MESSAGE_TYPE;
     }
   } catch (e) {
     parentPort!.postMessage({

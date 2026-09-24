@@ -30,7 +30,8 @@ const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
       "fetchFile() detected Node.js but could not load node:fs/promises " +
         "to read a local path; if you're in an Electron renderer, enable " +
         `nodeIntegration or fetch the file yourself and pass the bytes ` +
-        `directly. (${reason})`
+        `directly. (${reason})`,
+      { cause: e }
     );
   }
   return fs.readFile(path);

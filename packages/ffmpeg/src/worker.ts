@@ -185,7 +185,7 @@ self.onmessage = async ({
   const trans = [];
   let data: CallbackData;
   try {
-    if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED; // eslint-disable-line
+    if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED;
 
     // KEEP THIS SWITCH IN SYNC WITH worker-node-entry.mts's: both must
     // handle the same set of FFMessageType cases.
