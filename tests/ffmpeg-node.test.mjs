@@ -49,6 +49,20 @@ describe(genName("global Worker leakage"), function () {
   });
 });
 
+describe(genName("concurrent load()"), function () {
+  this.timeout(60000);
+
+  it("resolves first=true for exactly one of two concurrent load() calls", async () => {
+    const ffmpeg = new FFmpeg();
+    try {
+      const [a, b] = await Promise.all([load(ffmpeg), load(ffmpeg)]);
+      expect([a, b].filter(Boolean)).to.have.lengthOf(1);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
 describe(genName("FFmpeg"), function () {
   this.timeout(60000);
 

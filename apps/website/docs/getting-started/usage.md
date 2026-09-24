@@ -489,6 +489,8 @@ await ffmpeg.load({ coreURL });
 
 ### Known gaps
 
+- `classWorkerURL` is a browser-only option. `load()` always runs the
+  bundled `worker_threads` entry under Node.js and ignores it.
 - The default `coreURL` resolution relies on Node's ordinary
   `node_modules` directory walk, so it works under npm's hoisted layout
   and pnpm. It does not work under Yarn PnP, which only resolves a

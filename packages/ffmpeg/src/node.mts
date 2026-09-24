@@ -26,16 +26,12 @@ class NodeWorkerAdapter {
 
   // classes.ts always passes a WorkerOptions second argument ({ type }),
   // which only matters for a real browser Worker; nothing here reads it.
-  constructor(url: URL) {
-    // classes.ts always computes the browser worker.js URL when the caller
-    // does not pass a custom `classWorkerURL`. Swap in the Node worker
-    // entry that ships alongside it, in the same directory. A caller that
-    // does pass a custom classWorkerURL is trusted to point at a script
-    // that speaks the same protocol under Node.
-    const entryURL = url.pathname.endsWith("/worker.js") ?
-      new URL("./worker-node-entry.mjs", url) :
-      url;
-
+  // The URL classes.ts computed (the default worker.js, or a caller's
+  // `classWorkerURL`) is ignored too: `classWorkerURL` is a browser-only
+  // option (see its doc comment in types.ts), so Node always runs the
+  // bundled worker-node-entry.mjs that ships alongside this file.
+  constructor() {
+    const entryURL = new URL("./worker-node-entry.mjs", import.meta.url);
     this.#worker = new NodeWorker(entryURL);
     this.#worker.on("message", (data: unknown) => {
       this.onmessage?.({ data });

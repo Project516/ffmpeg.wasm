@@ -36,6 +36,11 @@ if (!parentPort) {
 }
 
 let ffmpeg: FFmpegCoreModule;
+// Set synchronously, before any `await`, so a second LOAD message that
+// arrives while the first is still loading sees this already true instead
+// of both computing `first: true`. Kept in sync with worker.ts's identical
+// guard.
+let loadStarted = false;
 
 // `@project516/ffmpeg-wasm-core` resolves relative to the consuming
 // project's own node_modules, not this package, so a bare specifier is
@@ -47,7 +52,8 @@ const load = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
 }: FFMessageLoadConfig): Promise<IsFirst> => {
-  const first = !ffmpeg;
+  const first = !loadStarted;
+  loadStarted = true;
   const coreURL = _coreURL || defaultCoreURL();
   const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/\.js$/, ".wasm");
 

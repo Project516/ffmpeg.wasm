@@ -41,12 +41,17 @@ interface ImportedFFmpegCoreModuleFactory {
 }
 
 let ffmpeg: FFmpegCoreModule;
+// Set synchronously, before any `await`, so a second LOAD message that
+// arrives while the first is still loading sees this already true instead
+// of both computing `first: true`.
+let loadStarted = false;
 
 const load = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
 }: FFMessageLoadConfig): Promise<IsFirst> => {
-  const first = !ffmpeg;
+  const first = !loadStarted;
+  loadStarted = true;
 
   try {
     if (!_coreURL) _coreURL = CORE_URL;
@@ -54,7 +59,12 @@ const load = async ({
     importScripts(_coreURL);
   } catch (importScriptsError) {
     try {
-      if (!_coreURL || _coreURL === CORE_URL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
+      // A UMD coreURL (default or caller-supplied) fails to parse as an ES
+      // module; retry any /umd/ URL under /esm/ instead of only the
+      // default CORE_URL. Re-defaulted here (already done above) because
+      // TS can't carry the narrowing across the try/catch boundary.
+      _coreURL = _coreURL || CORE_URL;
+      if (_coreURL.includes("/umd/")) _coreURL = _coreURL.replace('/umd/', '/esm/');
       // when web worker type is `module`.
       (self as WorkerGlobalScope).createFFmpegCore = (
         (await import(

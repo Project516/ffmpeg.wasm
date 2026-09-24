@@ -30,6 +30,9 @@ export interface FFMessageLoadConfig {
   /**
    * `ffmpeg.worker.js` URL. This worker is spawned when FFmpeg.load() is called, it is an essential worker and usually you don't need to update this config.
    *
+   * Browser only: under Node.js, `load()` always runs the bundled
+   * `worker_threads` entry and ignores this option.
+   *
    * @ref: https://ffmpegwasm.netlify.app/docs/overview#architecture
    * @defaultValue `./worker.js`
    */
