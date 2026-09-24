@@ -41,9 +41,9 @@ export class AppComponent {
     await this.ffmpeg.writeFile('input.avi', await fetchFile(videoURL));
     await this.ffmpeg.exec(['-i', 'input.avi', 'output.mp4']);
     const fileData = await this.ffmpeg.readFile('output.mp4');
-    const data = new Uint8Array(fileData as ArrayBuffer);
+    const data = new Uint8Array(fileData as Uint8Array);
     this.videoURL = URL.createObjectURL(
-      new Blob([data.buffer], { type: 'video/mp4' }),
+      new Blob([data], { type: 'video/mp4' }),
     );
   }
 }
