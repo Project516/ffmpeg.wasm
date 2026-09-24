@@ -43,7 +43,7 @@ jobs:
       - name: Update pkg-config database
         run: sudo ldconfig
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Expose Actions cache runtime to buildx
         uses: crazy-max/ghaction-github-runtime@v4
       - name: Build ffmpeg-core
@@ -60,7 +60,7 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v5
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Expose Actions cache runtime to buildx
         uses: crazy-max/ghaction-github-runtime@v4
       - name: Build ffmpeg-core-mt
