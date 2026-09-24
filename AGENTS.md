@@ -42,5 +42,15 @@ maintained fork of the abandoned `ffmpegwasm/ffmpeg.wasm`.
 
 ## Review
 
-PRs target `master` and squash merge. A review bot must review the head
-commit before merge.
+PRs target `master` and squash merge. The CI jobs `js`, `build-core`,
+`build-core-mt`, and `tests` are required checks.
+
+Two bots review. Both must have read the head commit before merge:
+
+- project516-review-bot reviews every push. Reply on its inline threads; it
+  concedes or pushes back in the thread. Its CHANGES_REQUESTED does not block
+  merging, so do not arm auto-merge until it has reviewed the head and its
+  points are settled.
+- CodeRabbit is on the free tier and gets rate limited. Its
+  CHANGES_REQUESTED does block merging. Resolve its threads once fixed and
+  ask it to re-check.
