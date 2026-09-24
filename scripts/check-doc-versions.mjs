@@ -3,27 +3,33 @@
 // from the versions actually pinned in the Dockerfile. Run with
 // `node scripts/check-doc-versions.mjs`.
 //
-// Each entry maps a Dockerfile pin to the row it must appear in, in
-// apps/website/docs/overview.md's Libraries table. Extend this list whenever
-// the Dockerfile adds, removes, or renames a pinned library.
+// Each entry maps one or more Dockerfile pins to the row they must appear in,
+// in apps/website/docs/overview.md's Libraries table. Most rows pin a single
+// value; FFmpeg pins two (the st and mt cores build different FFmpeg
+// releases; see "FFmpeg upgrade plan" in AGENTS.md), so both must be present.
+// Extend this list whenever the Dockerfile adds, removes, or renames a
+// pinned library.
 const DOCKERFILE_TO_ROW = [
-  { row: "Emscripten", pattern: /FROM emscripten\/emsdk:(\S+)/ },
-  { row: "FFmpeg", pattern: /ENV FFMPEG_VERSION=(\S+)/ },
-  { row: "x264", pattern: /ENV X264_BRANCH=(\S+)/ },
-  { row: "x265", pattern: /ENV X265_BRANCH=(\S+)/ },
-  { row: "libvpx", pattern: /ENV LIBVPX_BRANCH=(\S+)/ },
-  { row: "lame", pattern: /ENV LAME_BRANCH=(\S+)/ },
-  { row: "ogg", pattern: /ENV OGG_BRANCH=(\S+)/ },
-  { row: "theora", pattern: /ENV THEORA_BRANCH=(\S+)/ },
-  { row: "opus", pattern: /ENV OPUS_BRANCH=(\S+)/ },
-  { row: "vorbis", pattern: /ENV VORBIS_BRANCH=(\S+)/ },
-  { row: "zlib", pattern: /ENV ZLIB_BRANCH=(\S+)/ },
-  { row: "libwebp", pattern: /ENV LIBWEBP_BRANCH=(\S+)/ },
-  { row: "freetype2", pattern: /ENV FREETYPE2_BRANCH=(\S+)/ },
-  { row: "fribidi", pattern: /ENV FRIBIDI_BRANCH=(\S+)/ },
-  { row: "harfbuzz", pattern: /ENV HARFBUZZ_BRANCH=(\S+)/ },
-  { row: "libass", pattern: /ENV LIBASS_BRANCH=(\S+)/ },
-  { row: "zimg", pattern: /ENV ZIMG_BRANCH=(\S+)/ },
+  { row: "Emscripten", patterns: [/FROM emscripten\/emsdk:(\S+)/] },
+  {
+    row: "FFmpeg",
+    patterns: [/ENV FFMPEG_VERSION_MT=(\S+)/, /ENV FFMPEG_VERSION_ST=(\S+)/],
+  },
+  { row: "x264", patterns: [/ENV X264_BRANCH=(\S+)/] },
+  { row: "x265", patterns: [/ENV X265_BRANCH=(\S+)/] },
+  { row: "libvpx", patterns: [/ENV LIBVPX_BRANCH=(\S+)/] },
+  { row: "lame", patterns: [/ENV LAME_BRANCH=(\S+)/] },
+  { row: "ogg", patterns: [/ENV OGG_BRANCH=(\S+)/] },
+  { row: "theora", patterns: [/ENV THEORA_BRANCH=(\S+)/] },
+  { row: "opus", patterns: [/ENV OPUS_BRANCH=(\S+)/] },
+  { row: "vorbis", patterns: [/ENV VORBIS_BRANCH=(\S+)/] },
+  { row: "zlib", patterns: [/ENV ZLIB_BRANCH=(\S+)/] },
+  { row: "libwebp", patterns: [/ENV LIBWEBP_BRANCH=(\S+)/] },
+  { row: "freetype2", patterns: [/ENV FREETYPE2_BRANCH=(\S+)/] },
+  { row: "fribidi", patterns: [/ENV FRIBIDI_BRANCH=(\S+)/] },
+  { row: "harfbuzz", patterns: [/ENV HARFBUZZ_BRANCH=(\S+)/] },
+  { row: "libass", patterns: [/ENV LIBASS_BRANCH=(\S+)/] },
+  { row: "zimg", patterns: [/ENV ZIMG_BRANCH=(\S+)/] },
 ];
 
 import { readFileSync } from "node:fs";
@@ -39,14 +45,7 @@ const overview = readFileSync(overviewPath, "utf8");
 
 const errors = [];
 
-for (const { row, pattern } of DOCKERFILE_TO_ROW) {
-  const match = dockerfile.match(pattern);
-  if (!match) {
-    errors.push(`Dockerfile: could not find a pin for "${row}" (pattern ${pattern})`);
-    continue;
-  }
-  const pinnedValue = match[1];
-
+for (const { row, patterns } of DOCKERFILE_TO_ROW) {
   const rowLine = overview
     .split("\n")
     .find((line) => line.includes(`name: "${row}"`));
@@ -54,10 +53,20 @@ for (const { row, pattern } of DOCKERFILE_TO_ROW) {
     errors.push(`overview.md: no Libraries table row for "${row}"`);
     continue;
   }
-  if (!rowLine.includes(pinnedValue)) {
-    errors.push(
-      `overview.md: "${row}" row does not mention "${pinnedValue}" (Dockerfile pin)\n  row: ${rowLine.trim()}`
-    );
+
+  for (const pattern of patterns) {
+    const match = dockerfile.match(pattern);
+    if (!match) {
+      errors.push(`Dockerfile: could not find a pin for "${row}" (pattern ${pattern})`);
+      continue;
+    }
+    const pinnedValue = match[1];
+
+    if (!rowLine.includes(pinnedValue)) {
+      errors.push(
+        `overview.md: "${row}" row does not mention "${pinnedValue}" (Dockerfile pin)\n  row: ${rowLine.trim()}`
+      );
+    }
   }
 }
 
