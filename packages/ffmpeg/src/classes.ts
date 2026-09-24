@@ -123,16 +123,22 @@ export class FFmpeg {
     return new Promise((resolve, reject) => {
       const id = getMessageID();
       this.#worker?.postMessage({ id, type, data }, trans);
-      this.#resolves[id] = resolve;
-      this.#rejects[id] = reject;
 
-      signal?.addEventListener(
-        "abort",
-        () => {
-          reject(new DOMException(`Message # ${id} was aborted`, "AbortError"));
-        },
-        { once: true }
-      );
+      const onAbort = () => {
+        reject(new DOMException(`Message # ${id} was aborted`, "AbortError"));
+      };
+      // Drop the abort listener once the message settles, so it does not
+      // stay attached for the lifetime of a long-lived signal.
+      this.#resolves[id] = (data) => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve(data);
+      };
+      this.#rejects[id] = (data) => {
+        signal?.removeEventListener("abort", onAbort);
+        reject(data);
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
     });
   };
 
