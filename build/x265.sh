@@ -67,6 +67,21 @@ ADDLIB libx265_main12.a
 SAVE
 END
 EOF
+
+# Emscripten's single-thread libc has sem_open but not sem_close or
+# sem_unlink. x265 only calls them for cross-process shared memory, which
+# ffmpeg.wasm never enables, so stub them into the archive to satisfy the
+# linker.
+if [ -n "${FFMPEG_ST:-}" ]; then
+  cat > sem_stub.c <<STUB
+#include <errno.h>
+#include <semaphore.h>
+int sem_close(sem_t *sem) { (void)sem; return 0; }
+int sem_unlink(const char *name) { (void)name; errno = ENOSYS; return -1; }
+STUB
+  emcc $CFLAGS -c sem_stub.c -o sem_stub.o
+  emar rs libx265.a sem_stub.o
+fi
 emmake make install -j
 
 # x265.pc lists host runtime libs (gcc_s, rt, dl, pthread, numa) in
