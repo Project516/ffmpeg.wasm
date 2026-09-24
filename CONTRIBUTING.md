@@ -23,4 +23,6 @@ All five packages share one version. To release:
    `git tag v<version> <sha> && git push origin v<version>`.
 
 The tag runs `.github/workflows/release.yml`, which runs CI, publishes every
-package to npm with provenance, and creates the GitHub release.
+package to npm with provenance, and creates the GitHub release. Publishing
+uses npm trusted publishing, so no npm token is involved: each package on
+npmjs.com trusts `release.yml` in this repository.

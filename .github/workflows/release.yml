@@ -38,7 +38,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check versions match the tag
@@ -60,9 +59,9 @@ jobs:
             echo "::error::versions do not match $GITHUB_REF_NAME:$bad"
             exit 1
           fi
+      # Authenticates through npm trusted publishing: each package trusts
+      # this workflow file, and the job's id-token proves the run to npm.
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm -r publish --access public --provenance --no-git-checks
       - name: Create GitHub release
         env:
