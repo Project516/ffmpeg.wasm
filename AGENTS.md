@@ -14,12 +14,15 @@ maintained fork of the abandoned `ffmpegwasm/ffmpeg.wasm`.
 
 ## FFmpeg upgrade plan
 
-The cores stay on FFmpeg 5.1.x for now. Since 6.0 the ffmpeg CLI in fftools
-runs a threaded scheduler and needs real pthreads, which the st core does not
-have. The plan:
+The st core stays on FFmpeg 5.1.x: its libraries build with
+`--disable-pthreads`, and the ffmpeg CLI in fftools has needed a threaded
+scheduler since 6.0, which the st core does not have. The plan:
 
-1. Move the build toolchain (emsdk and libraries) to current releases on 5.1.x.
+1. Move the build toolchain (emsdk and libraries) to current releases on 5.1.x. Done.
 2. Port the fftools patches to the current FFmpeg release for the mt core.
+   Done: the mt core builds FFmpeg n9.0.2's own fftools, patched by
+   `build/patches/n9`, instead of the vendored copies under `src/fftools`
+   that the st core still uses.
 3. Give the st core a cooperative pthread shim on Emscripten fibers so the
    same fftools run without `SharedArrayBuffer`.
 
@@ -30,7 +33,11 @@ have. The plan:
 - `packages/ffmpeg`: the worker-based API that loads a core and runs it.
 - `packages/util`: browser helper functions (fetchFile, etc).
 - `packages/types`: shared TypeScript types.
-- `src/fftools`: vendored, patched FFmpeg CLI sources.
+- `src/fftools`: vendored, patched FFmpeg n5.1.10 CLI sources, used by the st
+  core build only.
+- `build/patches/n9`: patches applied to FFmpeg n9.0.2's own fftools sources
+  for the mt core build; see the comment in the Dockerfile's `ffmpeg-base`
+  stage.
 - `src/bind`: JS glue passed to emcc when building the core.
 - `build/`: per-library build scripts used by the Dockerfile.
 - `apps/`: standalone examples, not part of the pnpm workspace.

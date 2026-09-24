@@ -38,3 +38,43 @@ CONF_FLAGS=(
 
 emconfigure ./configure "${CONF_FLAGS[@]}" $@ || { cat ffbuild/config.log; exit 1; }
 emmake make -j
+
+# The mt core links FFmpeg n9's own fftools sources (patched, see
+# build/patches/n9) instead of the vendored copies under src/fftools that the
+# st core uses. --disable-programs above skips linking the ffmpeg/ffprobe
+# binaries (we don't want or need them), but fftools/Makefile's object rules
+# are unconditional, so the objects can be built directly and linked by
+# build/ffmpeg-wasm.sh.
+if [ -n "${FFMPEG_MT:-}" ]; then
+  emmake make -j \
+    fftools/cmdutils.o \
+    fftools/opt_common.o \
+    fftools/ffmpeg.o \
+    fftools/ffmpeg_dec.o \
+    fftools/ffmpeg_demux.o \
+    fftools/ffmpeg_enc.o \
+    fftools/ffmpeg_filter.o \
+    fftools/ffmpeg_hw.o \
+    fftools/ffmpeg_mux.o \
+    fftools/ffmpeg_mux_init.o \
+    fftools/ffmpeg_opt.o \
+    fftools/ffmpeg_sched.o \
+    fftools/graph/graphprint.o \
+    fftools/sync_queue.o \
+    fftools/thread_queue.o \
+    fftools/textformat/avtextformat.o \
+    fftools/textformat/tf_compact.o \
+    fftools/textformat/tf_default.o \
+    fftools/textformat/tf_flat.o \
+    fftools/textformat/tf_ini.o \
+    fftools/textformat/tf_json.o \
+    fftools/textformat/tf_mermaid.o \
+    fftools/textformat/tf_xml.o \
+    fftools/textformat/tw_avio.o \
+    fftools/textformat/tw_buffer.o \
+    fftools/textformat/tw_stdout.o \
+    fftools/resources/resman.o \
+    fftools/resources/graph.html.o \
+    fftools/resources/graph.css.o \
+    fftools/ffprobe.o
+fi
