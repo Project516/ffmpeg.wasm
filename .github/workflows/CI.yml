@@ -134,7 +134,7 @@ jobs:
             # dump its console/pageerror/worker output for the logs.
             for page in $failed; do
               echo "::group::diagnostic: $page"
-              node scripts/diagnose-test-page.mjs "http://localhost:3000/tests/$page.test.html" || true
+              timeout 100 node scripts/diagnose-test-page.mjs "http://localhost:3000/tests/$page.test.html" || true
               echo "::endgroup::"
             done
             exit 1

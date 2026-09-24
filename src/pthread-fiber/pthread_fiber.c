@@ -39,7 +39,7 @@ static void pf_debug(const char *fmt, ...)
 {
     /* Cap output: a genuine tight-loop deadlock would otherwise print
      * unbounded lines and drown the CI log before anything can read it. */
-    static int budget = 500;
+    static int budget = 60;
     char buf[256];
     va_list ap;
     if (budget <= 0)
