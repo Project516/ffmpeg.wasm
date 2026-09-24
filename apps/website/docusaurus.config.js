@@ -120,7 +120,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} ffmpeg.wasm, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} ffmpeg.wasm contributors. Built with Docusaurus.`,
       },
       prism: {
         theme: lightCodeTheme,

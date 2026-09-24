@@ -5,6 +5,7 @@ import CardMedia from "@mui/material/CardMedia";
 import CardActions from "@mui/material/CardActions";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import useBaseUrl from "@docusaurus/useBaseUrl";
 
 export default function ActionAreaCard({ img, title, desc, url }) {
   return (
@@ -12,7 +13,7 @@ export default function ActionAreaCard({ img, title, desc, url }) {
       <CardMedia
         component="img"
         height="180"
-        image={img}
+        image={useBaseUrl(img)}
         alt="framework image"
       />
       <CardContent>
