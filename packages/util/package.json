@@ -1,6 +1,6 @@
 {
   "name": "@project516/util",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "description": "browser utils for @project516/*",
   "main": "./dist/cjs/index.js",
   "type": "module",

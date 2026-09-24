@@ -1,4 +1,4 @@
-export const CORE_VERSION = "0.12.10";
+export const CORE_VERSION = "0.13.0";
 
 export const CORE_URL = `https://cdn.jsdelivr.net/npm/@project516/core@${CORE_VERSION}/dist/umd/ffmpeg-core.js`;
 export const CORE_MT_URL = `https://cdn.jsdelivr.net/npm/@project516/core-mt@${CORE_VERSION}/dist/umd/ffmpeg-core.js`;
