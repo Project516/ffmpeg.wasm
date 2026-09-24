@@ -47,11 +47,11 @@
     "access": "public"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.70.0",
-    "@typescript-eslint/parser": "^8.70.0",
-    "eslint": "^8.45.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
     "rimraf": "^6.1.3",
     "typescript": "^5.1.6",
+    "typescript-eslint": "^8.70.1",
     "webpack": "^5.94.0",
     "webpack-cli": "^7.2.3"
   }
