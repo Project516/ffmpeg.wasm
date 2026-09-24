@@ -83,7 +83,7 @@ function Library({ title, desc, img, isBlackBackground = false }: LibraryItem) {
   );
 }
 
-export default function ExternalLibraries(): JSX.Element {
+export default function ExternalLibraries(): React.JSX.Element {
   return (
     <section className={styles.libraries}>
       <div className="container">
@@ -95,7 +95,7 @@ export default function ExternalLibraries(): JSX.Element {
         </h4>
         <div className="row">
           {libs.map((props, idx) => (
-            <Library key={idx} {...props} />
+            <Library {...props} key={idx} />
           ))}
         </div>
       </div>

@@ -44,7 +44,7 @@ export default function Editor({
   onExec,
 }: EditorProps) {
   const { colorMode } = useColorMode();
-  const [output, setOutput] = useState<Ace.Editor>();
+  const [output, setOutput] = useState<AceAjax.Editor>();
 
   useEffect(() => {
     // scroll logs to the end.
