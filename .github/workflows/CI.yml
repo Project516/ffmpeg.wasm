@@ -81,12 +81,12 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v7
       - name: Download ffmpeg-core
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ffmpeg-core
           path: packages/core/dist
       - name: Download ffmpeg-core-mt
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ffmpeg-core-mt
           path: packages/core-mt/dist
