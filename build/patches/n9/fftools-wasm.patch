@@ -1,6 +1,6 @@
 diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
 --- a/fftools/cmdutils.c	2026-09-24 09:59:45.053923228 -0500
-+++ b/fftools/cmdutils.c	2026-09-24 10:37:54.347008933 -0500
++++ b/fftools/cmdutils.c	2026-09-24 10:59:08.127881262 -0500
 @@ -29,6 +29,8 @@
     Studio) will not omit unused inline functions and create undefined
     references to libraries that are not being built. */
@@ -30,7 +30,7 @@ diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
      av_dict_free(&swr_opts);
 diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
 --- a/fftools/cmdutils.h	2026-09-24 09:59:45.054651101 -0500
-+++ b/fftools/cmdutils.h	2026-09-24 10:37:54.348033658 -0500
++++ b/fftools/cmdutils.h	2026-09-24 10:59:08.129711730 -0500
 @@ -557,4 +557,20 @@
                       const char *name, const char *indent,
                       int log_level);
@@ -54,7 +54,7 @@ diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
  #endif /* FFTOOLS_CMDUTILS_H */
 diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 --- a/fftools/ffmpeg.c	2026-09-24 09:59:45.053969654 -0500
-+++ b/fftools/ffmpeg.c	2026-09-24 10:37:54.347053729 -0500
++++ b/fftools/ffmpeg.c	2026-09-24 10:59:08.127963392 -0500
 @@ -32,6 +32,7 @@
  #include <stdlib.h>
  #include <string.h>
@@ -80,7 +80,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      }
  }
  
-@@ -569,6 +571,27 @@
+@@ -569,6 +571,34 @@
      }
  }
  
@@ -105,10 +105,17 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 +    return Module.timeout <= elapsed_ms;
 +});
 +
++/* has_timeout reports whether Module.timeout is set, so transcode() knows
++ * to poll sch_wait() finely enough to catch a timeout before a short job
++ * finishes on its own. */
++EM_JS(int, has_timeout, (void), {
++    return Module.timeout !== -1;
++});
++
  static void print_report(int is_last_report, int64_t timer_start, int64_t cur_time, int64_t pts)
  {
      AVBPrint buf, buf_script;
-@@ -642,6 +665,27 @@
+@@ -642,6 +672,27 @@
              pts -= copy_ts_first_pts;
      }
  
@@ -136,7 +143,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      us    = FFABS64U(pts) % AV_TIME_BASE;
      secs  = FFABS64U(pts) / AV_TIME_BASE % 60;
      mins  = FFABS64U(pts) / AV_TIME_BASE / 60 % 60;
-@@ -704,7 +748,9 @@
+@@ -704,7 +755,9 @@
      av_bprintf(&buf, " elapsed=%"PRId64":%02d:%02d.%02d", hours, mins, secs, ms / 10);
  
      if (print_stats || is_last_report) {
@@ -147,8 +154,22 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
          if (print_stats==1 && AV_LOG_INFO > av_log_get_level()) {
              fprintf(stderr, "%s    %c", buf.str, end);
          } else
-@@ -906,6 +952,13 @@
-     while (!sch_wait(sch, stats_period, &transcode_ts)) {
+@@ -903,9 +956,26 @@
+ 
+     timer_start = av_gettime_relative();
+ 
+-    while (!sch_wait(sch, stats_period, &transcode_ts)) {
++    /* sch_wait() below blocks for up to its timeout argument, or until the
++     * command finishes, whichever comes first, and only lets us check
++     * is_timeout() on the calls that return "not finished yet". With the
++     * normal report cadence (stats_period, 500ms) a short command can finish
++     * inside a single call and never hit that check. Poll finely instead
++     * when Module.timeout is set, so a run stops close to the requested
++     * timeout instead of up to a report period late (or not at all, for a
++     * command that finishes before the first report is due). */
++    const int64_t wait_us = has_timeout() ? 5000 : stats_period;
++
++    while (!sch_wait(sch, wait_us, &transcode_ts)) {
          int64_t cur_time= av_gettime_relative();
  
 +        /* Module.timeout (ms) stops a running command cleanly instead of
@@ -161,7 +182,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
          if (received_nb_signals)
              break;
  
-@@ -978,13 +1031,55 @@
+@@ -978,13 +1048,55 @@
  #endif
  }
  
@@ -218,7 +239,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      init_dynload();
  
      setvbuf(stderr,NULL,_IONBF,0); /* win32 runtime needs this */
-@@ -1054,5 +1149,10 @@
+@@ -1054,5 +1166,10 @@
      av_log(NULL, AV_LOG_VERBOSE, "\n");
      av_log(NULL, AV_LOG_VERBOSE, "Exiting with exit code %d\n", ret);
  
@@ -231,7 +252,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
  }
 diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
 --- a/fftools/ffmpeg.h	2026-09-24 09:59:45.054675120 -0500
-+++ b/fftools/ffmpeg.h	2026-09-24 10:37:54.348056640 -0500
++++ b/fftools/ffmpeg.h	2026-09-24 10:59:08.129756860 -0500
 @@ -824,6 +824,12 @@
  
  int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch);
@@ -247,7 +268,7 @@ diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
                       uint64_t frame_num);
 diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
 --- a/fftools/ffmpeg_opt.c	2026-09-24 09:59:45.054269711 -0500
-+++ b/fftools/ffmpeg_opt.c	2026-09-24 10:37:54.347542101 -0500
++++ b/fftools/ffmpeg_opt.c	2026-09-24 10:59:08.128741042 -0500
 @@ -87,6 +87,45 @@
  int copy_unknown_streams = 0;
  int recast_media = 0;
@@ -296,7 +317,7 @@ diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
  typedef struct GlobalOptionsContext {
 diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
 --- a/fftools/ffprobe.c	2026-09-24 09:59:45.054459971 -0500
-+++ b/fftools/ffprobe.c	2026-09-24 10:37:54.347813750 -0500
++++ b/fftools/ffprobe.c	2026-09-24 10:59:08.129312822 -0500
 @@ -70,6 +70,7 @@
  #include "opt_common.h"
  
@@ -515,7 +536,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  }
 diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
 --- a/fftools/opt_common.c	2026-09-24 09:59:45.054534508 -0500
-+++ b/fftools/opt_common.c	2026-09-24 10:37:54.347937695 -0500
++++ b/fftools/opt_common.c	2026-09-24 10:59:08.129498859 -0500
 @@ -152,6 +152,17 @@
  
  static int warned_cfg = 0;
@@ -536,7 +557,7 @@ diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
  #define SHOW_CONFIG   4
 diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
 --- a/fftools/opt_common.h	2026-09-24 09:59:45.054806658 -0500
-+++ b/fftools/opt_common.h	2026-09-24 10:37:54.348266492 -0500
++++ b/fftools/opt_common.h	2026-09-24 10:59:08.130051435 -0500
 @@ -229,4 +229,11 @@
      { "hide_banner",  OPT_TYPE_BOOL, OPT_EXPERT,            {&hide_banner},                   "do not show program banner", "hide_banner" }, \
      CMDUTILS_COMMON_OPTIONS_AVDEVICE                                                                                    \
