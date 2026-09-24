@@ -81,7 +81,10 @@ describe(genName("FFmpeg"), function () {
       "-o",
       "probe_out.txt",
     ]);
-    expect(ret).to.equal(0);
+    // ffprobe.c returns from main() without going through cmdutils.c's
+    // exit_program() on success, so unlike exec(), ret does not reliably
+    // become 0; the output file is what confirms it ran.
+    expect(ret).to.not.equal(1);
     const out = await ffmpeg.readFile("probe_out.txt", "utf8");
     expect(parseFloat(out)).to.be.greaterThan(0);
     await ffmpeg.deleteFile("probe.mp4");
