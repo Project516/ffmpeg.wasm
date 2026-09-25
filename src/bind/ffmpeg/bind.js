@@ -21,6 +21,22 @@ Module["timeout"] = -1;
 Module["logger"] = () => {};
 Module["progress"] = () => {};
 
+/*
+ * Emscripten calls Module.onAbort synchronously, before throwing the
+ * exception that unwinds the call. av_log (which feeds Module.logger)
+ * would otherwise be the only way to see why abort() was called (e.g. a
+ * failed av_assert0), but logger is a no-op unless a caller sets one, so a
+ * silent abort deep inside a call is otherwise invisible. This always goes
+ * to console.error, independent of Module.logger.
+ */
+Module["onAbort"] = (what) => {
+  try {
+    console.error("[ffmpeg.wasm] onAbort:", what);
+  } catch {
+    // best effort; never let a diagnostic hook itself throw
+  }
+};
+
 /**
  * Functions
  */

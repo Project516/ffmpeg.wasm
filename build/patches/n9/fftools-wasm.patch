@@ -632,10 +632,39 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
  // 100 ms
  // FIXME: some other value? make this dynamic?
  #define SCHEDULE_TOLERANCE (100 * 1000)
-@@ -412,7 +423,13 @@
+@@ -405,14 +416,39 @@
+ {
+     int ret;
  
+-    if (!task->parent)
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/enter", 1);
++#endif
++    if (!task->parent) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("task_start/no-parent-return", 1);
++#endif
+         return 0;
++    }
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/av_log", 1);
++#endif
+     av_log(task->func_arg, AV_LOG_VERBOSE, "Starting thread...\n");
+-
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/av_log", 0);
++#endif
++
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/assert_thread_running", 1);
++#endif
      av_assert0(!task->thread_running);
- 
+-
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/assert_thread_running", 0);
++#endif
++
 +#ifdef FFMPEG_WASM_ST
 +    wasm_st_sched_trace("task_start/pthread_create", 1);
 +#endif
@@ -646,7 +675,49 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
      if (ret) {
          av_log(task->func_arg, AV_LOG_ERROR, "pthread_create() failed: %s\n",
                 strerror(ret));
-@@ -1200,7 +1217,13 @@
+@@ -1136,16 +1172,31 @@
+ {
+     int ret = 0;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_task_start/task_start", 1);
++#endif
+     ret = task_start(&mux->task);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_task_start/task_start", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
+     /* flush the pre-muxing queues */
++#ifdef FFMPEG_WASM_ST
++    {
++        int flush_iter = 0;
++#endif
+     while (1) {
+         int       min_stream = -1;
+         Timestamp min_ts     = { .ts = AV_NOPTS_VALUE };
+ 
+         AVPacket *pkt;
++#ifdef FFMPEG_WASM_ST
++        if (flush_iter < 10 || flush_iter % 500 == 0)
++            wasm_st_sched_trace("mux_task_start/flush_loop_iter", flush_iter);
++        flush_iter++;
++#endif
+ 
+         // find the stream with the earliest dts or EOF in pre-muxing queue
+         for (unsigned i = 0; i < mux->nb_streams; i++) {
+@@ -1188,6 +1239,9 @@
+ 
+         break;
+     }
++#ifdef FFMPEG_WASM_ST
++    }
++#endif
+ 
+     atomic_store(&mux->mux_started, 1);
+ 
+@@ -1200,7 +1254,13 @@
  {
      int ret;
  
@@ -660,7 +731,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
      if (ret < 0)
          return ret;
  
-@@ -1224,7 +1247,13 @@
+@@ -1224,7 +1284,13 @@
                  return ret;
          }
      } else {
@@ -674,7 +745,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
          if (ret < 0)
              return ret;
      }
-@@ -1258,15 +1287,28 @@
+@@ -1258,15 +1324,28 @@
  
      av_assert0(stream_idx < mux->nb_streams);
  
@@ -704,7 +775,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
  
      pthread_mutex_unlock(&sch->mux_ready_lock);
  
-@@ -1833,7 +1875,13 @@
+@@ -1833,7 +1912,13 @@
  {
      int ret;
  
@@ -718,7 +789,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
      if (ret < 0)
          return ret;
  
-@@ -1953,7 +2001,14 @@
+@@ -1953,7 +2038,14 @@
  static int send_to_enc(Scheduler *sch, SchEnc *enc, AVFrame *frame)
  {
      if (enc->open_cb && frame && !enc->opened) {
@@ -734,7 +805,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
          if (ret < 0)
              return ret;
          enc->opened = 1;
-@@ -2639,7 +2694,13 @@
+@@ -2639,7 +2731,13 @@
      dst = fg->outputs[out_idx].dst;
  
      if (dst.type == SCH_NODE_TYPE_ENC) {
@@ -748,7 +819,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
          if (ret == AVERROR_EOF)
              send_to_enc(sch, &sch->enc[dst.idx], NULL);
      } else {
-@@ -2713,6 +2774,18 @@
+@@ -2713,6 +2811,18 @@
      }
  }
  
@@ -767,7 +838,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
  static void *task_wrapper(void *arg)
  {
      SchTask  *task = arg;
-@@ -2720,7 +2793,13 @@
+@@ -2720,7 +2830,13 @@
      int ret;
      int err = 0;
  
