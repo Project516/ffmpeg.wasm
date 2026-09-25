@@ -41,20 +41,25 @@ interface ImportedFFmpegCoreModuleFactory {
 }
 
 let ffmpeg: FFmpegCoreModule;
+// True once a load() has succeeded; see load().
+let loaded = false;
 
-const load = async ({
+const doLoad = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
-}: FFMessageLoadConfig): Promise<IsFirst> => {
-  const first = !ffmpeg;
-
+}: FFMessageLoadConfig): Promise<void> => {
   try {
     if (!_coreURL) _coreURL = CORE_URL;
     // when web worker type is `classic`.
     importScripts(_coreURL);
   } catch (importScriptsError) {
     try {
-      if (!_coreURL || _coreURL === CORE_URL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
+      // A UMD coreURL (default or caller-supplied) fails to parse as an ES
+      // module; retry any /umd/ URL under /esm/ instead of only the
+      // default CORE_URL. Re-defaulted here (already done above) because
+      // TS can't carry the narrowing across the try/catch boundary.
+      _coreURL = _coreURL || CORE_URL;
+      if (_coreURL.includes("/umd/")) _coreURL = _coreURL.replace('/umd/', '/esm/');
       // when web worker type is `module`.
       self.createFFmpegCore = (
         (await import(
@@ -97,6 +102,14 @@ const load = async ({
       data,
     })
   );
+};
+
+// first is decided after doLoad() succeeds, so a failed load never claims
+// it and exactly one of several concurrent successful loads reports true.
+const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
+  await doLoad(config);
+  const first = !loaded;
+  loaded = true;
   return first;
 };
 
@@ -179,6 +192,8 @@ self.onmessage = async ({
   try {
     if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED;
 
+    // KEEP THIS SWITCH IN SYNC WITH worker-node-entry.mts's: both must
+    // handle the same set of FFMessageType cases.
     switch (type) {
       case FFMessageType.LOAD:
         data = await load(_data as FFMessageLoadConfig);

@@ -80,7 +80,7 @@ CONF_FLAGS=(
   "${AVLIBS[@]}"
   -Wno-deprecated-declarations
   $LDFLAGS
-  -sENVIRONMENT=web,worker                 # web for loading the core directly on a page, worker for @project516/ffmpeg-wasm
+  -sENVIRONMENT=web,worker,node             # web for loading the core directly on a page, worker for @project516/ffmpeg-wasm, node for running the worker under Node.js
   -sWASM_BIGINT                            # enable big int support
   -sDEFAULT_TO_CXX                         # link libc++, which x265 needs
   -sUSE_SDL=2                              # use emscripten SDL2 lib port
