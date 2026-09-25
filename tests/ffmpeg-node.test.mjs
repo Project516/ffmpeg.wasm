@@ -1,14 +1,19 @@
 // Node.js tests for the @project516/ffmpeg-wasm wrapper: load, every
 // FFMessageType the worker handles (exec, ffprobe, the filesystem calls,
 // mount/unmount, log/progress events), a timeout, and terminate, run
-// against both the st and the mt core. Select the core with
-// FFMPEG_TYPE=st|mt (defaults to st); see the test:node:ffmpeg:* scripts
-// in the root package.json.
+// against both the st and the mt core. Select the core with a --mt
+// argument (defaults to st); see the test:node:ffmpeg:* scripts in the
+// root package.json. A CLI flag, not an environment variable, so the
+// scripts stay portable to Windows' default shell.
 //
 // worker.ts and worker-node-entry.mts each implement their own copy of the
 // message dispatch (see the comment on that in worker-node-entry.mts); the
 // coverage here is what would catch the two drifting.
 import { createRequire } from "node:module";
+import { mkdtemp, writeFile as writeFileFs, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { expect } from "chai";
 import { FFmpeg } from "@project516/ffmpeg-wasm";
 import { fetchFile } from "@project516/ffmpeg-wasm-util";
@@ -16,7 +21,7 @@ import { fetchFile } from "@project516/ffmpeg-wasm-util";
 const require = createRequire(import.meta.url);
 const { VIDEO_1S_MP4, b64ToUint8Array } = require("./test-helper-browser.js");
 
-const FFMPEG_TYPE = process.env.FFMPEG_TYPE === "mt" ? "mt" : "st";
+const FFMPEG_TYPE = process.argv.includes("--mt") ? "mt" : "st";
 const genName = (name) => `[ffmpeg][node:${FFMPEG_TYPE}] ${name}`;
 
 // The st core is resolved from node_modules by FFmpeg.load() itself when
@@ -30,6 +35,37 @@ const coreURL =
     undefined;
 
 const load = (ffmpeg) => ffmpeg.load(coreURL ? { coreURL } : {});
+
+// fetchFile()'s local-path and file: URL branches only run under Node.js,
+// so the browser test suite can't cover them; both core-variant commands
+// run this same suite, but fetchFile() itself doesn't touch the core.
+describe(genName("fetchFile() local files"), function () {
+  this.timeout(60000);
+
+  let dir;
+  let filePath;
+  const expected = b64ToUint8Array(VIDEO_1S_MP4);
+
+  before(async () => {
+    dir = await mkdtemp(join(tmpdir(), "ffmpeg-wasm-test-"));
+    filePath = join(dir, "video.mp4");
+    await writeFileFs(filePath, expected);
+  });
+
+  after(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("reads a local path", async () => {
+    const data = await fetchFile(filePath);
+    expect(Buffer.from(data)).to.deep.equal(Buffer.from(expected));
+  });
+
+  it("reads a file: URL", async () => {
+    const data = await fetchFile(pathToFileURL(filePath));
+    expect(Buffer.from(data)).to.deep.equal(Buffer.from(expected));
+  });
+});
 
 describe(genName("global Worker leakage"), function () {
   this.timeout(60000);

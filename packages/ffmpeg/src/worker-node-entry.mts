@@ -4,7 +4,6 @@
 // on why that chunk is fragile to touch), so the message dispatch below
 // is kept as its own copy instead of importing from worker.ts.
 import { parentPort } from "node:worker_threads";
-import type { TransferListItem } from "node:worker_threads";
 import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
 import type {
   FFMessage,
@@ -55,6 +54,19 @@ const doLoad = async ({
 }: FFMessageLoadConfig): Promise<void> => {
   const coreURL = _coreURL || defaultCoreURL();
   const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/\.js$/, ".wasm");
+
+  if (coreURL.startsWith("blob:")) {
+    // Node's ESM loader cannot import() a blob: URL (unlike fetch(), which
+    // does accept one), so a coreURL built with toBlobURL() would fail
+    // here with a confusing error. util/src/index.ts's toBlobURL() itself
+    // stays Node-agnostic, since it works for a browser caller and for
+    // wasmURL either way; this is the one place a blob: coreURL actually
+    // cannot work.
+    throw new Error(
+      "coreURL cannot be a blob: URL under Node.js; pass the core's real " +
+        "file:// path or package specifier instead."
+    );
+  }
 
   // This file is never reachable from index.js's import graph, so no
   // bundler magic comment is needed here the way util/src/index.ts needs
@@ -217,8 +229,11 @@ const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
     });
     return;
   }
+  // Uint8Array.buffer is typed ArrayBufferLike (it would also cover a
+  // SharedArrayBuffer-backed view), but the FS reads that produce `result`
+  // here always allocate a plain ArrayBuffer.
   const transferList = result instanceof Uint8Array ?
-    [result.buffer as unknown as TransferListItem] :
+    [result.buffer as ArrayBuffer] :
     [];
   parentPort!.postMessage({ id, type, data: result }, transferList);
 };

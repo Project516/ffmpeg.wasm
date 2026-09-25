@@ -7,7 +7,6 @@
 // of load()'s synchronous setup (it constructs `this.#worker` before any
 // `await`), so the rest of the process never observes a global `Worker`.
 import { Worker as NodeWorker } from "node:worker_threads";
-import type { TransferListItem } from "node:worker_threads";
 import { FFmpeg as FFmpegBase } from "./classes.js";
 import type { FFMessageLoadConfig } from "./types.js";
 
@@ -39,16 +38,30 @@ class NodeWorkerAdapter {
     this.#worker.on("error", (error: Error) => {
       this.onerror?.({ message: error.message });
     });
+    // The vendored fftools C sources call the C library's exit() directly
+    // on some error paths instead of going through the wrapper that turns
+    // a stop into a caught abort(); that kills the whole worker thread,
+    // which worker_threads reports as "exit", not "error". Without this,
+    // FFmpeg.load()/exec() would hang forever waiting for a message that
+    // will never come.
+    this.#worker.on("exit", (code: number) => {
+      if (code !== 0) {
+        this.onerror?.({
+          message: `the Node worker exited with code ${code}`,
+        });
+      }
+    });
   }
 
   postMessage(message: unknown, transfer?: Transferable[]): void {
-    // worker_threads' TransferListItem and the DOM's Transferable don't
-    // overlap cleanly in TS's lib types; both only ever carry the
-    // ArrayBuffer behind a Uint8Array here.
-    this.#worker.postMessage(
-      message,
-      transfer as unknown as TransferListItem[] | undefined
+    // Only ArrayBuffer (via Uint8Array.buffer) is ever actually sent here.
+    // Filtering to it, rather than casting the whole list, means a
+    // MessagePort or other DOM-only Transferable is dropped instead of
+    // being handed to worker_threads, which does not accept it.
+    const transferList = transfer?.filter(
+      (t): t is ArrayBuffer => t instanceof ArrayBuffer
     );
+    this.#worker.postMessage(message, transferList);
   }
 
   terminate(): void {

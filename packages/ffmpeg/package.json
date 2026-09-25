@@ -48,7 +48,7 @@
     "url": "https://github.com/Project516/ffmpeg.wasm/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.6.0"
   },
   "homepage": "https://github.com/Project516/ffmpeg.wasm#readme",
   "publishConfig": {

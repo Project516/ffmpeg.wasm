@@ -489,6 +489,13 @@ await ffmpeg.load({ coreURL });
 
 ### Known gaps
 
+- `@project516/ffmpeg-wasm`'s Node.js entry is ESM. `import` always works.
+  `require()` only works on a Node.js version with synchronous
+  `require(esm)` support; on an older one it fails with `ERR_REQUIRE_ESM`.
+- `load()`'s default core resolution uses `import.meta.resolve()`, which
+  needs Node.js 20.6.0 or later (the package's `engines.node` requires
+  this). On 20.0-20.5, an unflagged `import.meta.resolve()` does not
+  exist and `load()` without a `coreURL` throws.
 - `classWorkerURL` is a browser-only option. `load()` always runs the
   bundled `worker_threads` entry under Node.js and ignores it.
 - The default `coreURL` resolution relies on Node's ordinary
@@ -499,3 +506,10 @@ await ffmpeg.load({ coreURL });
   browser. Node's `import()` has no browser-style CORS/CSP restriction on
   what it loads, so treat `coreURL` like any other application-controlled
   path passed to `import()`, not like untrusted user input.
+- `coreURL` cannot be a `blob:` URL under Node.js (Node's ESM loader
+  cannot `import()` one, unlike `fetch()`); pass a `file://` path or
+  package specifier instead. `toBlobURL()` still works for `wasmURL`.
+- `fetchFile()` reads any path it is given, including one that resolves
+  outside the current working directory (e.g. `../secret.txt`), the same
+  as `fs.readFile()` does. It does not sandbox to the working directory;
+  do not pass it a path built from untrusted input.
