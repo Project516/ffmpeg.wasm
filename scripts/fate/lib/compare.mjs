@@ -1,16 +1,18 @@
 // Compares a core's framecrc/framemd5 output against a FATE reference file.
 //
-// Reference files can carry a header comment line naming the encoder/decoder
-// build (e.g. libavutil version stamps), which differs between the wasm
-// build and whatever produced the checked-in reference. Lines starting with
-// "#" are dropped from both sides before comparing so those stamps do not
-// cause false failures; the frame-by-frame checksum lines are compared
-// as-is.
+// framecrc/framemd5 headers (#tb, #media_type, #codec_id, #dimensions/
+// #sample_rate, #channel_layout_name/#sar, and framemd5's #format/#version/
+// #hash) describe the actual stream and are stable across builds, so they
+// are compared like any other line: a wasm build reporting the wrong sample
+// rate or dimensions should fail the test. Only a "#software:" line, which
+// would carry a libavutil/libavcodec build stamp, is dropped; the muxers
+// this runner uses do not currently emit one, but nothing here should start
+// failing on it if a future FFmpeg release adds it.
 
 function normalize(text) {
   return text
     .split(/\r?\n/)
-    .filter((line) => !line.startsWith("#"))
+    .filter((line) => !line.startsWith("#software:"))
     .map((line) => line.trimEnd())
     .filter((line) => line.length > 0)
     .join("\n");

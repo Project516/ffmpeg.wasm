@@ -28,7 +28,7 @@ function toMarkdown(report) {
     const row = [`| ${caseName} | ${nativeMs?.toFixed(1) ?? "?"} |`];
     for (const core of report.cores) {
       const c = core.cases.find((c) => c.name === caseName);
-      const ratio = c && nativeMs ? (c.avgWallMs / nativeMs).toFixed(1) : "?";
+      const ratio = c?.avgWallMs != null && nativeMs != null ? (c.avgWallMs / nativeMs).toFixed(1) : "?";
       row.push(` ${c?.avgWallMs?.toFixed(1) ?? "?"} | ${ratio}x |`);
     }
     lines.push(row.join(""));

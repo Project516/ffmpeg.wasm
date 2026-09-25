@@ -19,7 +19,7 @@
 // Usage: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
 //        node scripts/bench/run.mjs --native --out bench-native.json
 import { createRequire } from "node:module";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -28,6 +28,9 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = join(scriptPath, "..", "..", "..");
+// Generous relative to the 1-second sample: a stuck core or ffmpeg should
+// never be able to stall the whole benchmark job.
+const RUN_TIMEOUT_MS = 60_000;
 
 const CASES = [
   { name: "h264-to-vp9", args: (inp, out) => ["-i", inp, "-c:v", "libvpx-vp9", "-b:v", "500k", out.replace(/\.\w+$/, ".webm")] },
@@ -115,39 +118,72 @@ function parseTimeStats(text) {
 // Spawns `node scriptPath ...childArgs` under `/usr/bin/time -v`, writing
 // its stats to a file with `-o` rather than parsing stdout/stderr (`-v`'s
 // report goes to stderr, which execFileSync's return value does not carry).
+//
+// Runs detached, in its own process group, so a RUN_TIMEOUT_MS timer can
+// kill the whole group (`kill(-pid)`) rather than just the immediate
+// `/usr/bin/time` process: `time` forks the timed `node` process, which for
+// the native case execs `ffmpeg` in turn, and a plain SIGTERM to `time`
+// alone would leave that descendant running.
 function runUnderTime(childArgs) {
-  const statsPath = join(tmpdir(), `bench-time-${process.pid}-${Math.random().toString(36).slice(2)}.txt`);
-  let ok = true;
-  try {
-    execFileSync("/usr/bin/time", ["-v", "-o", statsPath, process.execPath, scriptPath, ...childArgs], { stdio: "inherit" });
-  } catch {
-    ok = false;
-  }
-  let wallMs = null;
-  let peakRssKb = null;
-  try {
-    ({ wallMs, peakRssKb } = parseTimeStats(readFileSync(statsPath, "utf8")));
-  } catch {
-    // /usr/bin/time itself did not run or write stats; samples stay null.
-  } finally {
-    rmSync(statsPath, { force: true });
-  }
-  return { wallMs, peakRssKb, ok };
+  return new Promise((resolvePromise) => {
+    const statsPath = join(tmpdir(), `bench-time-${process.pid}-${Math.random().toString(36).slice(2)}.txt`);
+    const child = spawn("/usr/bin/time", ["-v", "-o", statsPath, process.execPath, scriptPath, ...childArgs], {
+      stdio: "inherit",
+      detached: true,
+    });
+
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }, RUN_TIMEOUT_MS);
+
+    const finish = (ok, reason) => {
+      clearTimeout(timer);
+      let wallMs = null;
+      let peakRssKb = null;
+      try {
+        ({ wallMs, peakRssKb } = parseTimeStats(readFileSync(statsPath, "utf8")));
+      } catch {
+        // /usr/bin/time itself did not run or write stats; samples stay null.
+      } finally {
+        rmSync(statsPath, { force: true });
+      }
+      resolvePromise({ wallMs, peakRssKb, ok, ...(reason ? { reason } : {}) });
+    };
+
+    child.on("error", () => finish(false, "spawn error"));
+    child.on("exit", (code) => {
+      if (timedOut) finish(false, "timeout");
+      else finish(code === 0);
+    });
+  });
 }
 
-function bench({ core, native, inputPath, runs }) {
+async function bench({ core, native, inputPath, runs }) {
   const results = [];
   for (const testCase of CASES) {
     const samples = [];
     const childArgs = ["--one", testCase.name, "--input", inputPath, ...(native ? ["--native"] : ["--core", core])];
-    for (let i = 0; i < runs; i++) samples.push(runUnderTime(childArgs));
+    for (let i = 0; i < runs; i++) {
+      const sample = await runUnderTime(childArgs);
+      if (!sample.ok) console.warn(`${testCase.name} run ${i + 1}/${runs} failed${sample.reason ? `: ${sample.reason}` : ""}`);
+      samples.push(sample);
+    }
     results.push({ name: testCase.name, samples });
   }
   return results;
 }
 
+// Only successful runs count: GNU time still writes wall-time/RSS numbers
+// for a run that timed out or exited non-zero, so an unfiltered average
+// could report a failed transcode as a normal measurement.
 function average(samples, key) {
-  const values = samples.map((s) => s[key]).filter((v) => v != null);
+  const values = samples.filter((s) => s.ok).map((s) => s[key]).filter((v) => v != null);
   if (values.length === 0) return null;
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
@@ -163,12 +199,14 @@ async function main() {
   const tmpDir = mkdtempSync(join(tmpdir(), "ffmpeg-bench-"));
   try {
     const inputPath = sampleMp4Path(tmpDir);
-    const results = bench({ core, native, inputPath, runs });
+    const results = await bench({ core, native, inputPath, runs });
 
     const cases = results.map((r) => ({
       name: r.name,
       avgWallMs: average(r.samples, "wallMs"),
       avgPeakRssKb: average(r.samples, "peakRssKb"),
+      okRuns: r.samples.filter((s) => s.ok).length,
+      totalRuns: r.samples.length,
       samples: r.samples,
     }));
 
@@ -182,7 +220,9 @@ async function main() {
     writeFileSync(out, JSON.stringify(report, null, 2));
     console.log(`wrote ${out}`);
     for (const c of cases) {
-      console.log(`${label} ${c.name}: avg ${c.avgWallMs?.toFixed(1)}ms, peak RSS ${c.avgPeakRssKb ?? "?"}KB`);
+      console.log(
+        `${label} ${c.name}: avg ${c.avgWallMs?.toFixed(1) ?? "?"}ms, peak RSS ${c.avgPeakRssKb ?? "?"}KB, ${c.okRuns}/${c.totalRuns} runs ok`,
+      );
     }
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
