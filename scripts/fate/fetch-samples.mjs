@@ -6,7 +6,8 @@
 //
 // Usage: node scripts/fate/fetch-samples.mjs --manifest manifest.json --tag n9.0.2
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FATE_SUITE_RSYNC, cacheDirForTag } from "./config.mjs";
@@ -60,16 +61,21 @@ function main() {
   const samplesDir = join(repoRoot, cacheDirForTag(tag), "samples");
   mkdirSync(samplesDir, { recursive: true });
 
-  let fetched = 0;
-  for (const relpath of relpaths) {
-    const dest = join(samplesDir, relpath);
-    if (existsSync(dest)) continue;
-    mkdirSync(dirname(dest), { recursive: true });
-    console.log(`+ rsync ${FATE_SUITE_RSYNC}${relpath}`);
-    rsyncWithRetry(["-aL", `${FATE_SUITE_RSYNC}${relpath}`, dest]);
-    fetched++;
+  const missing = [...relpaths].filter((relpath) => !existsSync(join(samplesDir, relpath)));
+  if (missing.length > 0) {
+    // One rsync session for every missing file, rather than one connection
+    // per sample, keeps the load on the mirror down.
+    const listDir = mkdtempSync(join(tmpdir(), "fate-samples-"));
+    const listFile = join(listDir, "files.txt");
+    writeFileSync(listFile, missing.join("\n") + "\n");
+    console.log(`+ rsync ${missing.length} file(s) from ${FATE_SUITE_RSYNC}`);
+    try {
+      rsyncWithRetry(["-aL", `--files-from=${listFile}`, FATE_SUITE_RSYNC, `${samplesDir}/`]);
+    } finally {
+      rmSync(listDir, { recursive: true, force: true });
+    }
   }
-  console.log(`fetched ${fetched} new sample(s) into ${samplesDir} (${relpaths.size} total referenced)`);
+  console.log(`fetched ${missing.length} new sample(s) into ${samplesDir} (${relpaths.size} total referenced)`);
 }
 
 main();
