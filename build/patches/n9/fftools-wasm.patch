@@ -1147,11 +1147,19 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
  #include "time.h"
  #include "time_internal.h"
  
-@@ -395,9 +406,19 @@
+@@ -393,11 +404,26 @@
+         level &= 0xff;
+     }
  
-     if (level > atomic_load_explicit(&av_log_level, memory_order_relaxed))
-         return;
+-    if (level > atomic_load_explicit(&av_log_level, memory_order_relaxed))
++    if (level > atomic_load_explicit(&av_log_level, memory_order_relaxed)) {
 +#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("level-check-return", level);
++#endif
+         return;
++    }
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("level-check-pass", level);
 +    wasm_st_log_trace("mutex_lock", 1);
 +#endif
      ff_mutex_lock(&mutex);
@@ -1167,7 +1175,7 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
      snprintf(line, sizeof(line), "%s%s%s%s", part[0].str, part[1].str, part[2].str, part[3].str);
  
  #if HAVE_ISATTY
-@@ -408,6 +429,9 @@
+@@ -408,6 +434,9 @@
      if (print_prefix && (atomic_load_explicit(&av_log_flags, memory_order_relaxed) & AV_LOG_SKIP_REPEATED) && !strcmp(line, prev) &&
          *line && line[strlen(line) - 1] != '\r'){
          count++;
@@ -1177,7 +1185,7 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
          if (is_atty == 1)
              fprintf(stderr, "    Last message repeated %d times\r", count);
          goto end;
-@@ -418,6 +442,9 @@
+@@ -418,6 +447,9 @@
      }
      strcpy(prev, line);
  
@@ -1187,7 +1195,7 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
      sanitize(part[4].str);
      colored_fputs(7, 0, part[4].str);
      sanitize(part[0].str);
-@@ -428,6 +455,9 @@
+@@ -428,6 +460,9 @@
      colored_fputs(av_clip(level >> 3, 0, NB_LEVELS - 1), tint >> 8, part[2].str);
      sanitize(part[3].str);
      colored_fputs(av_clip(level >> 3, 0, NB_LEVELS - 1), tint >> 8, part[3].str);
@@ -1197,7 +1205,7 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
  
  #if CONFIG_VALGRIND_BACKTRACE
      if (level <= BACKTRACE_LOGLEVEL)
-@@ -435,7 +465,13 @@
+@@ -435,7 +470,13 @@
  #endif
  end:
      av_bprint_finalize(part+3, NULL);
@@ -1211,3 +1219,29 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
  }
  
  static atomic_uintptr_t av_log_callback = (uintptr_t)av_log_default_callback;
+@@ -462,11 +503,24 @@
+     AVClass* avc = avcl ? *(AVClass **) avcl : NULL;
+     void (*log_callback)(void*, int, const char*, va_list) =
+         (void *)atomic_load_explicit(&av_log_callback, memory_order_relaxed);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("av_vlog/enter", level);
++#endif
+     if (avc && avc->version >= (50 << 16 | 15 << 8 | 2) &&
+         avc->log_level_offset_offset && level >= AV_LOG_FATAL)
+         level += *(int *) (((uint8_t *) avcl) + avc->log_level_offset_offset);
+-    if (log_callback)
++    if (log_callback) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("av_vlog/log_callback", 1);
++#endif
+         log_callback(avcl, level, fmt, vl);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("av_vlog/log_callback", 0);
++#endif
++    }
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("av_vlog/exit", level);
++#endif
+ }
+ 
+ int av_log_get_level(void)

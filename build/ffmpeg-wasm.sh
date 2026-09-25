@@ -68,6 +68,15 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # console.error to find the st core's transcode hang; remove once
     # root-caused (see pthread_fiber.c's pf_debug comment).
     -DPFIBER_DEBUG=1
+    # TEMPORARY: testing whether the hang is a fiber stack overflow (silent
+    # heap/global corruption on wasm otherwise). ASSERTIONS=2 turns on
+    # Emscripten's runtime checks including stack-overflow detection;
+    # STACK_OVERFLOW_CHECK=2 adds an explicit check on every function entry.
+    # Only useful together with pthread_fiber.c's emscripten_stack_set_limits
+    # calls on every fiber swap, since the checker otherwise validates against
+    # whichever fiber's bounds were set last, not the one actually running.
+    -sASSERTIONS=2
+    -sSTACK_OVERFLOW_CHECK=2
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach

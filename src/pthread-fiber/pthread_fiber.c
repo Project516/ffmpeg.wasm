@@ -19,6 +19,7 @@
 
 #include <emscripten/fiber.h>
 #include <emscripten/emscripten.h>
+#include <emscripten/stack.h>
 
 #include <pthread.h>
 #include <errno.h>
@@ -79,11 +80,16 @@ static void pf_heartbeat_start_js(void) {}
 #endif
 
 #define PFIBER_MAX 48
-/* 2MB per worker fiber's C stack; FFmpeg/libopus can need deep stacks. The
- * project's main stack is 5MB (see build/ffmpeg-wasm.sh); tune this up if a
- * CI run stack-overflows inside a worker fiber. */
-#define PFIBER_STACK_SIZE (2 * 1024 * 1024)
-#define PFIBER_ASYNCIFY_STACK_SIZE (64 * 1024)
+/* 8MB per worker fiber's C stack; FFmpeg/libopus can need deep stacks, and
+ * fiber 1 (the filter task) carries the deepest chain in the program
+ * (filter_thread -> read_frames -> ... -> avcodec_open2 -> ... -> av_log).
+ * The project's main stack is 5MB (see build/ffmpeg-wasm.sh); tune this up
+ * further if a CI run still stack-overflows inside a worker fiber.
+ * Temporarily raised from 2MB/64KB while testing whether a fiber stack
+ * overflow explains the transcode hang; see pthread_fiber.c's pf_debug
+ * comment and -sSTACK_OVERFLOW_CHECK in build/ffmpeg-wasm.sh. */
+#define PFIBER_STACK_SIZE (8 * 1024 * 1024)
+#define PFIBER_ASYNCIFY_STACK_SIZE (1024 * 1024)
 #define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (64 * 1024)
 
 typedef struct pfiber {
@@ -248,7 +254,17 @@ static void pfiber_reschedule(void)
             pf_debug("reschedule: %d -> %d", pfiber_index_of(prev), pfiber_index_of(next));
             pf_heartbeat_tick_js();
             g_current = next;
+            /* emscripten_fiber_swap does not update the stack-overflow
+             * checker's bounds (see emscripten/system/lib/libc/
+             * emscripten_fiber.c: only *_init sets fiber->stack_base/limit,
+             * swap never calls emscripten_stack_set_limits). Without this,
+             * -sSTACK_OVERFLOW_CHECK validates every fiber's stack pointer
+             * against whichever fiber happened to set the limits last,
+             * catching nothing real. Point it at the fiber we are about to
+             * run, then restore our own once we get control back. */
+            emscripten_stack_set_limits(next->ctx.stack_base, next->ctx.stack_limit);
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
+            emscripten_stack_set_limits(prev->ctx.stack_base, prev->ctx.stack_limit);
             return;
         }
 
