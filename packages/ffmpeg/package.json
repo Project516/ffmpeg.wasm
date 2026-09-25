@@ -7,7 +7,7 @@
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
-      "node": "./dist/esm/empty.mjs",
+      "node": "./dist/esm/node.mjs",
       "default": {
         "import": "./dist/esm/index.js",
         "require": "./dist/umd/ffmpeg.js"
@@ -22,14 +22,17 @@
     "dev": "webpack -w --mode development",
     "lint": "eslint src",
     "clean": "rimraf dist",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node ../../scripts/emit-dist-package-json.mjs dist/esm module",
     "build:umd": "webpack",
     "build": "pnpm run clean && pnpm run build:esm && pnpm run build:umd",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "prepack": "node ../../scripts/copy-license.mjs"
   },
   "files": [
     "dist",
-    "types/ffmpeg.d.ts"
+    "types/ffmpeg.d.ts",
+    "LICENSE",
+    "NOTICE"
   ],
   "repository": {
     "type": "git",
@@ -43,12 +46,12 @@
     "transcode"
   ],
   "author": "Jerome Wu <jeromewus@gmail.com>",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "bugs": {
     "url": "https://github.com/Project516/ffmpeg.wasm/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.6.0"
   },
   "homepage": "https://github.com/Project516/ffmpeg.wasm#readme",
   "publishConfig": {
@@ -56,9 +59,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.0",
     "eslint": "^10.11.0",
     "rimraf": "^6.1.3",
-    "typescript": "^5.1.6",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "webpack": "^5.94.0",
     "webpack-cli": "^7.2.3"

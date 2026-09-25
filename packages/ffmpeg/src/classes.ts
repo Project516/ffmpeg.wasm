@@ -94,15 +94,23 @@ export class FFmpeg {
         delete this.#resolves[id];
         delete this.#rejects[id];
       };
-      this.#worker.onerror = () => {
+      this.#worker.onerror = (event) => {
         const rejects = { ...this.#rejects };
         this.#rejects = {};
         this.#resolves = {};
         this.#worker?.terminate();
         this.#worker = null;
         this.loaded = false;
+        // event.message is empty for a script that failed to load (the
+        // network-error/404 case ERROR_WORKER already describes) but has
+        // the real detail when the worker parsed and threw, so surface it
+        // when present instead of only the generic message.
+        const detail = event?.message;
+        const error = detail ?
+          new Error(`${ERROR_WORKER.message}: ${detail}`) :
+          ERROR_WORKER;
         for (const reject of Object.values(rejects)) {
-          reject(ERROR_WORKER);
+          reject(error);
         }
       };
     }

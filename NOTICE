@@ -1,0 +1,126 @@
+ffmpeg.wasm
+Copyright (C) 2019 Jerome Wu and contributors
+Copyright (C) 2024 Project516 and contributors
+
+This project is licensed as a whole under the GNU Affero General Public
+License, version 3 or later (AGPL-3.0-or-later). See LICENSE at the
+repository root for the full license text.
+
+Project516/ffmpeg.wasm is a fork of ffmpegwasm/ffmpeg.wasm, which was
+originally released under the MIT license by Jerome Wu and contributors. That
+MIT notice is kept, unmodified, at LICENSES/MIT-ffmpegwasm.txt, as required by
+the MIT license's own terms. Relicensing the wrapper code to AGPL-3.0-or-later
+is permitted because MIT allows sublicensing and relicensing of derivative
+works, provided the original copyright notice and license text travel with
+the distribution; that is what LICENSES/MIT-ffmpegwasm.txt is for.
+
+Why the core packages are AGPL-3.0-or-later
+--------------------------------------------
+
+@project516/ffmpeg-wasm-core and @project516/ffmpeg-wasm-core-mt embed FFmpeg
+built with --enable-gpl, plus the third-party libraries listed below. FFmpeg's
+own project states that building with --enable-gpl changes its effective
+license from LGPL-2.1-or-later to GPL-2.0-or-later (https://ffmpeg.org/legal.html).
+Every GPL-licensed library this project links in is licensed "or later," not
+GPLv2-only, so combining them with this project's AGPL-3.0-or-later code is
+permitted: GPLv3 section 13 and AGPLv3 section 13 each grant explicit
+permission to combine a covered work with code licensed under the other, and a
+work licensed "GPL-2.0-or-later" already carries permission to be used under
+GPLv3 terms. The wasm binaries in the core packages are therefore distributed
+as a whole under AGPL-3.0-or-later.
+
+FFmpeg is never configured with --enable-nonfree, and no library with a
+GPL-incompatible license (such as fdk-aac) is linked in, so the core binaries
+are redistributable.
+
+Corresponding source
+---------------------
+
+- This repository is the corresponding source for this project's own code
+  (the TypeScript wrapper, the build scripts, and the JS glue in src/bind).
+- FFmpeg and each third-party library below are built from the pinned
+  versions and upstream URLs in Dockerfile and build/*.sh in this repository.
+  Their own corresponding source is each project's own upstream repository at
+  the tag or commit pinned there.
+
+FFmpeg and third-party libraries built into the core packages
+---------------------------------------------------------------
+
+FFmpeg
+  https://ffmpeg.org
+  License: LGPL-2.1-or-later; GPL-2.0-or-later when built with --enable-gpl
+  (this project's build). Versions used: n5.1.10 (single-thread core),
+  n9.0.2 (multi-thread core). See Dockerfile.
+
+x264
+  https://www.videolan.org/developers/x264.html
+  License: GPL-2.0-or-later
+
+x265
+  https://bitbucket.org/multicoreware/x265_git
+  License: GPL-2.0-or-later
+
+libvpx
+  https://chromium.googlesource.com/webm/libvpx
+  License: BSD-3-Clause
+
+LAME
+  https://lame.sourceforge.io
+  License: LGPL-2.0-or-later
+
+libogg
+  https://www.xiph.org/ogg
+  License: BSD-3-Clause
+
+libtheora
+  https://www.theora.org
+  License: BSD-3-Clause
+
+libvorbis
+  https://www.xiph.org/vorbis
+  License: BSD-3-Clause
+
+Opus
+  https://opus-codec.org
+  License: BSD-3-Clause
+
+zlib
+  https://zlib.net
+  License: zlib License
+
+libwebp
+  https://chromium.googlesource.com/webm/libwebp
+  License: BSD-3-Clause
+
+FreeType
+  https://freetype.org
+  License: FreeType License (FTL), a permissive license; FreeType also offers
+  GPL-2.0-or-later as an alternative, this project uses the FTL option.
+
+FriBidi
+  https://github.com/fribidi/fribidi
+  License: LGPL-2.1-or-later
+
+HarfBuzz
+  https://harfbuzz.github.io
+  License: Old MIT License (permissive)
+
+libass
+  https://github.com/libass/libass
+  License: ISC License
+
+zimg
+  https://github.com/sekrit-twc/zimg
+  License: WTFPL
+
+Exact pinned versions and download locations for all of the above are in
+Dockerfile and build/*.sh in this repository.
+
+wasmpeg
+  https://github.com/wasmpeg/wasmpeg
+  License: LGPL-2.1-or-later
+
+wasmpeg is credited here as design inspiration only (see issue #49). No code
+from wasmpeg has been copied into this project. If code from wasmpeg is
+adapted in the future, its LGPL notices will be preserved and this NOTICE
+will be updated to reflect that.

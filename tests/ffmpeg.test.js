@@ -17,6 +17,22 @@ describe(genName("new FFmpeg()"), () => {
   });
 });
 
+describe(genName("concurrent load()"), () => {
+  it("resolves first=true for exactly one of two concurrent load() calls", async () => {
+    const ffmpeg = new FFmpeg();
+    const config = { coreURL: CORE_URL, thread: FFMPEG_TYPE === "mt" };
+    try {
+      const [a, b] = await Promise.all([
+        ffmpeg.load(config),
+        ffmpeg.load(config),
+      ]);
+      expect([a, b].filter(Boolean)).to.have.lengthOf(1);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
 describe(
   genName(
     "FFmpeg directory APIs (createDir(), listDir(), deleteDir(), rename())"

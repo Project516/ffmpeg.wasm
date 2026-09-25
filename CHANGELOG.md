@@ -9,6 +9,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The multithread core now builds FFmpeg 9.0.2 instead of 5.1.10. The
   single-thread core is unaffected and stays on FFmpeg 5.1.10.
+- License: the project is now AGPL-3.0-or-later (previously MIT for the JS
+  packages and GPL-2.0-or-later for the cores). See NOTICE at the repository
+  root for how this fits with the MIT code inherited from upstream and the
+  third-party libraries built into the core packages.
 
 ## 0.13.1
 
