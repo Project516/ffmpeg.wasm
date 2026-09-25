@@ -647,3 +647,63 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
      if (ret < 0)
          av_log(task->func_arg, AV_LOG_ERROR,
                 "Task finished with error code: %d (%s)\n", ret, av_err2str(ret));
+diff -ruN a/fftools/thread_queue.c b/fftools/thread_queue.c
+--- a/fftools/thread_queue.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/thread_queue.c	2026-09-24 09:59:45.000000000 -0500
+@@ -28,6 +28,16 @@
+ #include "libavutil/mem.h"
+ #include "libavutil/thread.h"
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: identify whether the st core's transcode hang is inside the
++ * queue between scheduler tasks or deeper in real codec/filter processing.
++ * Remove once root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_tq_trace, (const char *what, int starting), {
++    console.error("thread_queue: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ #include "libavcodec/packet.h"
+ 
+ #include "thread_queue.h"
+@@ -119,6 +129,9 @@
+     int *finished;
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_send", 1);
++#endif
+     av_assert0(stream_idx < tq->nb_streams);
+     finished = &tq->finished[stream_idx];
+ 
+@@ -150,6 +163,9 @@
+ finish:
+     pthread_mutex_unlock(&tq->lock);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_send", 0);
++#endif
+     return ret;
+ }
+ 
+@@ -198,6 +214,9 @@
+ {
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_receive", 1);
++#endif
+     *stream_idx = -1;
+ 
+     pthread_mutex_lock(&tq->lock);
+@@ -221,6 +240,9 @@
+ 
+     pthread_mutex_unlock(&tq->lock);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_receive", 0);
++#endif
+     return ret;
+ }
+ 
