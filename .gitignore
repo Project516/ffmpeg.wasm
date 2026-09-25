@@ -11,3 +11,6 @@ dist
 
 # Local Netlify folder
 .netlify
+
+# scripts/fate/ local cache of FFmpeg's tests/ tree and fetched samples
+.fate-cache
