@@ -710,7 +710,7 @@ diff -ruN a/fftools/thread_queue.c b/fftools/thread_queue.c
 diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
 --- a/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
 +++ b/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
-@@ -41,6 +41,16 @@
+@@ -41,6 +41,19 @@
  #include "libavutil/time.h"
  #include "libavutil/timestamp.h"
  
@@ -722,12 +722,79 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
 +EM_JS(void, wasm_st_filter_trace, (const char *what, int starting), {
 +    console.error("filter_thread: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
 +});
++EM_JS(void, wasm_st_read_frames_trace, (const char *what, int a, int b), {
++    console.error("read_frames: " + UTF8ToString(what) + " a=" + a + " b=" + b);
++});
 +#endif
 +
  typedef struct FilterGraphPriv {
      FilterGraph      fg;
  
-@@ -2894,7 +2904,13 @@
+@@ -2097,6 +2110,16 @@
+         }
+     } else {
+         fgt->graph->nb_threads = filter_complex_nbthreads;
++#ifdef FFMPEG_WASM_ST
++        /* filter_complex_nbthreads defaults to 0 ("auto"), which overwrites
++         * the filtergraph's own default of 1 and reopens the
++         * avpriv_slicethread_create() auto-resolution path in
++         * libavutil/slicethread.c instead of ff_graph_thread_init()'s clean
++         * "nb_threads == 1, do nothing" return. Keep it forced to 1 so the
++         * st core never spins up filter slice threads. */
++        if (!fgt->graph->nb_threads)
++            fgt->graph->nb_threads = 1;
++#endif
+     }
+ 
+     if (filter_buffered_frames) {
+@@ -2777,8 +2800,14 @@
+     FrameData *fd;
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_read_frames_trace("buffersink_get_frame: enter", ofp->ofilter.index, 0);
++#endif
+     ret = av_buffersink_get_frame_flags(filter, frame,
+                                         AV_BUFFERSINK_FLAG_NO_REQUEST);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_read_frames_trace("buffersink_get_frame: ret", ofp->ofilter.index, ret);
++#endif
+     if (ret == AVERROR_EOF && !fgt->eof_out[ofp->ofilter.index]) {
+         ret = fg_output_frame(ofp, fgt, NULL);
+         return (ret < 0) ? ret : 1;
+@@ -2863,6 +2892,9 @@
+ 
+     // graph not configured, just select the input to request
+     if (!fgt->graph) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_read_frames_trace("no-graph-branch", fg->nb_inputs, 0);
++#endif
+         for (int i = 0; i < fg->nb_inputs; i++) {
+             InputFilterPriv *ifp = ifp_from_ifilter(fg->inputs[i]);
+             if (ifp->format < 0 && !fgt->eof_in[i]) {
+@@ -2884,17 +2916,35 @@
+         /* Reap all buffers present in the buffer sinks */
+         for (int i = 0; i < fg->nb_outputs; i++) {
+             OutputFilterPriv *ofp = ofp_from_ofilter(fg->outputs[i]);
++#ifdef FFMPEG_WASM_ST
++            int iter = 0;
++#endif
+ 
+             ret = 0;
+             while (!ret) {
++#ifdef FFMPEG_WASM_ST
++                if (iter < 10 || iter % 500 == 0)
++                    wasm_st_read_frames_trace("fg_output_step: enter", i, iter);
++                iter++;
++#endif
+                 ret = fg_output_step(ofp, fgt, frame);
++#ifdef FFMPEG_WASM_ST
++                if (iter <= 10 || iter % 500 == 0)
++                    wasm_st_read_frames_trace("fg_output_step: ret", i, ret);
++#endif
+                 if (ret < 0)
+                     return ret;
+             }
          }
  
  
@@ -741,7 +808,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          if (ret == AVERROR(EAGAIN)) {
              fgt->next_in = choose_input(fg, fgt);
              return 0;
-@@ -3295,7 +3311,13 @@
+@@ -3295,7 +3345,13 @@
  
      // if we have all input parameters the graph can now be configured
      if (ifilter_has_all_input_formats(fg)) {
@@ -755,7 +822,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          if (ret < 0) {
              av_log(fg, AV_LOG_ERROR, "Error configuring filter graph: %s\n",
                     av_err2str(ret));
-@@ -3345,7 +3367,13 @@
+@@ -3345,7 +3401,13 @@
              ret = sub2video_frame(ifilter, (fgt.frame->buf[0] || hb_frame) ? fgt.frame : NULL,
                                    !fgt.graph);
          } else if (fgt.frame->buf[0]) {
@@ -769,7 +836,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          } else {
              av_assert1(o == FRAME_OPAQUE_EOF);
              ret = send_eof(&fgt, ifilter, fgt.frame->pts, fgt.frame->time_base);
-@@ -3362,7 +3390,13 @@
+@@ -3362,7 +3424,13 @@
  
  read_frames:
          // retrieve all newly available frames
