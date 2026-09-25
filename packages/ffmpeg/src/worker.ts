@@ -30,10 +30,10 @@ import {
   ERROR_IMPORT_FAILURE,
 } from "./errors.js";
 
+// Set by importScripts() of the UMD core, or assigned from the ESM core's
+// default export.
 declare global {
-  interface WorkerGlobalScope {
-    createFFmpegCore: FFmpegCoreModuleFactory;
-  }
+  var createFFmpegCore: FFmpegCoreModuleFactory | undefined;
 }
 
 interface ImportedFFmpegCoreModuleFactory {
@@ -56,13 +56,13 @@ const load = async ({
     try {
       if (!_coreURL || _coreURL === CORE_URL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
       // when web worker type is `module`.
-      (self as WorkerGlobalScope).createFFmpegCore = (
+      self.createFFmpegCore = (
         (await import(
           /* @vite-ignore */ _coreURL
         )) as ImportedFFmpegCoreModuleFactory
       ).default;
 
-      if (!(self as WorkerGlobalScope).createFFmpegCore) {
+      if (!self.createFFmpegCore) {
         throw ERROR_IMPORT_FAILURE;
       }
     } catch (importError) {
@@ -81,7 +81,9 @@ const load = async ({
   const coreURL = _coreURL;
   const wasmURL = _wasmURL ? _wasmURL : _coreURL.replace(/.js$/g, ".wasm");
 
-  ffmpeg = await (self as WorkerGlobalScope).createFFmpegCore({
+  const createFFmpegCore = self.createFFmpegCore;
+  if (!createFFmpegCore) throw ERROR_IMPORT_FAILURE;
+  ffmpeg = await createFFmpegCore({
     // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
     // Encoded wasmURL in the URL as a hack to fix locateFile issue.
     mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
