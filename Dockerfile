@@ -7,18 +7,19 @@ ARG EXTRA_LDFLAGS
 ARG FFMPEG_ST
 ARG FFMPEG_MT
 ENV INSTALL_DIR=/opt
-# The st core stays on n5.1.10: its libraries build with --disable-pthreads,
-# and FFmpeg's CLI has needed real threads (the fftools scheduler) since
-# n6.0. The mt core has real pthreads, so it builds fftools from current
-# FFmpeg with the patches under build/patches/n9; see "FFmpeg upgrade plan"
-# in AGENTS.md. ffmpeg-base below picks between the two based on FFMPEG_MT.
-ENV FFMPEG_VERSION_ST=n5.1.10
+# Both cores build the same FFmpeg release now: n9.0.2's fftools has needed
+# real threads (the fftools scheduler) since n6.0, and the st core gets them
+# via src/pthread-fiber, a cooperative pthread shim on Emscripten fibers,
+# since it has no SharedArrayBuffer for real ones. See "FFmpeg upgrade plan"
+# in AGENTS.md. Kept as two variables, both n9.0.2, only so a future version
+# bump can stage st and mt separately again if needed.
+ENV FFMPEG_VERSION_ST=n9.0.2
 ENV FFMPEG_VERSION_MT=n9.0.2
 # Clang shipped with emsdk 6.0.10 defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
-# int/pointer conversions) to hard errors. n5.1.10 and its bundled libraries
-# still rely on that older, looser C dialect in a few places, so demote those
-# checks back to warnings rather than patching every call site.
+# int/pointer conversions) to hard errors. Some of the bundled third-party
+# libraries still rely on that older, looser C dialect in a few places, so
+# demote those checks back to warnings rather than patching every call site.
 ENV CFLAGS="-I$INSTALL_DIR/include -Wno-error=implicit-function-declaration -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion $CFLAGS $EXTRA_CFLAGS"
 ENV CXXFLAGS="$CFLAGS"
 ENV LDFLAGS="-L$INSTALL_DIR/lib $LDFLAGS $CFLAGS $EXTRA_LDFLAGS"
@@ -177,18 +178,18 @@ RUN bash -x /src/build.sh
 FROM emsdk-base AS ffmpeg-base
 RUN embuilder build sdl2 sdl2-mt
 # Pick the FFmpeg release per FFMPEG_MT (see the FFMPEG_VERSION_ST/MT comment
-# above), then apply the mt-only fftools patches. build/patches/n9 ports the
-# same wasm-runtime changes that src/fftools carries as vendored, already
-# patched files for the st build: renaming main()/duplicate ffprobe symbols,
-# routing exit()/exit codes through Module.ret instead of tearing down the
-# runtime, progress and timeout reporting, and resetting globals that
-# fftools's upstream assumes are only ever initialized once per process.
+# above), then apply the fftools patches, now needed by both cores.
+# build/patches/n9 makes fftools work as a wasm runtime instead of a process:
+# renaming main()/duplicate ffprobe symbols, routing exit()/exit codes
+# through Module.ret instead of tearing down the runtime, progress and
+# timeout reporting, resetting globals that fftools's upstream assumes are
+# only ever initialized once per process, and (st only, guarded by
+# FFMPEG_WASM_ST) forcing av_cpu_count() to 1 so FFmpeg's own codec-level
+# threading stays off.
 COPY build/patches /src-patches
 RUN if [ -n "$FFMPEG_MT" ]; then FFMPEG_VERSION="$FFMPEG_VERSION_MT"; else FFMPEG_VERSION="$FFMPEG_VERSION_ST"; fi && \
     git clone --depth 1 --branch "$FFMPEG_VERSION" https://github.com/FFmpeg/FFmpeg.git /src && \
-    if [ -n "$FFMPEG_MT" ]; then \
-      cd /src && patch -p1 < /src-patches/n9/fftools-wasm.patch; \
-    fi
+    cd /src && patch -p1 < /src-patches/n9/fftools-wasm.patch
 COPY --from=x264-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=x265-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=libvpx-builder $INSTALL_DIR $INSTALL_DIR
@@ -223,6 +224,7 @@ RUN bash -x /src/build.sh \
 FROM ffmpeg-builder AS ffmpeg-wasm-builder
 COPY src/bind /src/src/bind
 COPY src/fftools /src/src/fftools
+COPY src/pthread-fiber /src/src/pthread-fiber
 COPY build/ffmpeg-wasm.sh build.sh
 # libraries to link
 ENV FFMPEG_LIBS \

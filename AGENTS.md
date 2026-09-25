@@ -14,17 +14,22 @@ maintained fork of the abandoned `ffmpegwasm/ffmpeg.wasm`.
 
 ## FFmpeg upgrade plan
 
-The st core stays on FFmpeg 5.1.x: its libraries build with
-`--disable-pthreads`, and the ffmpeg CLI in fftools has needed a threaded
-scheduler since 6.0, which the st core does not have. The plan:
+Both cores now build FFmpeg n9.0.2. The ffmpeg CLI in fftools has needed a
+threaded scheduler since 6.0; the mt core has real pthreads, the st core has
+none (no `SharedArrayBuffer`), so it runs the scheduler on a cooperative
+pthread shim instead.
 
-1. Move the build toolchain (emsdk and libraries) to current releases on 5.1.x. Done.
+1. Move the build toolchain (emsdk and libraries) to current releases. Done.
 2. Port the fftools patches to the current FFmpeg release for the mt core.
-   Done: the mt core builds FFmpeg n9.0.2's own fftools, patched by
-   `build/patches/n9`, instead of the vendored copies under `src/fftools`
-   that the st core still uses.
+   Done: `build/patches/n9` patches FFmpeg's own fftools sources at build
+   time, replacing the vendored copies that used to live under
+   `src/fftools`.
 3. Give the st core a cooperative pthread shim on Emscripten fibers so the
-   same fftools run without `SharedArrayBuffer`.
+   same fftools run without `SharedArrayBuffer`. Done: `src/pthread-fiber`
+   implements the pthread subset fftools/libavutil use on top of
+   Emscripten fibers, linked in via `-Wl,--wrap`. `src/fftools` (the old
+   vendored n5.1.10 sources) is dead code kept until this is confirmed
+   green in CI, then removed.
 
 ## Layout
 
@@ -33,11 +38,13 @@ scheduler since 6.0, which the st core does not have. The plan:
 - `packages/ffmpeg`: the worker-based API that loads a core and runs it.
 - `packages/util`: browser helper functions (fetchFile, etc).
 - `packages/types`: shared TypeScript types.
-- `src/fftools`: vendored, patched FFmpeg n5.1.10 CLI sources, used by the st
-  core build only.
+- `src/fftools`: vendored, patched FFmpeg n5.1.10 CLI sources. No longer
+  built by either core; kept until the st core's move to n9.0.2 is
+  confirmed green in CI, then removed.
+- `src/pthread-fiber`: cooperative pthread shim (Emscripten fibers) the st
+  core links so fftools' scheduler runs without `SharedArrayBuffer`.
 - `build/patches/n9`: patches applied to FFmpeg n9.0.2's own fftools sources
-  for the mt core build; see the comment in the Dockerfile's `ffmpeg-base`
-  stage.
+  for both cores; see the comment in the Dockerfile's `ffmpeg-base` stage.
 - `src/bind`: JS glue passed to emcc when building the core.
 - `build/`: per-library build scripts used by the Dockerfile.
 - `apps/`: standalone examples, not part of the pnpm workspace.
@@ -55,7 +62,8 @@ scheduler since 6.0, which the st core does not have. The plan:
 
 - **core**: the emscripten-built `ffmpeg-core.js` / `ffmpeg-core.wasm`.
 - **st / mt**: single-thread vs multithread core.
-- **fftools**: FFmpeg's own CLI sources, vendored under `src/fftools`.
+- **fftools**: FFmpeg's own CLI sources, patched at build time by
+  `build/patches/n9` (see "FFmpeg upgrade plan").
 - **bind**: the pre-js glue in `src/bind` linked into the core build.
 
 ## Review

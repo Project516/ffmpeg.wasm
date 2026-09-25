@@ -140,6 +140,15 @@ jobs:
           done
           if [ -n "$failed" ]; then
             echo "::error::failed test pages:$failed"
+            # mocha-headless-chrome prints nothing from the page itself, so a
+            # page that hangs or throws before mocha starts is otherwise a
+            # black box. Re-open each failed page with Puppeteer directly and
+            # dump its console/pageerror/worker output for the logs.
+            for page in $failed; do
+              echo "::group::diagnostic: $page"
+              timeout 100 node scripts/diagnose-test-page.mjs "http://localhost:3000/tests/$page.test.html" || true
+              echo "::endgroup::"
+            done
             exit 1
           fi
 

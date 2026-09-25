@@ -584,3 +584,664 @@ diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
 +void opt_common_reset(void);
 +
  #endif /* FFTOOLS_OPT_COMMON_H */
+diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
+--- a/libavutil/cpu.c	2026-09-24 09:59:45.053923228 -0500
++++ b/libavutil/cpu.c	2026-09-24 11:44:10.274825873 -0500
+@@ -227,6 +227,15 @@
+
+ int av_cpu_count(void)
+ {
++#ifdef FFMPEG_WASM_ST
++    /* The st core has no SharedArrayBuffer, so FFmpeg's own codec threading
++     * stays off at runtime regardless of what auto-detection would say.
++     * Slice/frame-threaded codecs compute their "auto" thread count as
++     * FFMIN(av_cpu_count() + 1, MAX_AUTO_THREADS) (libavcodec/pthread_slice.c),
++     * so even a correctly-detected single core would still try to spin up 2
++     * threads; forcing this to 1 is what actually keeps it at 1. */
++    return 1;
++#else
+     static atomic_int printed = 0;
+
+     int nb_cpus = 1;
+@@ -277,6 +286,7 @@
+     }
+
+     return nb_cpus;
++#endif
+ }
+
+ void av_cpu_force_count(int count)
+diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
+--- a/fftools/ffmpeg_sched.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_sched.c	2026-09-24 09:59:45.000000000 -0500
+@@ -40,6 +40,17 @@
+ #include "libavutil/threadmessage.h"
+ #include "libavutil/time.h"
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang around the
++ * sch_filter_send -> send_to_enc -> enc_open (encoder avcodec_open2) path,
++ * the first synchronous heavy call the filter thread makes. Remove once
++ * root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_sched_trace, (const char *what, int starting), {
++    console.error("ffmpeg_sched: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ // 100 ms
+ // FIXME: some other value? make this dynamic?
+ #define SCHEDULE_TOLERANCE (100 * 1000)
+@@ -405,14 +416,39 @@
+ {
+     int ret;
+ 
+-    if (!task->parent)
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/enter", 1);
++#endif
++    if (!task->parent) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("task_start/no-parent-return", 1);
++#endif
+         return 0;
++    }
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/av_log", 1);
++#endif
+     av_log(task->func_arg, AV_LOG_VERBOSE, "Starting thread...\n");
+-
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/av_log", 0);
++#endif
++
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/assert_thread_running", 1);
++#endif
+     av_assert0(!task->thread_running);
+-
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/assert_thread_running", 0);
++#endif
++
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/pthread_create", 1);
++#endif
+     ret = pthread_create(&task->thread, NULL, task_wrapper, task);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/pthread_create", 0);
++#endif
+     if (ret) {
+         av_log(task->func_arg, AV_LOG_ERROR, "pthread_create() failed: %s\n",
+                strerror(ret));
+@@ -1136,16 +1172,31 @@
+ {
+     int ret = 0;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_task_start/task_start", 1);
++#endif
+     ret = task_start(&mux->task);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_task_start/task_start", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
+     /* flush the pre-muxing queues */
++#ifdef FFMPEG_WASM_ST
++    {
++        int flush_iter = 0;
++#endif
+     while (1) {
+         int       min_stream = -1;
+         Timestamp min_ts     = { .ts = AV_NOPTS_VALUE };
+ 
+         AVPacket *pkt;
++#ifdef FFMPEG_WASM_ST
++        if (flush_iter < 10 || flush_iter % 500 == 0)
++            wasm_st_sched_trace("mux_task_start/flush_loop_iter", flush_iter);
++        flush_iter++;
++#endif
+ 
+         // find the stream with the earliest dts or EOF in pre-muxing queue
+         for (unsigned i = 0; i < mux->nb_streams; i++) {
+@@ -1188,6 +1239,9 @@
+ 
+         break;
+     }
++#ifdef FFMPEG_WASM_ST
++    }
++#endif
+ 
+     atomic_store(&mux->mux_started, 1);
+ 
+@@ -1200,7 +1254,13 @@
+ {
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_init/mux->init", 1);
++#endif
+     ret = mux->init(mux->task.func_arg);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_init/mux->init", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
+@@ -1224,7 +1284,13 @@
+                 return ret;
+         }
+     } else {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("mux_init/mux_task_start", 1);
++#endif
+         ret = mux_task_start(mux);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("mux_init/mux_task_start", 0);
++#endif
+         if (ret < 0)
+             return ret;
+     }
+@@ -1258,15 +1324,28 @@
+ 
+     av_assert0(stream_idx < mux->nb_streams);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("sch_mux_stream_ready/lock", 1);
++#endif
+     pthread_mutex_lock(&sch->mux_ready_lock);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("sch_mux_stream_ready/lock", 0);
++#endif
+ 
+     av_assert0(mux->nb_streams_ready < mux->nb_streams);
+ 
+     // this may be called during initialization - do not start
+     // threads before sch_start() is called
+     if (++mux->nb_streams_ready == mux->nb_streams &&
+-        sch->state >= SCH_STATE_STARTED)
++        sch->state >= SCH_STATE_STARTED) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_mux_stream_ready/mux_init", 1);
++#endif
+         ret = mux_init(sch, mux);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_mux_stream_ready/mux_init", 0);
++#endif
++    }
+ 
+     pthread_mutex_unlock(&sch->mux_ready_lock);
+ 
+@@ -1833,7 +1912,13 @@
+ {
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("enc_open/open_cb", 1);
++#endif
+     ret = enc->open_cb(enc->task.func_arg, frame);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("enc_open/open_cb", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
+@@ -1953,7 +2038,14 @@
+ static int send_to_enc(Scheduler *sch, SchEnc *enc, AVFrame *frame)
+ {
+     if (enc->open_cb && frame && !enc->opened) {
+-        int ret = enc_open(sch, enc, frame);
++        int ret;
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("send_to_enc/enc_open", 1);
++#endif
++        ret = enc_open(sch, enc, frame);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("send_to_enc/enc_open", 0);
++#endif
+         if (ret < 0)
+             return ret;
+         enc->opened = 1;
+@@ -2639,7 +2731,13 @@
+     dst = fg->outputs[out_idx].dst;
+ 
+     if (dst.type == SCH_NODE_TYPE_ENC) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_filter_send/send_to_enc", 1);
++#endif
+         ret = send_to_enc(sch, &sch->enc[dst.idx], frame);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_filter_send/send_to_enc", 0);
++#endif
+         if (ret == AVERROR_EOF)
+             send_to_enc(sch, &sch->enc[dst.idx], NULL);
+     } else {
+@@ -2713,6 +2811,18 @@
+     }
+ }
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: identify which scheduler task a cooperative fiber is running
++ * when it never returns to the scheduler, since av_log goes through
++ * bind.js's Module.logger (a no-op unless a caller sets one). Remove once
++ * the st core's transcode hang under src/pthread-fiber is root-caused. */
++#include <emscripten.h>
++EM_JS(void, wasm_st_task_trace, (int type, unsigned idx, int starting), {
++    console.error("task_wrapper: " + (starting ? "enter" : "exit") +
++                  " type=" + type + " idx=" + idx);
++});
++#endif
++
+ static void *task_wrapper(void *arg)
+ {
+     SchTask  *task = arg;
+@@ -2720,7 +2830,13 @@
+     int ret;
+     int err = 0;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_task_trace(task->node.type, task->node.idx, 1);
++#endif
+     ret = task->func(task->func_arg);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_task_trace(task->node.type, task->node.idx, 0);
++#endif
+     if (ret < 0)
+         av_log(task->func_arg, AV_LOG_ERROR,
+                "Task finished with error code: %d (%s)\n", ret, av_err2str(ret));
+diff -ruN a/fftools/thread_queue.c b/fftools/thread_queue.c
+--- a/fftools/thread_queue.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/thread_queue.c	2026-09-24 09:59:45.000000000 -0500
+@@ -28,6 +28,16 @@
+ #include "libavutil/mem.h"
+ #include "libavutil/thread.h"
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: identify whether the st core's transcode hang is inside the
++ * queue between scheduler tasks or deeper in real codec/filter processing.
++ * Remove once root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_tq_trace, (const char *what, int starting), {
++    console.error("thread_queue: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ #include "libavcodec/packet.h"
+ 
+ #include "thread_queue.h"
+@@ -119,6 +129,9 @@
+     int *finished;
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_send", 1);
++#endif
+     av_assert0(stream_idx < tq->nb_streams);
+     finished = &tq->finished[stream_idx];
+ 
+@@ -150,6 +163,9 @@
+ finish:
+     pthread_mutex_unlock(&tq->lock);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_send", 0);
++#endif
+     return ret;
+ }
+ 
+@@ -198,6 +214,9 @@
+ {
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_receive", 1);
++#endif
+     *stream_idx = -1;
+ 
+     pthread_mutex_lock(&tq->lock);
+@@ -221,6 +240,9 @@
+ 
+     pthread_mutex_unlock(&tq->lock);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_tq_trace("tq_receive", 0);
++#endif
+     return ret;
+ }
+ 
+diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
+--- a/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
+@@ -41,6 +41,19 @@
+ #include "libavutil/time.h"
+ #include "libavutil/timestamp.h"
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang to a specific call inside
++ * filter_thread()'s main loop. Remove once root-caused (see
++ * pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_filter_trace, (const char *what, int starting), {
++    console.error("filter_thread: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++EM_JS(void, wasm_st_read_frames_trace, (const char *what, int a, int b), {
++    console.error("read_frames: " + UTF8ToString(what) + " a=" + a + " b=" + b);
++});
++#endif
++
+ typedef struct FilterGraphPriv {
+     FilterGraph      fg;
+ 
+@@ -2097,6 +2110,16 @@
+         }
+     } else {
+         fgt->graph->nb_threads = filter_complex_nbthreads;
++#ifdef FFMPEG_WASM_ST
++        /* filter_complex_nbthreads defaults to 0 ("auto"), which overwrites
++         * the filtergraph's own default of 1 and reopens the
++         * avpriv_slicethread_create() auto-resolution path in
++         * libavutil/slicethread.c instead of ff_graph_thread_init()'s clean
++         * "nb_threads == 1, do nothing" return. Keep it forced to 1 so the
++         * st core never spins up filter slice threads. */
++        if (!fgt->graph->nb_threads)
++            fgt->graph->nb_threads = 1;
++#endif
+     }
+ 
+     if (filter_buffered_frames) {
+@@ -2777,8 +2800,14 @@
+     FrameData *fd;
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_read_frames_trace("buffersink_get_frame: enter", ofp->ofilter.index, 0);
++#endif
+     ret = av_buffersink_get_frame_flags(filter, frame,
+                                         AV_BUFFERSINK_FLAG_NO_REQUEST);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_read_frames_trace("buffersink_get_frame: ret", ofp->ofilter.index, ret);
++#endif
+     if (ret == AVERROR_EOF && !fgt->eof_out[ofp->ofilter.index]) {
+         ret = fg_output_frame(ofp, fgt, NULL);
+         return (ret < 0) ? ret : 1;
+@@ -2863,6 +2892,9 @@
+ 
+     // graph not configured, just select the input to request
+     if (!fgt->graph) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_read_frames_trace("no-graph-branch", fg->nb_inputs, 0);
++#endif
+         for (int i = 0; i < fg->nb_inputs; i++) {
+             InputFilterPriv *ifp = ifp_from_ifilter(fg->inputs[i]);
+             if (ifp->format < 0 && !fgt->eof_in[i]) {
+@@ -2884,17 +2916,35 @@
+         /* Reap all buffers present in the buffer sinks */
+         for (int i = 0; i < fg->nb_outputs; i++) {
+             OutputFilterPriv *ofp = ofp_from_ofilter(fg->outputs[i]);
++#ifdef FFMPEG_WASM_ST
++            int iter = 0;
++#endif
+ 
+             ret = 0;
+             while (!ret) {
++#ifdef FFMPEG_WASM_ST
++                if (iter < 10 || iter % 500 == 0)
++                    wasm_st_read_frames_trace("fg_output_step: enter", i, iter);
++                iter++;
++#endif
+                 ret = fg_output_step(ofp, fgt, frame);
++#ifdef FFMPEG_WASM_ST
++                if (iter <= 10 || iter % 500 == 0)
++                    wasm_st_read_frames_trace("fg_output_step: ret", i, ret);
++#endif
+                 if (ret < 0)
+                     return ret;
+             }
+         }
+ 
+ 
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("avfilter_graph_request_oldest", 1);
++#endif
+         ret = avfilter_graph_request_oldest(fgt->graph);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("avfilter_graph_request_oldest", 0);
++#endif
+         if (ret == AVERROR(EAGAIN)) {
+             fgt->next_in = choose_input(fg, fgt);
+             return 0;
+@@ -3295,7 +3345,13 @@
+ 
+     // if we have all input parameters the graph can now be configured
+     if (ifilter_has_all_input_formats(fg)) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("configure_filtergraph", 1);
++#endif
+         ret = configure_filtergraph(fg, &fgt);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("configure_filtergraph", 0);
++#endif
+         if (ret < 0) {
+             av_log(fg, AV_LOG_ERROR, "Error configuring filter graph: %s\n",
+                    av_err2str(ret));
+@@ -3345,7 +3401,13 @@
+             ret = sub2video_frame(ifilter, (fgt.frame->buf[0] || hb_frame) ? fgt.frame : NULL,
+                                   !fgt.graph);
+         } else if (fgt.frame->buf[0]) {
++#ifdef FFMPEG_WASM_ST
++            wasm_st_filter_trace("send_frame", 1);
++#endif
+             ret = send_frame(fg, &fgt, ifilter, fgt.frame);
++#ifdef FFMPEG_WASM_ST
++            wasm_st_filter_trace("send_frame", 0);
++#endif
+         } else {
+             av_assert1(o == FRAME_OPAQUE_EOF);
+             ret = send_eof(&fgt, ifilter, fgt.frame->pts, fgt.frame->time_base);
+@@ -3362,7 +3424,13 @@
+ 
+ read_frames:
+         // retrieve all newly available frames
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("read_frames", 1);
++#endif
+         ret = read_frames(fg, &fgt, fgt.frame);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("read_frames", 0);
++#endif
+         if (ret == AVERROR_EOF) {
+             av_log(fg, AV_LOG_VERBOSE, "All consumers returned EOF\n");
+             if (ifp && ifp->opts.flags & IFILTER_FLAG_DROPCHANGED)
+diff -ruN a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c
+--- a/fftools/ffmpeg_enc.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_enc.c	2026-09-24 09:59:45.000000000 -0500
+@@ -19,6 +19,15 @@
+ #include <math.h>
+ #include <stdint.h>
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang to the encoder open path.
++ * Remove once root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_enc_trace, (const char *what, int starting), {
++    console.error("ffmpeg_enc: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ #include "ffmpeg.h"
+ 
+ #include "libavutil/avassert.h"
+@@ -183,6 +192,9 @@
+ 
+ int enc_open(void *opaque, const AVFrame *frame)
+ {
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("enc_open", 1);
++#endif
+     OutputStream *ost = opaque;
+     InputStream *ist = ost->ist;
+     Encoder              *e = ost->enc;
+@@ -335,12 +347,21 @@
+         return ret;
+     }
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("avcodec_open2", 1);
++#endif
+     if ((ret = avcodec_open2(enc_ctx, enc, NULL)) < 0) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_enc_trace("avcodec_open2", 0);
++#endif
+         if (ret != AVERROR_EXPERIMENTAL)
+             av_log(e, AV_LOG_ERROR, "Error while opening encoder - maybe "
+                    "incorrect parameters such as bit_rate, rate, width or height.\n");
+         return ret;
+     }
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("avcodec_open2", 0);
++#endif
+ 
+     ep->opened = 1;
+ 
+@@ -352,10 +373,19 @@
+         av_log(e, AV_LOG_WARNING, "The bitrate parameter is set too low."
+                                     " It takes bits/s as argument, not kbits/s\n");
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("of_stream_init", 1);
++#endif
+     ret = of_stream_init(of, ost, enc_ctx);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("of_stream_init", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("enc_open", 0);
++#endif
+     return frame_samples;
+ }
+ 
+diff -ruN a/libavutil/log.c b/libavutil/log.c
+--- a/libavutil/log.c	2026-09-24 09:59:45.000000000 -0500
++++ b/libavutil/log.c	2026-09-24 09:59:45.000000000 -0500
+@@ -43,6 +43,17 @@
+ #include "internal.h"
+ #include "log.h"
+ #include "thread.h"
++
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang inside
++ * av_log_default_callback, called from a non-main fiber for the first
++ * time when the mux task logs "Starting thread...". Remove once
++ * root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_log_trace, (const char *what, int a), {
++    console.error("av_log: " + UTF8ToString(what) + " a=" + a);
++});
++#endif
+ #include "time.h"
+ #include "time_internal.h"
+ 
+@@ -393,11 +404,26 @@
+         level &= 0xff;
+     }
+ 
+-    if (level > atomic_load_explicit(&av_log_level, memory_order_relaxed))
++    if (level > atomic_load_explicit(&av_log_level, memory_order_relaxed)) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("level-check-return", level);
++#endif
+         return;
++    }
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("level-check-pass", level);
++    wasm_st_log_trace("mutex_lock", 1);
++#endif
+     ff_mutex_lock(&mutex);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("mutex_lock", 0);
++    wasm_st_log_trace("format_line", 1);
++#endif
+ 
+     format_line(ptr, level, fmt, vl, part, &print_prefix, type);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("format_line", 0);
++#endif
+     snprintf(line, sizeof(line), "%s%s%s%s", part[0].str, part[1].str, part[2].str, part[3].str);
+ 
+ #if HAVE_ISATTY
+@@ -408,6 +434,9 @@
+     if (print_prefix && (atomic_load_explicit(&av_log_flags, memory_order_relaxed) & AV_LOG_SKIP_REPEATED) && !strcmp(line, prev) &&
+         *line && line[strlen(line) - 1] != '\r'){
+         count++;
++#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("dedup-goto-end", count);
++#endif
+         if (is_atty == 1)
+             fprintf(stderr, "    Last message repeated %d times\r", count);
+         goto end;
+@@ -418,6 +447,9 @@
+     }
+     strcpy(prev, line);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("colored_fputs_block", 1);
++#endif
+     sanitize(part[4].str);
+     colored_fputs(7, 0, part[4].str);
+     sanitize(part[0].str);
+@@ -428,6 +460,9 @@
+     colored_fputs(av_clip(level >> 3, 0, NB_LEVELS - 1), tint >> 8, part[2].str);
+     sanitize(part[3].str);
+     colored_fputs(av_clip(level >> 3, 0, NB_LEVELS - 1), tint >> 8, part[3].str);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("colored_fputs_block", 0);
++#endif
+ 
+ #if CONFIG_VALGRIND_BACKTRACE
+     if (level <= BACKTRACE_LOGLEVEL)
+@@ -435,7 +470,13 @@
+ #endif
+ end:
+     av_bprint_finalize(part+3, NULL);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("mutex_unlock", 1);
++#endif
+     ff_mutex_unlock(&mutex);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("mutex_unlock", 0);
++#endif
+ }
+ 
+ static atomic_uintptr_t av_log_callback = (uintptr_t)av_log_default_callback;
+@@ -462,11 +503,24 @@
+     AVClass* avc = avcl ? *(AVClass **) avcl : NULL;
+     void (*log_callback)(void*, int, const char*, va_list) =
+         (void *)atomic_load_explicit(&av_log_callback, memory_order_relaxed);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("av_vlog/enter", level);
++#endif
+     if (avc && avc->version >= (50 << 16 | 15 << 8 | 2) &&
+         avc->log_level_offset_offset && level >= AV_LOG_FATAL)
+         level += *(int *) (((uint8_t *) avcl) + avc->log_level_offset_offset);
+-    if (log_callback)
++    if (log_callback) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("av_vlog/log_callback", 1);
++#endif
+         log_callback(avcl, level, fmt, vl);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_log_trace("av_vlog/log_callback", 0);
++#endif
++    }
++#ifdef FFMPEG_WASM_ST
++    wasm_st_log_trace("av_vlog/exit", level);
++#endif
+ }
+ 
+ int av_log_get_level(void)

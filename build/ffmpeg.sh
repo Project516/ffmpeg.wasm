@@ -2,6 +2,14 @@
 
 set -euo pipefail
 
+# libavutil/cpu.c's av_cpu_count() (patched by build/patches/n9) checks this
+# macro to force single-core behavior on the st core, since it has no
+# SharedArrayBuffer to back real codec-level threading. Set it here, not just
+# for fftools, since it needs to reach every FFmpeg C file the st build
+# compiles.
+CFLAGS="${FFMPEG_ST:+-DFFMPEG_WASM_ST=1 }$CFLAGS"
+CXXFLAGS="${FFMPEG_ST:+-DFFMPEG_WASM_ST=1 }$CXXFLAGS"
+
 CONF_FLAGS=(
   --target-os=none              # disable target specific configs
   --arch=x86_32                 # use x86_32 arch
@@ -32,55 +40,49 @@ CONF_FLAGS=(
   # x265 is C++, and emcc only links libc++ when told to.
   --extra-ldflags="-sDEFAULT_TO_CXX"
 
-  # disable thread when FFMPEG_ST is NOT defined
-  ${FFMPEG_ST:+ --disable-pthreads --disable-w32threads --disable-os2threads}
-
   # FFmpeg n9's default (--stdc=c17) is strict ISO C, which rejects the GNU
   # statement-expression extension emscripten's EM_ASM/EM_JS macros need
-  # (see build/patches/n9). n5.1.10 does not set --stdc at all, so clang's
-  # gnu17 default already allows it there.
-  ${FFMPEG_MT:+ --stdc=gnu17}
+  # (see build/patches/n9). Both cores build n9 now, so this applies to both.
+  --stdc=gnu17
 )
 
 emconfigure ./configure "${CONF_FLAGS[@]}" $@ || { cat ffbuild/config.log; exit 1; }
 emmake make -j
 
-# The mt core links FFmpeg n9's own fftools sources (patched, see
-# build/patches/n9) instead of the vendored copies under src/fftools that the
-# st core uses. --disable-programs above skips linking the ffmpeg/ffprobe
-# binaries (we don't want or need them), but fftools/Makefile's object rules
-# are unconditional, so the objects can be built directly and linked by
+# Both cores now link FFmpeg n9's own fftools sources (patched, see
+# build/patches/n9) instead of the vendored copies under src/fftools.
+# --disable-programs above skips linking the ffmpeg/ffprobe binaries (we
+# don't want or need them), but fftools/Makefile's object rules are
+# unconditional, so the objects can be built directly and linked by
 # build/ffmpeg-wasm.sh.
-if [ -n "${FFMPEG_MT:-}" ]; then
-  emmake make -j \
-    fftools/cmdutils.o \
-    fftools/opt_common.o \
-    fftools/ffmpeg.o \
-    fftools/ffmpeg_dec.o \
-    fftools/ffmpeg_demux.o \
-    fftools/ffmpeg_enc.o \
-    fftools/ffmpeg_filter.o \
-    fftools/ffmpeg_hw.o \
-    fftools/ffmpeg_mux.o \
-    fftools/ffmpeg_mux_init.o \
-    fftools/ffmpeg_opt.o \
-    fftools/ffmpeg_sched.o \
-    fftools/graph/graphprint.o \
-    fftools/sync_queue.o \
-    fftools/thread_queue.o \
-    fftools/textformat/avtextformat.o \
-    fftools/textformat/tf_compact.o \
-    fftools/textformat/tf_default.o \
-    fftools/textformat/tf_flat.o \
-    fftools/textformat/tf_ini.o \
-    fftools/textformat/tf_json.o \
-    fftools/textformat/tf_mermaid.o \
-    fftools/textformat/tf_xml.o \
-    fftools/textformat/tw_avio.o \
-    fftools/textformat/tw_buffer.o \
-    fftools/textformat/tw_stdout.o \
-    fftools/resources/resman.o \
-    fftools/resources/graph.html.o \
-    fftools/resources/graph.css.o \
-    fftools/ffprobe.o
-fi
+emmake make -j \
+  fftools/cmdutils.o \
+  fftools/opt_common.o \
+  fftools/ffmpeg.o \
+  fftools/ffmpeg_dec.o \
+  fftools/ffmpeg_demux.o \
+  fftools/ffmpeg_enc.o \
+  fftools/ffmpeg_filter.o \
+  fftools/ffmpeg_hw.o \
+  fftools/ffmpeg_mux.o \
+  fftools/ffmpeg_mux_init.o \
+  fftools/ffmpeg_opt.o \
+  fftools/ffmpeg_sched.o \
+  fftools/graph/graphprint.o \
+  fftools/sync_queue.o \
+  fftools/thread_queue.o \
+  fftools/textformat/avtextformat.o \
+  fftools/textformat/tf_compact.o \
+  fftools/textformat/tf_default.o \
+  fftools/textformat/tf_flat.o \
+  fftools/textformat/tf_ini.o \
+  fftools/textformat/tf_json.o \
+  fftools/textformat/tf_mermaid.o \
+  fftools/textformat/tf_xml.o \
+  fftools/textformat/tw_avio.o \
+  fftools/textformat/tw_buffer.o \
+  fftools/textformat/tw_stdout.o \
+  fftools/resources/resman.o \
+  fftools/resources/graph.html.o \
+  fftools/resources/graph.css.o \
+  fftools/ffprobe.o
