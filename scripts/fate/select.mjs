@@ -33,8 +33,11 @@ function main() {
   const { syntheticOnly, maxTests } = SUBSETS[subset];
   const makDir = join(repoRoot, cacheDirForTag(tag), "ffmpeg-src", "tests", "fate");
 
-  const tests = [];
+  // Collect each file's eligible tests first, so a big early file (e.g.
+  // filter-audio.mak) can't consume the whole budget before files listed
+  // after it in MAK_FILES get a turn.
   let unsupported = 0;
+  const perFile = [];
   for (const makFile of MAK_FILES) {
     const path = join(makDir, makFile);
     if (!existsSync(path)) {
@@ -42,6 +45,7 @@ function main() {
       continue;
     }
     const parsed = parseMakFile(readFileSync(path, "utf8"));
+    const eligible = [];
     for (const test of parsed) {
       const { kind, samples, generate } = classifyTest(test);
       if (kind === "unsupported") {
@@ -49,14 +53,36 @@ function main() {
         continue;
       }
       if (syntheticOnly && kind !== "synthetic") continue;
-      // Args are resolved against this test's own SRC/SRC2/... variables
-      // here so run.mjs only has to substitute the two build-wide paths,
-      // $(TARGET_PATH) and $(TARGET_SAMPLES).
-      const args = resolveVars(test.args, test.vars);
-      tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile });
-      if (tests.length >= maxTests) break;
+      eligible.push({ test, kind, samples, generate });
     }
-    if (tests.length >= maxTests) break;
+    perFile.push({ makFile, eligible, taken: 0 });
+  }
+
+  function take(entry) {
+    // Args are resolved against this test's own SRC/SRC2/... variables here
+    // so run.mjs only has to substitute the two build-wide paths,
+    // $(TARGET_PATH) and $(TARGET_SAMPLES).
+    const { test, kind, samples, generate } = entry.eligible[entry.taken++];
+    const args = resolveVars(test.args, test.vars);
+    tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile: entry.makFile });
+  }
+
+  const tests = [];
+  // First pass: give every file an even share of the budget.
+  const perFileMax = Math.ceil(maxTests / Math.max(perFile.length, 1));
+  for (const entry of perFile) {
+    while (tests.length < maxTests && entry.taken < perFileMax && entry.taken < entry.eligible.length) take(entry);
+  }
+  // Second pass: fill whatever budget files with fewer tests left unused.
+  for (let more = true; tests.length < maxTests && more; ) {
+    more = false;
+    for (const entry of perFile) {
+      if (tests.length >= maxTests) break;
+      if (entry.taken < entry.eligible.length) {
+        take(entry);
+        more = true;
+      }
+    }
   }
 
   const manifest = {

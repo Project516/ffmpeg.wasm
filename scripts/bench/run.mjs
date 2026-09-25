@@ -9,17 +9,25 @@
 // VP9), a container remux to a different codec (H.264 to MPEG-4/avi), and a
 // scale filter, rather than the audio example from the issue.
 //
+// Each sample (one case, one run) is a fresh `node` child process, spawned
+// under `/usr/bin/time -v -o <file>`, whether it runs native ffmpeg or a
+// core: that is the only way to get a peak (not current) RSS for the wasm
+// side, and it puts native and wasm on the same wall-clock and memory
+// measurement, taken by the same external tool instead of two different
+// ones (process.hrtime/memoryUsage for the core, /usr/bin/time for native).
+//
 // Usage: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
 //        node scripts/bench/run.mjs --native --out bench-native.json
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const scriptPath = fileURLToPath(import.meta.url);
+const repoRoot = join(scriptPath, "..", "..", "..");
 
 const CASES = [
   { name: "h264-to-vp9", args: (inp, out) => ["-i", inp, "-c:v", "libvpx-vp9", "-b:v", "500k", out.replace(/\.\w+$/, ".webm")] },
@@ -31,13 +39,21 @@ const CASES = [
 ];
 
 function parseArgs(argv) {
-  const args = { core: null, native: false, label: null, out: null, runs: 3 };
+  const args = { core: null, native: false, label: null, out: null, runs: 3, one: null, input: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--core") args.core = argv[++i];
     else if (argv[i] === "--native") args.native = true;
     else if (argv[i] === "--label") args.label = argv[++i];
     else if (argv[i] === "--out") args.out = argv[++i];
     else if (argv[i] === "--runs") args.runs = Number(argv[++i]);
+    else if (argv[i] === "--one") args.one = argv[++i];
+    else if (argv[i] === "--input") args.input = argv[++i];
+  }
+  if (args.one) {
+    if (!args.input || (!args.core && !args.native)) {
+      throw new Error("usage: run.mjs --one <case> --input <path> (--core <path> | --native)");
+    }
+    return args;
   }
   if (!args.out || (!args.core && !args.native)) {
     throw new Error("usage: run.mjs (--core <path> --label <name> | --native) --out <file.json> [--runs N]");
@@ -46,53 +62,85 @@ function parseArgs(argv) {
   return args;
 }
 
+// tests/test-helper-browser.js exports VIDEO_1S_MP4 for the browser/Node
+// test suite; requiring it directly means one less place assuming its
+// base64 payload is the only long quoted string in the file.
 function sampleMp4Path(tmpDir) {
-  const helperSrc = readFileSync(join(repoRoot, "tests", "test-helper-browser.js"), "utf8");
-  const b64 = helperSrc.match(/"([A-Za-z0-9+/=]{100,})"/)[1];
+  const { VIDEO_1S_MP4 } = require(join(repoRoot, "tests", "test-helper-browser.js"));
   const path = join(tmpDir, "sample.mp4");
-  writeFileSync(path, Buffer.from(b64, "base64"));
+  writeFileSync(path, Buffer.from(VIDEO_1S_MP4, "base64"));
   return path;
 }
 
-function benchNative(inputPath, tmpDir, runs) {
-  const results = [];
-  for (const testCase of CASES) {
-    const outPath = join(tmpDir, `native-${testCase.name}.out`);
-    const argv = testCase.args(inputPath, outPath);
-    const samples = [];
-    for (let i = 0; i < runs; i++) {
-      const start = process.hrtime.bigint();
-      const output = execFileSync("/usr/bin/time", ["-v", "ffmpeg", "-y", ...argv], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      }).toString();
-      const wallMs = Number(process.hrtime.bigint() - start) / 1e6;
-      const rssMatch = /Maximum resident set size \(kbytes\): (\d+)/.exec(output);
-      samples.push({ wallMs, peakRssKb: rssMatch ? Number(rssMatch[1]) : null });
+// Runs exactly one (case, native-or-core) sample in this process and exits;
+// the parent spawns this under /usr/bin/time -v to measure it from outside.
+async function runOne({ one, core, native, input }) {
+  const testCase = CASES.find((c) => c.name === one);
+  if (!testCase) throw new Error(`unknown case: ${one}`);
+
+  const tmpDir = mkdtempSync(join(tmpdir(), "ffmpeg-bench-one-"));
+  try {
+    if (native) {
+      execFileSync("ffmpeg", ["-y", ...testCase.args(input, join(tmpDir, "out.tmp"))], { stdio: "ignore" });
+    } else {
+      const createFFmpegCore = require(resolve(core));
+      const ffcore = await createFFmpegCore();
+      ffcore.setLogger(() => {});
+      ffcore.setProgress(() => {});
+      ffcore.FS.writeFile("in.mp4", readFileSync(input));
+      const ret = ffcore.exec(...testCase.args("in.mp4", "out.tmp"));
+      if (ret !== 0) throw new Error(`ffmpeg exited ${ret}`);
     }
-    results.push({ name: testCase.name, samples });
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
   }
-  return results;
 }
 
-async function benchCore(corePkg, inputPath, runs) {
-  const createFFmpegCore = require(resolve(corePkg));
-  const inputData = readFileSync(inputPath);
+function parseElapsed(text) {
+  const parts = text.split(":").map(Number);
+  if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
+  if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+  return parts[0] * 1000;
+}
+
+function parseTimeStats(text) {
+  const rssMatch = /Maximum resident set size \(kbytes\): (\d+)/.exec(text);
+  const elapsedMatch = /Elapsed \(wall clock\) time.*: ([\d:.]+)/.exec(text);
+  return {
+    peakRssKb: rssMatch ? Number(rssMatch[1]) : null,
+    wallMs: elapsedMatch ? parseElapsed(elapsedMatch[1]) : null,
+  };
+}
+
+// Spawns `node scriptPath ...childArgs` under `/usr/bin/time -v`, writing
+// its stats to a file with `-o` rather than parsing stdout/stderr (`-v`'s
+// report goes to stderr, which execFileSync's return value does not carry).
+function runUnderTime(childArgs) {
+  const statsPath = join(tmpdir(), `bench-time-${process.pid}-${Math.random().toString(36).slice(2)}.txt`);
+  let ok = true;
+  try {
+    execFileSync("/usr/bin/time", ["-v", "-o", statsPath, process.execPath, scriptPath, ...childArgs], { stdio: "inherit" });
+  } catch {
+    ok = false;
+  }
+  let wallMs = null;
+  let peakRssKb = null;
+  try {
+    ({ wallMs, peakRssKb } = parseTimeStats(readFileSync(statsPath, "utf8")));
+  } catch {
+    // /usr/bin/time itself did not run or write stats; samples stay null.
+  } finally {
+    rmSync(statsPath, { force: true });
+  }
+  return { wallMs, peakRssKb, ok };
+}
+
+function bench({ core, native, inputPath, runs }) {
   const results = [];
   for (const testCase of CASES) {
     const samples = [];
-    for (let i = 0; i < runs; i++) {
-      const core = await createFFmpegCore();
-      core.setLogger(() => {});
-      core.setProgress(() => {});
-      core.FS.writeFile("in.mp4", inputData);
-      const argv = testCase.args("in.mp4", "out.tmp");
-      const start = process.hrtime.bigint();
-      const ret = core.exec(...argv);
-      const wallMs = Number(process.hrtime.bigint() - start) / 1e6;
-      const peakRssKb = Math.round(process.memoryUsage().rss / 1024);
-      samples.push({ wallMs, peakRssKb, ok: ret === 0 });
-    }
+    const childArgs = ["--one", testCase.name, "--input", inputPath, ...(native ? ["--native"] : ["--core", core])];
+    for (let i = 0; i < runs; i++) samples.push(runUnderTime(childArgs));
     results.push({ name: testCase.name, samples });
   }
   return results;
@@ -105,11 +153,17 @@ function average(samples, key) {
 }
 
 async function main() {
-  const { core, native, label, out, runs } = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2));
+  if (args.one) {
+    await runOne(args);
+    return;
+  }
+
+  const { core, native, label, out, runs } = args;
   const tmpDir = mkdtempSync(join(tmpdir(), "ffmpeg-bench-"));
   try {
     const inputPath = sampleMp4Path(tmpDir);
-    const results = native ? benchNative(inputPath, tmpDir, runs) : await benchCore(core, inputPath, runs);
+    const results = bench({ core, native, inputPath, runs });
 
     const cases = results.map((r) => ({
       name: r.name,

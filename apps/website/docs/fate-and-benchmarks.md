@@ -70,10 +70,22 @@ is:
 - H.264 to MPEG-4 (container remux to a different codec)
 - a `scale` filter pass
 
-Each case records wall time (`process.hrtime`) and peak RSS, averaged over a
-few runs. `scripts/bench/report.mjs` combines the native and core results
-into one report with a wasm/native time ratio per case, written as JSON
+Each sample (one case, one run) is a fresh `node` child process, spawned
+under `/usr/bin/time -v`, whether it runs native ffmpeg or a core: that gives
+native and wasm the same wall-clock and peak-RSS measurement, taken by the
+same external tool, rather than the core's own `process.hrtime`/
+`memoryUsage()` (current, not peak) against native's `/usr/bin/time`.
+`scripts/bench/report.mjs` combines the native and core results into one
+report with a wasm/native time ratio per case, written as JSON
 (`bench-report.json`) and as a markdown table in the step summary.
+
+Because the sample is 1 second of video, most cases finish in well under a
+second even natively (tens to a few hundred milliseconds), so a fixed part of
+that time is process/runtime startup rather than transcoding. The wasm/native
+*ratio* is still meaningful (both sides pay a startup cost), but the absolute
+wall-clock numbers should not be read as "this transcode takes N ms" for
+anything longer than the sample. Passing a longer sample through this same
+harness is a reasonable follow-up if absolute numbers become useful.
 
 Native FFmpeg here is whatever `apt-get install ffmpeg` resolves to on the
 `ubuntu-latest` runner image, not a build of the exact pinned FFmpeg tag;

@@ -13,6 +13,23 @@ import { FATE_SUITE_RSYNC, cacheDirForTag } from "./config.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
+const RSYNC_RETRIES = 3;
+
+// The FATE mirror is a single volunteer-run host; --timeout drops a stalled
+// transfer instead of hanging until the runner's own 6h job timeout, and a
+// few retries ride out a transient failure without failing the whole job.
+function rsyncWithRetry(args) {
+  for (let attempt = 1; attempt <= RSYNC_RETRIES; attempt++) {
+    try {
+      execFileSync("rsync", ["--timeout=60", ...args], { stdio: "inherit" });
+      return;
+    } catch (err) {
+      if (attempt === RSYNC_RETRIES) throw err;
+      console.warn(`rsync failed (attempt ${attempt}/${RSYNC_RETRIES}), retrying: ${err.message}`);
+    }
+  }
+}
+
 function parseArgs(argv) {
   const args = { manifest: null, tag: null };
   for (let i = 0; i < argv.length; i++) {
@@ -49,7 +66,7 @@ function main() {
     if (existsSync(dest)) continue;
     mkdirSync(dirname(dest), { recursive: true });
     console.log(`+ rsync ${FATE_SUITE_RSYNC}${relpath}`);
-    execFileSync("rsync", ["-aL", `${FATE_SUITE_RSYNC}${relpath}`, dest], { stdio: "inherit" });
+    rsyncWithRetry(["-aL", `${FATE_SUITE_RSYNC}${relpath}`, dest]);
     fetched++;
   }
   console.log(`fetched ${fetched} new sample(s) into ${samplesDir} (${relpaths.size} total referenced)`);

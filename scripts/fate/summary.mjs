@@ -23,10 +23,9 @@ function main() {
     const failed = report.tests.filter((t) => t.status === "fail");
     if (failed.length === 0) continue;
     lines.push("", `### ${report.core} failures`, "");
-    for (const t of failed.slice(0, 50)) {
+    for (const t of failed) {
       lines.push(`- \`fate-${t.name}\`: ${t.reason}${t.diff ? ` (${t.diff})` : ""}`);
     }
-    if (failed.length > 50) lines.push(`- ... and ${failed.length - 50} more`);
   }
 
   console.log(lines.join("\n"));

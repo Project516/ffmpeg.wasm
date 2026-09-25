@@ -27,6 +27,12 @@ const SAMPLES_MOUNT = "/fate-samples";
 // generated inputs (tests/data/asynth-*.wav, ...) are written under, mirroring
 // their path relative to FFmpeg's own build tree.
 const BUILD_ROOT = "/fate-build";
+// core.setTimeout(ms) makes the wasm side's own is_timeout() check call
+// exit_program(1) once transcode() has run this long; see
+// src/fftools/ffmpeg.c and build/patches/n9/fftools-wasm.patch. That exit
+// code (1) is indistinguishable from an ordinary ffmpeg failure, so runOne
+// also checks wall time to tell a real timeout apart from a fast failure.
+const EXEC_TIMEOUT_MS = 60_000;
 
 function parseArgs(argv) {
   const args = { core: null, manifest: null, out: null };
@@ -67,7 +73,7 @@ function writeGenerated(FS, buildPath, data) {
   FS.writeFile(dest, data);
 }
 
-async function runOne(core, test, refDir, samplesDir, generated, generationError) {
+async function runOne(createFFmpegCore, test, refDir, samplesDir, generated, generationError) {
   if (test.kind === "sample") {
     for (const relpath of test.samples) {
       const src = join(samplesDir, relpath);
@@ -89,10 +95,15 @@ async function runOne(core, test, refDir, samplesDir, generated, generationError
     return { status: "skip", reason: "no reference file" };
   }
 
-  core.reset();
+  // A fresh core per test, rather than one shared instance reset() between
+  // tests: reset() only clears the exec return code and timeout (see
+  // src/bind/ffmpeg/bind.js), not MEMFS, so reusing a core would leave
+  // earlier tests' samples and generated inputs visible to later ones.
+  const core = await createFFmpegCore();
   const logLines = [];
   core.setLogger(({ message }) => logLines.push(message));
   core.setProgress(() => {});
+  core.setTimeout(EXEC_TIMEOUT_MS);
 
   if (test.kind === "sample") {
     for (const relpath of test.samples) {
@@ -108,12 +119,16 @@ async function runOne(core, test, refDir, samplesDir, generated, generationError
   const argv = [...tokenize(args), "-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath];
 
   let ret;
+  const execStart = Date.now();
   try {
     ret = core.exec(...argv);
   } catch (err) {
     return { status: "fail", reason: `exec threw: ${err.message}`, log: logLines.slice(-20) };
   }
   if (ret !== 0) {
+    if (Date.now() - execStart >= EXEC_TIMEOUT_MS) {
+      return { status: "fail", reason: "timeout" };
+    }
     return { status: "fail", reason: `ffmpeg exited ${ret}`, log: logLines.slice(-20) };
   }
 
@@ -164,10 +179,9 @@ async function main() {
     }
   }
 
-  const core = await createFFmpegCore();
   const results = [];
   for (const test of manifest.tests) {
-    const result = await runOne(core, test, refDir, samplesDir, generated, generationError);
+    const result = await runOne(createFFmpegCore, test, refDir, samplesDir, generated, generationError);
     results.push({ name: test.name, mode: test.mode, makFile: test.makFile, ...result });
     console.log(`${result.status.padEnd(4)} fate-${test.name}${result.reason ? `: ${result.reason}` : ""}`);
   }
