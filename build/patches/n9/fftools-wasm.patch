@@ -612,9 +612,71 @@ diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
 
  void av_cpu_force_count(int count)
 diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
---- a/fftools/ffmpeg_sched.c	2026-09-24 14:46:32.708700749 -0500
-+++ b/fftools/ffmpeg_sched.c	2026-09-24 14:46:22.990288416 -0500
-@@ -2713,6 +2713,18 @@
+--- a/fftools/ffmpeg_sched.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_sched.c	2026-09-24 09:59:45.000000000 -0500
+@@ -40,6 +40,17 @@
+ #include "libavutil/threadmessage.h"
+ #include "libavutil/time.h"
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang around the
++ * sch_filter_send -> send_to_enc -> enc_open (encoder avcodec_open2) path,
++ * the first synchronous heavy call the filter thread makes. Remove once
++ * root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_sched_trace, (const char *what, int starting), {
++    console.error("ffmpeg_sched: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ // 100 ms
+ // FIXME: some other value? make this dynamic?
+ #define SCHEDULE_TOLERANCE (100 * 1000)
+@@ -1833,7 +1844,13 @@
+ {
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("enc_open/open_cb", 1);
++#endif
+     ret = enc->open_cb(enc->task.func_arg, frame);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("enc_open/open_cb", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
+@@ -1953,7 +1970,14 @@
+ static int send_to_enc(Scheduler *sch, SchEnc *enc, AVFrame *frame)
+ {
+     if (enc->open_cb && frame && !enc->opened) {
+-        int ret = enc_open(sch, enc, frame);
++        int ret;
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("send_to_enc/enc_open", 1);
++#endif
++        ret = enc_open(sch, enc, frame);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("send_to_enc/enc_open", 0);
++#endif
+         if (ret < 0)
+             return ret;
+         enc->opened = 1;
+@@ -2639,7 +2663,13 @@
+     dst = fg->outputs[out_idx].dst;
+ 
+     if (dst.type == SCH_NODE_TYPE_ENC) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_filter_send/send_to_enc", 1);
++#endif
+         ret = send_to_enc(sch, &sch->enc[dst.idx], frame);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_filter_send/send_to_enc", 0);
++#endif
+         if (ret == AVERROR_EOF)
+             send_to_enc(sch, &sch->enc[dst.idx], NULL);
+     } else {
+@@ -2713,6 +2743,18 @@
      }
  }
  
@@ -633,7 +695,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
  static void *task_wrapper(void *arg)
  {
      SchTask  *task = arg;
-@@ -2720,7 +2732,13 @@
+@@ -2720,7 +2762,13 @@
      int ret;
      int err = 0;
  
@@ -850,3 +912,74 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          if (ret == AVERROR_EOF) {
              av_log(fg, AV_LOG_VERBOSE, "All consumers returned EOF\n");
              if (ifp && ifp->opts.flags & IFILTER_FLAG_DROPCHANGED)
+diff -ruN a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c
+--- a/fftools/ffmpeg_enc.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_enc.c	2026-09-24 09:59:45.000000000 -0500
+@@ -19,6 +19,15 @@
+ #include <math.h>
+ #include <stdint.h>
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang to the encoder open path.
++ * Remove once root-caused (see pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_enc_trace, (const char *what, int starting), {
++    console.error("ffmpeg_enc: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ #include "ffmpeg.h"
+ 
+ #include "libavutil/avassert.h"
+@@ -183,6 +192,9 @@
+ 
+ int enc_open(void *opaque, const AVFrame *frame)
+ {
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("enc_open", 1);
++#endif
+     OutputStream *ost = opaque;
+     InputStream *ist = ost->ist;
+     Encoder              *e = ost->enc;
+@@ -335,12 +347,21 @@
+         return ret;
+     }
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("avcodec_open2", 1);
++#endif
+     if ((ret = avcodec_open2(enc_ctx, enc, NULL)) < 0) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_enc_trace("avcodec_open2", 0);
++#endif
+         if (ret != AVERROR_EXPERIMENTAL)
+             av_log(e, AV_LOG_ERROR, "Error while opening encoder - maybe "
+                    "incorrect parameters such as bit_rate, rate, width or height.\n");
+         return ret;
+     }
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("avcodec_open2", 0);
++#endif
+ 
+     ep->opened = 1;
+ 
+@@ -352,10 +373,19 @@
+         av_log(e, AV_LOG_WARNING, "The bitrate parameter is set too low."
+                                     " It takes bits/s as argument, not kbits/s\n");
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("of_stream_init", 1);
++#endif
+     ret = of_stream_init(of, ost, enc_ctx);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("of_stream_init", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_enc_trace("enc_open", 0);
++#endif
+     return frame_samples;
+ }
+ 
