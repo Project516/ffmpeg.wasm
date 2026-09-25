@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+// Reads the FATE .mak files fetched by fetch-defs.mjs, extracts framecrc /
+// framemd5 tests from the allowlisted files in config.mjs, and writes a
+// manifest of the chosen subset as JSON.
+//
+// Usage: node scripts/fate/select.mjs --tag n9.0.2 --subset fast --out manifest.json
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { MAK_FILES, SUBSETS, cacheDirForTag } from "./config.mjs";
+import { classifyTest, parseMakFile } from "./lib/mak.mjs";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+function parseArgs(argv) {
+  const args = { tag: null, subset: "fast", out: null };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--tag") args.tag = argv[++i];
+    else if (argv[i] === "--subset") args.subset = argv[++i];
+    else if (argv[i] === "--out") args.out = argv[++i];
+  }
+  if (!args.tag || !args.out) {
+    throw new Error("usage: select.mjs --tag <ffmpeg-tag> --subset fast|full --out <file.json>");
+  }
+  if (!SUBSETS[args.subset]) {
+    throw new Error(`unknown subset "${args.subset}", expected one of: ${Object.keys(SUBSETS).join(", ")}`);
+  }
+  return args;
+}
+
+function main() {
+  const { tag, subset, out } = parseArgs(process.argv.slice(2));
+  const { syntheticOnly, maxTests } = SUBSETS[subset];
+  const makDir = join(repoRoot, cacheDirForTag(tag), "ffmpeg-src", "tests", "fate");
+
+  const tests = [];
+  let unsupported = 0;
+  for (const makFile of MAK_FILES) {
+    const path = join(makDir, makFile);
+    if (!existsSync(path)) {
+      console.warn(`skip ${makFile}: not found in ${tag}'s tests/fate/`);
+      continue;
+    }
+    const parsed = parseMakFile(readFileSync(path, "utf8"));
+    for (const test of parsed) {
+      const { kind, samples } = classifyTest(test);
+      if (kind === "unsupported") {
+        unsupported++;
+        continue;
+      }
+      if (syntheticOnly && kind !== "synthetic") continue;
+      tests.push({ ...test, kind, samples, makFile });
+      if (tests.length >= maxTests) break;
+    }
+    if (tests.length >= maxTests) break;
+  }
+
+  const manifest = {
+    tag,
+    subset,
+    generatedAt: new Date().toISOString(),
+    counts: {
+      selected: tests.length,
+      unsupported,
+    },
+    tests,
+  };
+  writeFileSync(out, JSON.stringify(manifest, null, 2));
+  console.log(`selected ${tests.length} tests for tag=${tag} subset=${subset} -> ${out}`);
+}
+
+main();
