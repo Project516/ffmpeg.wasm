@@ -707,3 +707,79 @@ diff -ruN a/fftools/thread_queue.c b/fftools/thread_queue.c
      return ret;
  }
  
+diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
+--- a/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
+@@ -41,6 +41,16 @@
+ #include "libavutil/time.h"
+ #include "libavutil/timestamp.h"
+ 
++#ifdef FFMPEG_WASM_ST
++/* Temporary: narrow the st core's transcode hang to a specific call inside
++ * filter_thread()'s main loop. Remove once root-caused (see
++ * pthread_fiber.c's pf_debug comment). */
++#include <emscripten.h>
++EM_JS(void, wasm_st_filter_trace, (const char *what, int starting), {
++    console.error("filter_thread: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++});
++#endif
++
+ typedef struct FilterGraphPriv {
+     FilterGraph      fg;
+ 
+@@ -2894,7 +2904,13 @@
+         }
+ 
+ 
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("avfilter_graph_request_oldest", 1);
++#endif
+         ret = avfilter_graph_request_oldest(fgt->graph);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("avfilter_graph_request_oldest", 0);
++#endif
+         if (ret == AVERROR(EAGAIN)) {
+             fgt->next_in = choose_input(fg, fgt);
+             return 0;
+@@ -3295,7 +3311,13 @@
+ 
+     // if we have all input parameters the graph can now be configured
+     if (ifilter_has_all_input_formats(fg)) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("configure_filtergraph", 1);
++#endif
+         ret = configure_filtergraph(fg, &fgt);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("configure_filtergraph", 0);
++#endif
+         if (ret < 0) {
+             av_log(fg, AV_LOG_ERROR, "Error configuring filter graph: %s\n",
+                    av_err2str(ret));
+@@ -3345,7 +3367,13 @@
+             ret = sub2video_frame(ifilter, (fgt.frame->buf[0] || hb_frame) ? fgt.frame : NULL,
+                                   !fgt.graph);
+         } else if (fgt.frame->buf[0]) {
++#ifdef FFMPEG_WASM_ST
++            wasm_st_filter_trace("send_frame", 1);
++#endif
+             ret = send_frame(fg, &fgt, ifilter, fgt.frame);
++#ifdef FFMPEG_WASM_ST
++            wasm_st_filter_trace("send_frame", 0);
++#endif
+         } else {
+             av_assert1(o == FRAME_OPAQUE_EOF);
+             ret = send_eof(&fgt, ifilter, fgt.frame->pts, fgt.frame->time_base);
+@@ -3362,7 +3390,13 @@
+ 
+ read_frames:
+         // retrieve all newly available frames
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("read_frames", 1);
++#endif
+         ret = read_frames(fg, &fgt, fgt.frame);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_filter_trace("read_frames", 0);
++#endif
+         if (ret == AVERROR_EOF) {
+             av_log(fg, AV_LOG_VERBOSE, "All consumers returned EOF\n");
+             if (ifp && ifp->opts.flags & IFILTER_FLAG_DROPCHANGED)
