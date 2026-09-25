@@ -632,7 +632,79 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
  // 100 ms
  // FIXME: some other value? make this dynamic?
  #define SCHEDULE_TOLERANCE (100 * 1000)
-@@ -1833,7 +1844,13 @@
+@@ -412,7 +423,13 @@
+ 
+     av_assert0(!task->thread_running);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/pthread_create", 1);
++#endif
+     ret = pthread_create(&task->thread, NULL, task_wrapper, task);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("task_start/pthread_create", 0);
++#endif
+     if (ret) {
+         av_log(task->func_arg, AV_LOG_ERROR, "pthread_create() failed: %s\n",
+                strerror(ret));
+@@ -1200,7 +1217,13 @@
+ {
+     int ret;
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_init/mux->init", 1);
++#endif
+     ret = mux->init(mux->task.func_arg);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("mux_init/mux->init", 0);
++#endif
+     if (ret < 0)
+         return ret;
+ 
+@@ -1224,7 +1247,13 @@
+                 return ret;
+         }
+     } else {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("mux_init/mux_task_start", 1);
++#endif
+         ret = mux_task_start(mux);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("mux_init/mux_task_start", 0);
++#endif
+         if (ret < 0)
+             return ret;
+     }
+@@ -1258,15 +1287,28 @@
+ 
+     av_assert0(stream_idx < mux->nb_streams);
+ 
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("sch_mux_stream_ready/lock", 1);
++#endif
+     pthread_mutex_lock(&sch->mux_ready_lock);
++#ifdef FFMPEG_WASM_ST
++    wasm_st_sched_trace("sch_mux_stream_ready/lock", 0);
++#endif
+ 
+     av_assert0(mux->nb_streams_ready < mux->nb_streams);
+ 
+     // this may be called during initialization - do not start
+     // threads before sch_start() is called
+     if (++mux->nb_streams_ready == mux->nb_streams &&
+-        sch->state >= SCH_STATE_STARTED)
++        sch->state >= SCH_STATE_STARTED) {
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_mux_stream_ready/mux_init", 1);
++#endif
+         ret = mux_init(sch, mux);
++#ifdef FFMPEG_WASM_ST
++        wasm_st_sched_trace("sch_mux_stream_ready/mux_init", 0);
++#endif
++    }
+ 
+     pthread_mutex_unlock(&sch->mux_ready_lock);
+ 
+@@ -1833,7 +1875,13 @@
  {
      int ret;
  
@@ -646,7 +718,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
      if (ret < 0)
          return ret;
  
-@@ -1953,7 +1970,14 @@
+@@ -1953,7 +2001,14 @@
  static int send_to_enc(Scheduler *sch, SchEnc *enc, AVFrame *frame)
  {
      if (enc->open_cb && frame && !enc->opened) {
@@ -662,7 +734,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
          if (ret < 0)
              return ret;
          enc->opened = 1;
-@@ -2639,7 +2663,13 @@
+@@ -2639,7 +2694,13 @@
      dst = fg->outputs[out_idx].dst;
  
      if (dst.type == SCH_NODE_TYPE_ENC) {
@@ -676,7 +748,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
          if (ret == AVERROR_EOF)
              send_to_enc(sch, &sch->enc[dst.idx], NULL);
      } else {
-@@ -2713,6 +2743,18 @@
+@@ -2713,6 +2774,18 @@
      }
  }
  
@@ -695,7 +767,7 @@ diff -ruN a/fftools/ffmpeg_sched.c b/fftools/ffmpeg_sched.c
  static void *task_wrapper(void *arg)
  {
      SchTask  *task = arg;
-@@ -2720,7 +2762,13 @@
+@@ -2720,7 +2793,13 @@
      int ret;
      int err = 0;
  

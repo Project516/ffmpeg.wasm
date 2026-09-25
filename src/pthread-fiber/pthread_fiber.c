@@ -286,6 +286,8 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 {
     (void)attr;
     pfiber_ensure_main();
+    pf_debug("pthread_create: called from fiber=%d fn=%p",
+             pfiber_index_of(g_current), (void *)start_routine);
 
     pfiber_t *f = NULL;
     for (int i = 0; i < PFIBER_MAX; i++) {
