@@ -1,0 +1,183 @@
+name: FATE and benchmarks
+
+# Tests both cores against FFmpeg's own FATE suite and benchmarks them
+# against native FFmpeg. Not a required check yet: results feed the docs
+# page under apps/website/docs, but a low pass rate or a slow run should not
+# block a PR while the subset is this small. See
+# apps/website/docs/fate-and-benchmarks.md.
+#
+# Idea and terminology (pass/fail/skip counts, wasm/native ratio) from
+# wasmpeg's COMPAT.md and CORRECTNESS.md
+# (https://github.com/wasmpeg/wasmpeg, LGPL-2.1-or-later).
+on:
+  pull_request:
+    branches:
+      - master
+  schedule:
+    # 06:00 UTC = 00:00 CST / 01:00 CDT. Runs the full subset nightly.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      subset:
+        description: "fast (PR-sized) or full (nightly-sized)"
+        type: choice
+        options:
+          - fast
+          - full
+        default: full
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-cores:
+    uses: ./.github/workflows/build-cores.yml
+
+  fate:
+    runs-on: ubuntu-latest
+    needs: build-cores
+    continue-on-error: true
+    strategy:
+      matrix:
+        core: [st, mt]
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+      - name: Determine subset
+        id: subset
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "subset=fast" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "subset=${{ inputs.subset }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "subset=full" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Read pinned FFmpeg tag for the ${{ matrix.core }} core
+        id: tag
+        run: |
+          if [ "${{ matrix.core }}" = "mt" ]; then
+            tag=$(grep -oP 'FFMPEG_VERSION_MT=\K\S+' Dockerfile)
+          else
+            tag=$(grep -oP 'FFMPEG_VERSION_ST=\K\S+' Dockerfile)
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Download ffmpeg-core
+        if: matrix.core == 'st'
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core
+          path: packages/core/dist
+      - name: Download ffmpeg-core-mt
+        if: matrix.core == 'mt'
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core-mt
+          path: packages/core-mt/dist
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm build
+      - name: Fetch FATE test definitions
+        run: node scripts/fate/fetch-defs.mjs --tag ${{ steps.tag.outputs.tag }}
+      - name: Select subset
+        run: node scripts/fate/select.mjs --tag ${{ steps.tag.outputs.tag }} --subset ${{ steps.subset.outputs.subset }} --out manifest-${{ matrix.core }}.json
+      - name: Fetch samples
+        run: node scripts/fate/fetch-samples.mjs --manifest manifest-${{ matrix.core }}.json --tag ${{ steps.tag.outputs.tag }}
+      - name: Run FATE subset against the ${{ matrix.core }} core
+        run: |
+          node scripts/fate/run.mjs \
+            --core packages/core${{ matrix.core == 'mt' && '-mt' || '' }} \
+            --manifest manifest-${{ matrix.core }}.json \
+            --out fate-results-${{ matrix.core }}.json
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fate-results-${{ matrix.core }}
+          path: fate-results-${{ matrix.core }}.json
+
+  fate-summary:
+    runs-on: ubuntu-latest
+    needs: fate
+    if: always()
+    continue-on-error: true
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Download results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: fate-results-*
+          merge-multiple: true
+      - name: Write step summary
+        run: node scripts/fate/summary.mjs fate-results-st.json fate-results-mt.json >> "$GITHUB_STEP_SUMMARY"
+
+  benchmark:
+    runs-on: ubuntu-latest
+    needs: build-cores
+    continue-on-error: true
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+      - name: Download ffmpeg-core
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core
+          path: packages/core/dist
+      - name: Download ffmpeg-core-mt
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core-mt
+          path: packages/core-mt/dist
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm build
+      - name: Install native FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg time
+      - name: Record native FFmpeg version
+        run: ffmpeg -version | head -1
+      - name: Benchmark native FFmpeg
+        run: node scripts/bench/run.mjs --native --out bench-native.json
+      - name: Benchmark st core
+        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
+      - name: Benchmark mt core
+        run: node scripts/bench/run.mjs --core packages/core-mt --label mt --out bench-mt.json
+      - name: Combine into a ratio report
+        run: node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-mt.json --out bench-report.json --markdown-out bench-report.md
+      - name: Write step summary
+        run: |
+          {
+            echo "## Benchmark results"
+            echo
+            cat bench-report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-results
+          path: bench-*.json
