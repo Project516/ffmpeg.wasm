@@ -3,8 +3,13 @@
   "version": "0.13.1",
   "description": "ffmpeg.wasm types",
   "types": "types",
+  "scripts": {
+    "prepack": "node ../../scripts/copy-license.mjs"
+  },
   "files": [
-    "types"
+    "types",
+    "LICENSE",
+    "NOTICE"
   ],
   "repository": {
     "type": "git",
@@ -18,7 +23,7 @@
     "transcode"
   ],
   "author": "Jerome Wu <jeromewus@gmail.com>",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "bugs": {
     "url": "https://github.com/Project516/ffmpeg.wasm/issues"
   },
