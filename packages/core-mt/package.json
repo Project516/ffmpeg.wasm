@@ -13,8 +13,13 @@
       "require": "./dist/umd/ffmpeg-core.wasm"
     }
   },
+  "scripts": {
+    "prepack": "node ../../scripts/copy-license.mjs"
+  },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE"
   ],
   "repository": {
     "type": "git",
@@ -28,7 +33,7 @@
     "transcode"
   ],
   "author": "Jerome Wu <jeromewus@gmail.com>",
-  "license": "GPL-2.0-or-later",
+  "license": "AGPL-3.0-or-later",
   "bugs": {
     "url": "https://github.com/Project516/ffmpeg.wasm/issues"
   },

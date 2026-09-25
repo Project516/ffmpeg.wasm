@@ -1,15 +1,16 @@
 # FAQ
 
-### Why ffmpeg.wasm doesn't support nodejs?
+### Does ffmpeg.wasm support Node.js?
 
-ffmpeg.wasm did support nodejs before 0.12.0, but decided to discontinue nodejs support due to:
+Yes. `@project516/ffmpeg-wasm` runs the same worker code in a `worker_threads`
+Worker under Node.js instead of a browser Worker, and `load()` resolves the
+core from `node_modules` by default instead of the jsDelivr CDN. See
+[Usage](/docs/getting-started/usage#nodejs) for an example.
 
-- It takes extra effort to maintain nodejs support
-- If you are not in browser, there are a lot of better choices than using WebAssembly for a better performance, ex:
-  - nodejs: https://www.npmjs.com/package/fluent-ffmpeg
-  - react-native: https://github.com/arthenica/ffmpeg-kit
-
-Of course, it is still highly welcome to contribute a nodejs version of ffmpeg.wasm.
+Node.js was unsupported from ffmpeg.wasm 0.12.0 through this fork's earlier
+releases; if you are pinned to one of those, use
+[fluent-ffmpeg](https://www.npmjs.com/package/fluent-ffmpeg) instead, or
+upgrade.
 
 ### Why ffmpeg.wasm is so slow comparing to ffmpeg?
 
@@ -32,9 +33,7 @@ There are two components inside ffmpeg.wasm:
 - @project516/ffmpeg-wasm (https://github.com/Project516/ffmpeg.wasm/tree/master/packages/ffmpeg)
 - @project516/ffmpeg-wasm-core (https://github.com/Project516/ffmpeg.wasm/tree/master/packages/core)
 
-@project516/ffmpeg-wasm-core contains WebAssembly code which is transpiled from original FFmpeg C code with minor modifications, but overall it still following the same licenses as FFmpeg and its external libraries (as each external libraries might have its own license).
-
-@project516/ffmpeg-wasm contains kind of a wrapper to handle the complexity of loading core and calling low-level APIs. It is a small code base and under MIT license.
+The whole project, including both packages, is licensed under AGPL-3.0-or-later. @project516/ffmpeg-wasm-core embeds FFmpeg built with `--enable-gpl` plus several GPL-licensed libraries (x264, x265), combined with this project's own AGPL-3.0-or-later code; see NOTICE at the repository root for the full list of bundled libraries and their licenses. @project516/ffmpeg-wasm is the wrapper that loads the core and calls its low-level APIs, and carries the same AGPL-3.0-or-later license.
 
 ### What is the maximum size of input file?
 

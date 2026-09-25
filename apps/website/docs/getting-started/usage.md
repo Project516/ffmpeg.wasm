@@ -445,3 +445,76 @@ Required:
   :::
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
+
+## Node.js
+
+`@project516/ffmpeg-wasm` runs the same code in Node.js, using a
+`worker_threads` Worker instead of a browser Worker. In the browser,
+`load()` fetches the core from a CDN by default; in Node.js there is no
+CDN default, so install `@project516/ffmpeg-wasm-core` yourself:
+
+```bash
+pnpm add @project516/ffmpeg-wasm-core
+```
+
+With that installed, `load()` resolves it from `node_modules`
+automatically, so `coreURL` is only needed to pick a custom build.
+
+```js
+import { FFmpeg } from '@project516/ffmpeg-wasm';
+import { fetchFile } from '@project516/ffmpeg-wasm-util';
+
+const ffmpeg = new FFmpeg();
+await ffmpeg.load();
+
+await ffmpeg.writeFile('input.webm', await fetchFile('./input.webm'));
+await ffmpeg.exec(['-i', 'input.webm', 'output.mp4']);
+const data = await ffmpeg.readFile('output.mp4');
+
+await ffmpeg.terminate();
+```
+
+`fetchFile` reads a local path or a `file:` URL directly in Node.js instead
+of going through `fetch()`.
+
+### Multithread core
+
+`@project516/ffmpeg-wasm-core-mt` has no default resolution; install it and
+pass its `ffmpeg-core.js` path as `coreURL`:
+
+```js
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const coreURL = require.resolve('@project516/ffmpeg-wasm-core-mt');
+
+const ffmpeg = new FFmpeg();
+await ffmpeg.load({ coreURL });
+```
+
+### Known gaps
+
+- `@project516/ffmpeg-wasm`'s Node.js entry is ESM. `import` always works.
+  `require()` only works on a Node.js version with synchronous
+  `require(esm)` support; on an older one it fails with `ERR_REQUIRE_ESM`.
+- `load()`'s default core resolution uses `import.meta.resolve()`, which
+  needs Node.js 20.6.0 or later (the package's `engines.node` requires
+  this). On 20.0-20.5, an unflagged `import.meta.resolve()` does not
+  exist and `load()` without a `coreURL` throws.
+- `classWorkerURL` is a browser-only option. `load()` always runs the
+  bundled `worker_threads` entry under Node.js and ignores it.
+- The default `coreURL` resolution relies on Node's ordinary
+  `node_modules` directory walk, so it works under npm's hoisted layout
+  and pnpm. It does not work under Yarn PnP, which only resolves a
+  package's own declared dependencies; pass `coreURL` explicitly there.
+- `coreURL` is caller-supplied configuration, the same as it is in the
+  browser. Node's `import()` has no browser-style CORS/CSP restriction on
+  what it loads, so treat `coreURL` like any other application-controlled
+  path passed to `import()`, not like untrusted user input.
+- `coreURL` cannot be a `blob:` URL under Node.js (Node's ESM loader
+  cannot `import()` one, unlike `fetch()`); pass a `file://` path or
+  package specifier instead. `toBlobURL()` still works for `wasmURL`.
+- `fetchFile()` reads any path it is given, including one that resolves
+  outside the current working directory (e.g. `../secret.txt`), the same
+  as `fs.readFile()` does. It does not sandbox to the working directory;
+  do not pass it a path built from untrusted input.

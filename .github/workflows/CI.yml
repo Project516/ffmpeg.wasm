@@ -86,7 +86,7 @@ jobs:
           curl -sfI http://localhost:3000/tests/ffmpeg-st.test.html | grep -i "cross-origin-embedder-policy: require-corp"
 
           failed=""
-          for page in ffmpeg-core-st ffmpeg-st ffmpeg-mt; do
+          for page in ffmpeg-core-st ffmpeg-st ffmpeg-mt ffmpeg-esm-fallback; do
             echo "::group::$page"
             npx mocha-headless-chrome --args="$CHROME_FLAGS" -a no-sandbox \
               -f "http://localhost:3000/tests/$page.test.html" || failed="$failed $page"
@@ -96,3 +96,40 @@ jobs:
             echo "::error::failed test pages:$failed"
             exit 1
           fi
+
+  node-tests:
+    runs-on: ubuntu-latest
+    needs:
+      - js
+      - build-core
+      - build-core-mt
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+      - name: Download ffmpeg-core
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core
+          path: packages/core/dist
+      - name: Download ffmpeg-core-mt
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-core-mt
+          path: packages/core-mt/dist
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm build
+      - name: Run tests
+        run: |
+          pnpm run test:node:core:st
+          pnpm run test:node:core:mt
+          pnpm run test:node:ffmpeg:st
+          pnpm run test:node:ffmpeg:mt

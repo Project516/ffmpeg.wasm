@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin" />
+    <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp" />
+    <meta http-equiv="Cross-Origin-Resource-Policy" content="same-origin" />
+    <meta http-equiv="Origin-Agent-Cluster" content="?1" />
+    <title>FFmpeg ESM fallback test</title>
+    <link rel="stylesheet" href="../node_modules/mocha/mocha.css" />
+  </head>
+  <body>
+    <div id="mocha"></div>
+    <script src="../node_modules/mocha/mocha.js"></script>
+    <script>
+      mocha.setup("bdd");
+      mocha.timeout(60000);
+    </script>
+    <!-- The ESM build runs its worker as a module worker, where importScripts
+         throws, so a UMD coreURL has to be retried under /esm/. -->
+    <script type="module">
+      import * as chai from "../node_modules/chai/index.js";
+      import { FFmpeg } from "../packages/ffmpeg/dist/esm/index.js";
+      const { expect } = chai;
+
+      describe("[ffmpeg][esm] load() with a UMD coreURL", () => {
+        it("falls back to the matching ESM core and runs", async () => {
+          const ffmpeg = new FFmpeg();
+          try {
+            const first = await ffmpeg.load({
+              coreURL:
+                "http://localhost:3000/packages/core/dist/umd/ffmpeg-core.js",
+            });
+            expect(first).to.be.true;
+            expect(await ffmpeg.exec(["-h"])).to.equal(0);
+          } finally {
+            ffmpeg.terminate();
+          }
+        });
+      });
+
+      mocha.run();
+    </script>
+  </body>
+</html>

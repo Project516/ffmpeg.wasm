@@ -1,6 +1,7 @@
 {
   "name": "root",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@12.6.0",
   "scripts": {
     "lint": "pnpm run lint:root && pnpm --if-present -r run lint",
@@ -19,10 +20,16 @@
     "test:node": "mocha --exit --bail -t 60000",
     "test:node:core:mt": "pnpm run test:node --require tests/test-helper-mt.js tests/ffmpeg-core.test.js",
     "test:node:core:st": "pnpm run test:node --require tests/test-helper-st.js tests/ffmpeg-core.test.js",
+    "test:node:ffmpeg:st": "pnpm run test:node tests/ffmpeg-node.test.mjs",
+    "test:node:ffmpeg:mt": "pnpm run test:node tests/ffmpeg-node.test.mjs --mt",
     "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@project516/ffmpeg-wasm": "workspace:*",
+    "@project516/ffmpeg-wasm-core": "workspace:*",
+    "@project516/ffmpeg-wasm-core-mt": "workspace:*",
+    "@project516/ffmpeg-wasm-util": "workspace:*",
     "chai": "^6.2.2",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",

@@ -9,10 +9,10 @@
 
 This is a maintained fork of [ffmpegwasm/ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm), which is no longer maintained.
 
-ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video & audio record, convert and stream right inside browsers.
+ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video & audio record, convert and stream right inside browsers, and also runs in Node.js.
 
 [![CI](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml/badge.svg)](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## Install
 
@@ -30,3 +30,9 @@ The fork publishes under the `@project516` npm scope. The packages are drop-in r
 - [API](https://project516.dev/ffmpeg.wasm/docs/api/ffmpeg/)
 - [FAQ](https://project516.dev/ffmpeg.wasm/docs/faq)
 - [Contribution](https://project516.dev/ffmpeg.wasm/docs/contribution/core)
+
+## License
+
+AGPL-3.0-or-later. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for the full
+text and for how this fits with the MIT-licensed code inherited from upstream
+and the third-party libraries built into the core packages.
