@@ -1,14 +1,14 @@
 # FATE and benchmarks
 
-The `FATE and benchmarks` GitHub Actions workflow
-(`.github/workflows/fate.yml`) measures the st and mt cores against FFmpeg's
+The `fate` and `benchmark` jobs in the CI workflow
+(`.github/workflows/CI.yml`) measure the st and mt cores against FFmpeg's
 own test suite (FATE) and against native FFmpeg, so compatibility and
 performance are tracked over time instead of assumed. The idea and the
 pass/fail/skip and wasm/native ratio framing come from
 [wasmpeg](https://github.com/wasmpeg/wasmpeg)'s `COMPAT.md` and
 `CORRECTNESS.md` (LGPL-2.1-or-later).
 
-This workflow is **not a required check**. The subset it covers is still
+These jobs are **not required checks**. The subset it covers is still
 small, so a low pass rate or a slow run does not block a pull request; treat
 its output as a signal to grow the subset and fix real gaps, not as a gate.
 
