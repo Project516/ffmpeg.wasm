@@ -17,7 +17,7 @@
     "lint": "eslint src",
     "clean": "rimraf dist",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build:umd": "tsc -p tsconfig.cjs.json && webpack",
+    "build:umd": "tsc -p tsconfig.cjs.json && node ../../scripts/emit-dist-package-json.mjs dist/cjs commonjs && webpack",
     "build": "pnpm run clean && pnpm run build:esm && pnpm run build:umd",
     "prepublishOnly": "pnpm run build"
   },

@@ -22,7 +22,7 @@
     "dev": "webpack -w --mode development",
     "lint": "eslint src",
     "clean": "rimraf dist",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node ../../scripts/emit-dist-package-json.mjs dist/esm module",
     "build:umd": "webpack",
     "build": "pnpm run clean && pnpm run build:esm && pnpm run build:umd",
     "prepublishOnly": "pnpm run build"
