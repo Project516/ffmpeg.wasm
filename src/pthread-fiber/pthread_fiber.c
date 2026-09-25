@@ -53,8 +53,29 @@ static void pf_debug(const char *fmt, ...)
     va_end(ap);
     pf_debug_js(buf);
 }
+/* Heartbeat: tells a genuine spin (never yields to the browser at all, so
+ * even a JS setInterval callback on this same thread never gets a turn)
+ * apart from a fiber that is merely running real, slow work but still
+ * occasionally hits a wrapped call. If this stops printing entirely during
+ * a hang, nothing is yielding to JS at all -- a true busy loop. */
+EM_JS(void, pf_heartbeat_tick_js, (void), {
+    globalThis.__pf_swaps = (globalThis.__pf_swaps || 0) + 1;
+});
+EM_JS(void, pf_heartbeat_start_js, (void), {
+    if (globalThis.__pf_heartbeat_started) return;
+    globalThis.__pf_heartbeat_started = true;
+    globalThis.__pf_swaps = 0;
+    var last = 0;
+    setInterval(function () {
+        var cur = globalThis.__pf_swaps;
+        console.error("heartbeat: swaps=" + cur + " (+" + (cur - last) + ") at " + Date.now());
+        last = cur;
+    }, 2000);
+});
 #else
 static void pf_debug(const char *fmt, ...) { (void)fmt; }
+static void pf_heartbeat_tick_js(void) {}
+static void pf_heartbeat_start_js(void) {}
 #endif
 
 #define PFIBER_MAX 48
@@ -134,6 +155,7 @@ static void pfiber_ensure_main(void)
     emscripten_fiber_init_from_current_context(&g_main.ctx, g_main.asyncify_stack,
                                                 g_main.asyncify_stack_size);
     g_current = &g_main;
+    pf_heartbeat_start_js();
 }
 
 /* Wake every fiber blocked on the given mutex/cond pointer. Waking more than
@@ -224,6 +246,7 @@ static void pfiber_reschedule(void)
         if (next) {
             pfiber_t *prev = g_current;
             pf_debug("reschedule: %d -> %d", pfiber_index_of(prev), pfiber_index_of(next));
+            pf_heartbeat_tick_js();
             g_current = next;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             return;
