@@ -8,7 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MAK_FILES, SUBSETS, cacheDirForTag } from "./config.mjs";
-import { classifyTest, parseMakFile } from "./lib/mak.mjs";
+import { classifyTest, parseMakFile, resolveVars } from "./lib/mak.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -43,13 +43,17 @@ function main() {
     }
     const parsed = parseMakFile(readFileSync(path, "utf8"));
     for (const test of parsed) {
-      const { kind, samples } = classifyTest(test);
+      const { kind, samples, generate } = classifyTest(test);
       if (kind === "unsupported") {
         unsupported++;
         continue;
       }
       if (syntheticOnly && kind !== "synthetic") continue;
-      tests.push({ ...test, kind, samples, makFile });
+      // Args are resolved against this test's own SRC/SRC2/... variables
+      // here so run.mjs only has to substitute the two build-wide paths,
+      // $(TARGET_PATH) and $(TARGET_SAMPLES).
+      const args = resolveVars(test.args, test.vars);
+      tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile });
       if (tests.length >= maxTests) break;
     }
     if (tests.length >= maxTests) break;

@@ -31,11 +31,22 @@ small, from-scratch reader of that convention, not a port of FFmpeg's
 
 Two subsets exist:
 
-- **fast**: synthetic tests only (`lavfi` sources, no external samples), run
-  on every pull request.
+- **fast**: no external samples, run on every pull request. Most of these
+  tests need an input file FFmpeg itself generates for FATE, e.g. a synthetic
+  WAV via `tests/audiogen.c`. `scripts/fate/lib/gen.mjs` compiles that tool
+  (and `tests/videogen.c`, for tests that need it) with the host C compiler
+  and runs it into the core's virtual filesystem, so this subset stays
+  network-free without needing `lavfi`-only tests.
 - **full**: adds sample-backed tests, fetched over rsync from the FATE
   samples mirror (`fate-suite.ffmpeg.org`), limited to exactly the samples
   the selected tests reference. Runs nightly and on manual dispatch.
+
+A test whose command line references a fixture this runner cannot produce at
+all (a copy from the FFmpeg source tree, a multi-frame image sequence, ...)
+is left out of a subset during selection; `counts.unsupported` in a manifest
+tracks how many. A test that is selected but whose input is missing at run
+time (a sample not fetched, or a generated file that failed to build) is
+reported "skip" with a reason by `scripts/fate/run.mjs`, not "fail".
 
 Results are recorded per core as pass/fail/skip counts and a per-test list,
 written as JSON and uploaded as workflow artifacts (`fate-results-st`,

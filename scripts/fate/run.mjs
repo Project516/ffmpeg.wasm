@@ -18,10 +18,15 @@ import { fileURLToPath } from "node:url";
 import { cacheDirForTag } from "./config.mjs";
 import { tokenize } from "./lib/argv.mjs";
 import { compareOutput } from "./lib/compare.mjs";
+import { generateInputs } from "./lib/gen.mjs";
 
 const require = createRequire(import.meta.url);
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SAMPLES_MOUNT = "/fate-samples";
+// Where $(TARGET_PATH) in a test's args resolves to inside MEMFS: the root
+// generated inputs (tests/data/asynth-*.wav, ...) are written under, mirroring
+// their path relative to FFmpeg's own build tree.
+const BUILD_ROOT = "/fate-build";
 
 function parseArgs(argv) {
   const args = { core: null, manifest: null, out: null };
@@ -56,13 +61,26 @@ function writeSample(FS, samplesDir, relpath) {
   FS.writeFile(dest, data);
 }
 
-async function runOne(core, test, refDir, samplesDir) {
+function writeGenerated(FS, buildPath, data) {
+  const dest = `${BUILD_ROOT}/${buildPath}`;
+  mkdirp(FS, dirname(dest));
+  FS.writeFile(dest, data);
+}
+
+async function runOne(core, test, refDir, samplesDir, generated, generationError) {
   if (test.kind === "sample") {
     for (const relpath of test.samples) {
       const src = join(samplesDir, relpath);
       if (!existsSync(src)) {
         return { status: "skip", reason: `sample not fetched: ${relpath}` };
       }
+    }
+  }
+
+  for (const spec of test.generate ?? []) {
+    if (!generated.has(spec.path)) {
+      const reason = generationError ? `could not generate ${spec.path}: ${generationError}` : `${spec.path} not generated`;
+      return { status: "skip", reason };
     }
   }
 
@@ -81,8 +99,11 @@ async function runOne(core, test, refDir, samplesDir) {
       writeSample(core.FS, samplesDir, relpath);
     }
   }
+  for (const spec of test.generate ?? []) {
+    writeGenerated(core.FS, spec.path, generated.get(spec.path));
+  }
 
-  const args = test.args.replaceAll("$(TARGET_SAMPLES)", SAMPLES_MOUNT);
+  const args = test.args.replaceAll("$(TARGET_SAMPLES)", SAMPLES_MOUNT).replaceAll("$(TARGET_PATH)", BUILD_ROOT);
   const outPath = "/fate-out";
   const argv = [...tokenize(args), "-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath];
 
@@ -119,13 +140,34 @@ async function main() {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const createFFmpegCore = require(resolve(corePkg));
 
-  const refDir = join(repoRoot, cacheDirForTag(manifest.tag), "ffmpeg-src", "tests", "ref", "fate");
+  const ffmpegSrcTests = join(repoRoot, cacheDirForTag(manifest.tag), "ffmpeg-src", "tests");
+  const refDir = join(ffmpegSrcTests, "ref", "fate");
   const samplesDir = join(repoRoot, cacheDirForTag(manifest.tag), "samples");
+
+  const generateSpecs = [];
+  const seenGeneratePaths = new Set();
+  for (const test of manifest.tests) {
+    for (const spec of test.generate ?? []) {
+      if (seenGeneratePaths.has(spec.path)) continue;
+      seenGeneratePaths.add(spec.path);
+      generateSpecs.push(spec);
+    }
+  }
+
+  let generated = new Map();
+  let generationError = null;
+  if (generateSpecs.length > 0) {
+    try {
+      generated = generateInputs(ffmpegSrcTests, generateSpecs);
+    } catch (err) {
+      generationError = err.message;
+    }
+  }
 
   const core = await createFFmpegCore();
   const results = [];
   for (const test of manifest.tests) {
-    const result = await runOne(core, test, refDir, samplesDir);
+    const result = await runOne(core, test, refDir, samplesDir, generated, generationError);
     results.push({ name: test.name, mode: test.mode, makFile: test.makFile, ...result });
     console.log(`${result.status.padEnd(4)} fate-${test.name}${result.reason ? `: ${result.reason}` : ""}`);
   }

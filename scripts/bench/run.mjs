@@ -24,7 +24,10 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CASES = [
   { name: "h264-to-vp9", args: (inp, out) => ["-i", inp, "-c:v", "libvpx-vp9", "-b:v", "500k", out.replace(/\.\w+$/, ".webm")] },
   { name: "h264-to-mpeg4", args: (inp, out) => ["-i", inp, out.replace(/\.\w+$/, ".avi")] },
-  { name: "scale-half", args: (inp, out) => ["-i", inp, "-vf", "scale=iw/2:ih/2", out.replace(/\.\w+$/, ".mp4")] },
+  {
+    name: "scale-half",
+    args: (inp, out) => ["-i", inp, "-vf", "scale=trunc(iw/4)*2:trunc(ih/4)*2", out.replace(/\.\w+$/, ".mp4")],
+  },
 ];
 
 function parseArgs(argv) {
