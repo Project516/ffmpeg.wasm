@@ -187,6 +187,7 @@ jobs:
   # CORRECTNESS.md (https://github.com/wasmpeg/wasmpeg, LGPL-2.1-or-later).
   fate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs:
       - build-core
       - build-core-mt
@@ -240,6 +241,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build packages
         run: pnpm build
+      - name: Cache FFmpeg's tests/ checkout
+        uses: actions/cache@v4
+        with:
+          path: .fate-cache/${{ steps.tag.outputs.tag }}/ffmpeg-src
+          key: fate-defs-${{ steps.tag.outputs.tag }}
       - name: Fetch FATE test definitions
         run: node scripts/fate/fetch-defs.mjs --tag ${{ steps.tag.outputs.tag }}
       - name: Select subset
@@ -261,6 +267,7 @@ jobs:
 
   fate-summary:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: fate
     if: ${{ always() && !startsWith(github.ref, 'refs/tags/') }}
     continue-on-error: true
@@ -281,6 +288,7 @@ jobs:
 
   benchmark:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs:
       - build-core
       - build-core-mt

@@ -27,16 +27,20 @@ Dockerfile (`FFMPEG_VERSION_ST` / `FFMPEG_VERSION_MT`), picks a subset from
 decoders and filters), runs the equivalent command inside the built core
 under Node, and diffs the result against the reference file. This is a
 small, from-scratch reader of that convention, not a port of FFmpeg's
-`tests/fate-run.sh`.
+`tests/fate-run.sh`. In CI, that sparse checkout is cached per pinned tag
+(`actions/cache`, keyed on the tag), so a cache hit skips the clone entirely.
 
 Two subsets exist:
 
-- **fast**: no external samples, run on every pull request. Most of these
-  tests need an input file FFmpeg itself generates for FATE, e.g. a synthetic
-  WAV via `tests/audiogen.c`. `scripts/fate/lib/gen.mjs` compiles that tool
-  (and `tests/videogen.c`, for tests that need it) with the host C compiler
-  and runs it into the core's virtual filesystem, so this subset stays
-  network-free without needing `lavfi`-only tests.
+- **fast**: needs no samples from the FATE samples mirror, run on every pull
+  request. Most of these tests need an input file FFmpeg itself generates
+  for FATE, e.g. a synthetic WAV via `tests/audiogen.c`.
+  `scripts/fate/lib/gen.mjs` compiles that tool (and `tests/videogen.c`, for
+  tests that need it) with the host C compiler and runs it into the core's
+  virtual filesystem, so this subset needs no `lavfi`-only tests to avoid
+  that mirror. It still fetches FFmpeg's own `tests/fate/*.mak` and
+  `tests/ref/fate/` from GitHub (`scripts/fate/fetch-defs.mjs`'s sparse
+  checkout), so it is not network-free.
 - **full**: adds sample-backed tests, fetched over rsync from the FATE
   samples mirror (`fate-suite.ffmpeg.org`), limited to exactly the samples
   the selected tests reference. Runs nightly and on manual dispatch.
@@ -126,5 +130,6 @@ node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --
 
 - Each workflow run: the `fate` and `benchmark` jobs' step summaries, and
   the `fate-results-*` / `bench-results` artifacts.
-- Nightly runs use the full subset; pull request runs use the fast,
-  network-free subset.
+- Nightly runs use the full subset; pull request runs use the fast subset,
+  which needs no FATE samples mirror access but still fetches FFmpeg's test
+  definitions from GitHub.
