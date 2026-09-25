@@ -120,7 +120,7 @@ jobs:
           curl -sfI http://localhost:3000/tests/ffmpeg-st.test.html | grep -i "cross-origin-embedder-policy: require-corp"
 
           failed=""
-          for page in ffmpeg-core-st ffmpeg-st ffmpeg-mt; do
+          for page in ffmpeg-core-st ffmpeg-st ffmpeg-mt ffmpeg-esm-fallback; do
             echo "::group::$page"
             npx mocha-headless-chrome --args="$CHROME_FLAGS" -a no-sandbox \
               -f "http://localhost:3000/tests/$page.test.html" || failed="$failed $page"

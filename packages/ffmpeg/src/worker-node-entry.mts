@@ -35,12 +35,8 @@ if (!parentPort) {
 }
 
 let ffmpeg: FFmpegCoreModule;
-// Set synchronously, before any `await`, so a second LOAD message that
-// arrives while the first is still loading sees this already true instead
-// of both computing `first: true`. Reset on failure (below, in `load`) so
-// a retry after a failed load still reports `first: true`. Kept in sync
-// with worker.ts's identical guard.
-let loadStarted = false;
+// True once a load() has succeeded; see load().
+let loaded = false;
 
 // `@project516/ffmpeg-wasm-core` resolves relative to the consuming
 // project's own node_modules, not this package, so a bare specifier is
@@ -107,18 +103,13 @@ const doLoad = async ({
   );
 };
 
+// first is decided after doLoad() succeeds, so a failed load never claims
+// it and exactly one of several concurrent successful loads reports true.
 const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
-  const first = !loadStarted;
-  loadStarted = true;
-  try {
-    await doLoad(config);
-    return first;
-  } catch (e) {
-    // The core never loaded, so a later retry should get another chance
-    // to report first: true.
-    if (!ffmpeg) loadStarted = false;
-    throw e;
-  }
+  await doLoad(config);
+  const first = !loaded;
+  loaded = true;
+  return first;
 };
 
 const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
