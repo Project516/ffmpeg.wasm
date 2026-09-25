@@ -265,4 +265,22 @@ describe(genName("FFmpeg.terminate()"), function () {
     expect(rejected).to.be.true;
     expect(ffmpeg.loaded).to.be.false;
   });
+
+  it("still works after terminate() followed by a fresh load()", async () => {
+    // A worker that was actually running reports its exit a beat after
+    // terminate() itself resolves. Reusing the same FFmpeg instance right
+    // away means that stale event arrives while the new worker (from the
+    // load() below) is already in use; it must not affect it.
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    ffmpeg.terminate();
+
+    await load(ffmpeg);
+    try {
+      const ret = await ffmpeg.exec(["-h"]);
+      expect(ret).to.equal(0);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
 });

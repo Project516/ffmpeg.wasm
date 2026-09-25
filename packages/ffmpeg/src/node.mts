@@ -20,6 +20,7 @@ type MinimalErrorEvent = { message: string };
 
 class NodeWorkerAdapter {
   #worker: NodeWorker;
+  #terminated = false;
   onmessage: ((event: MinimalMessageEvent) => void) | null = null;
   onerror: ((event: MinimalErrorEvent) => void) | null = null;
 
@@ -36,6 +37,7 @@ class NodeWorkerAdapter {
       this.onmessage?.({ data });
     });
     this.#worker.on("error", (error: Error) => {
+      if (this.#terminated) return;
       this.onerror?.({ message: error.message });
     });
     // The vendored fftools C sources call the C library's exit() directly
@@ -44,7 +46,17 @@ class NodeWorkerAdapter {
     // which worker_threads reports as "exit", not "error". Without this,
     // FFmpeg.load()/exec() would hang forever waiting for a message that
     // will never come.
+    //
+    // A worker that was actually running also reports a non-zero exit
+    // after terminate() itself has already resolved (worker_threads
+    // delivers it a beat later, once the thread has actually torn down),
+    // so #terminated guards against a stale event from this adapter
+    // reaching classes.ts's onerror after terminate() and a subsequent
+    // load() have already moved classes.ts on to a new worker: without
+    // the guard, that stale callback would read classes.ts's *current*
+    // #worker/#rejects and kill the new worker instead of the old one.
     this.#worker.on("exit", (code: number) => {
+      if (this.#terminated) return;
       if (code !== 0) {
         this.onerror?.({
           message: `the Node worker exited with code ${code}`,
@@ -65,6 +77,10 @@ class NodeWorkerAdapter {
   }
 
   terminate(): void {
+    // Marks this adapter's own later exit/error events as expected, so
+    // they don't reach classes.ts's onerror (see the comment on the exit
+    // listener above).
+    this.#terminated = true;
     // FFmpeg.terminate() does not await; worker_threads.terminate()
     // returns a promise but nothing here needs to wait on shutdown. The
     // catch logs rather than swallowing the error outright, so a failed

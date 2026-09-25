@@ -41,3 +41,7 @@ yarn add @project516/ffmpeg-wasm @project516/ffmpeg-wasm-util
 As `@project516/ffmpeg-wasm` spawns a web worker, you cannot import `@project516/ffmpeg-wasm` from CDN like
 jsdelivr. It is recommended to download it and host it on your server most of the time.
 :::
+
+:::note
+In the browser, `load()` fetches the core from a CDN by default, so `@project516/ffmpeg-wasm-core` does not need to be installed. In Node.js there is no CDN default: install `@project516/ffmpeg-wasm-core` (or `@project516/ffmpeg-wasm-core-mt` for the multithread core) yourself, or pass `coreURL` to `load()`. See [Usage](/docs/getting-started/usage#nodejs).
+:::

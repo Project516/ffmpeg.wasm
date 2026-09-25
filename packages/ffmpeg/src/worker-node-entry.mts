@@ -45,8 +45,23 @@ let loadStarted = false;
 // `@project516/ffmpeg-wasm-core` resolves relative to the consuming
 // project's own node_modules, not this package, so a bare specifier is
 // correct here.
-const defaultCoreURL = (): string =>
-  import.meta.resolve("@project516/ffmpeg-wasm-core");
+const defaultCoreURL = (): string => {
+  try {
+    return import.meta.resolve("@project516/ffmpeg-wasm-core");
+  } catch (e) {
+    // Unlike the browser, where @project516/ffmpeg-wasm-core loads from a
+    // CDN by default, a Node.js consumer has to install it themselves (it
+    // is not a dependency of this package). Surface that instead of the
+    // raw ERR_MODULE_NOT_FOUND.
+    throw new Error(
+      "load() needs @project516/ffmpeg-wasm-core installed to resolve " +
+        "the default coreURL under Node.js. Run `pnpm add " +
+        "@project516/ffmpeg-wasm-core` (or `-core-mt` for the " +
+        "multithread core), or pass coreURL explicitly.",
+      { cause: e }
+    );
+  }
+};
 
 const doLoad = async ({
   coreURL: _coreURL,

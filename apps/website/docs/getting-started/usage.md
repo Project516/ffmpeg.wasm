@@ -449,11 +449,16 @@ Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/p
 ## Node.js
 
 `@project516/ffmpeg-wasm` runs the same code in Node.js, using a
-`worker_threads` Worker instead of a browser Worker. `load()` resolves
-`@project516/ffmpeg-wasm-core` (the single-thread core) from `node_modules`
-by default, matching the browser default (`CORE_URL` also only points at
-the single-thread core), so `coreURL` is only needed to pick a custom
-build.
+`worker_threads` Worker instead of a browser Worker. In the browser,
+`load()` fetches the core from a CDN by default; in Node.js there is no
+CDN default, so install `@project516/ffmpeg-wasm-core` yourself:
+
+```bash
+pnpm add @project516/ffmpeg-wasm-core
+```
+
+With that installed, `load()` resolves it from `node_modules`
+automatically, so `coreURL` is only needed to pick a custom build.
 
 ```js
 import { FFmpeg } from '@project516/ffmpeg-wasm';

@@ -8,13 +8,20 @@ import { ProgressCallback } from "./types.js";
 const isNode = (): boolean =>
   typeof process !== "undefined" && process.versions?.node != null;
 
-// Built from a variable rather than a string literal so bundlers (webpack,
-// Vite/Rollup, esbuild) cannot statically resolve or bundle this for the
-// browser build; it is only ever reached when `isNode()` is true.
+// The webpackIgnore/@vite-ignore comments (not the variable specifier
+// alone) are what keep bundlers from resolving node:fs/promises for the
+// browser build; it is only ever reached when `isNode()` is true. A
+// variable specifier by itself does not stop webpack, which still warns
+// ("Critical dependency: the request of a dependency is an expression")
+// and builds a require context for it.
 const NODE_FS_SPECIFIER = "node:fs/promises";
 
 const importNodeFS = (): Promise<typeof import("node:fs/promises")> =>
-  import(NODE_FS_SPECIFIER) as Promise<typeof import("node:fs/promises")>;
+  import(
+    /* webpackIgnore: true */
+    /* @vite-ignore */
+    NODE_FS_SPECIFIER
+  ) as Promise<typeof import("node:fs/promises")>;
 
 const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
   let fs;
