@@ -29,6 +29,10 @@ work licensed "GPL-2.0-or-later" already carries permission to be used under
 GPLv3 terms. The wasm binaries in the core packages are therefore distributed
 as a whole under AGPL-3.0-or-later.
 
+FFmpeg is never configured with --enable-nonfree, and no library with a
+GPL-incompatible license (such as fdk-aac) is linked in, so the core binaries
+are redistributable.
+
 Corresponding source
 ---------------------
 
