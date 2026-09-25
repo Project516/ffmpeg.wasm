@@ -3,6 +3,10 @@
   "extends": "@tsconfig/docusaurus/tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
+    // TypeScript 6 deprecates baseUrl; the @site/* paths still need it.
+    "ignoreDeprecations": "6.0",
+    // TypeScript 6 turns strict on by default; the site has never been typed strictly.
+    "strict": false,
     // React 19's types assume the automatic runtime; the classic "react"
     // setting from @tsconfig/docusaurus mis-infers JSX `key` and `children`.
     "jsx": "react-jsx"
