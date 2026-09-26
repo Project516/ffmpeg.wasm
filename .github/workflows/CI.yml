@@ -88,6 +88,11 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
+    # A core stuck in a native loop never yields to the browser, so neither
+    # mocha's per-test timeout nor Ctrl-C can end the run: the page just
+    # stops answering and the job would sit until GitHub's 6 hour default.
+    # 20 minutes is well past the ~2 this job takes when green.
+    timeout-minutes: 20
     needs:
       - js
       - build-core
@@ -131,11 +136,23 @@ jobs:
           sleep 5
           curl -sfI http://localhost:3000/tests/ffmpeg-st.test.html | grep -i "cross-origin-embedder-policy: require-corp"
 
-          failed=""
+          # One Chrome per page, all at once. Each page loads a whole core and
+          # runs it, so back to back they spend most of the job with three
+          # cores idle. Output is captured per page because concurrent
+          # browsers interleave on stdout, then replayed in a fixed order so
+          # the log still reads the same as a sequential run.
+          pids=""
           for page in ffmpeg-core-st ffmpeg-st ffmpeg-mt ffmpeg-esm-fallback; do
-            echo "::group::$page"
             npx mocha-headless-chrome --args="$CHROME_FLAGS" -a no-sandbox \
-              -f "http://localhost:3000/tests/$page.test.html" || failed="$failed $page"
+              -f "http://localhost:3000/tests/$page.test.html" > "$page.log" 2>&1 &
+            pids="$pids $!:$page"
+          done
+          failed=""
+          for entry in $pids; do
+            page="${entry#*:}"
+            if wait "${entry%%:*}"; then status=passed; else status=FAILED; failed="$failed $page"; fi
+            echo "::group::$page ($status)"
+            cat "$page.log"
             echo "::endgroup::"
           done
           if [ -n "$failed" ]; then
@@ -145,6 +162,9 @@ jobs:
 
   node-tests:
     runs-on: ubuntu-latest
+    # Same reason as the tests job: a core spinning natively cannot be
+    # interrupted, and mocha --exit only helps when it gets control back.
+    timeout-minutes: 20
     needs:
       - js
       - build-core
