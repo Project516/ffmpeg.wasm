@@ -69,18 +69,10 @@ if [ -n "${FFMPEG_ST:-}" ]; then
   # src/pthread-fiber/pthread_fiber.c.
   PTHREAD_FIBER_FLAGS+=(
     -sASYNCIFY
-    # Only used by emscripten_sleep(), which this shim no longer calls. Each
-    # fiber carries its own asyncify stack for fiber swaps.
+    # Sizes the single module-wide asyncify stack, which only emscripten_sleep()
+    # uses and nothing here calls. Each fiber carries its own asyncify stack
+    # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
     -sASYNCIFY_STACK_SIZE=65536
-    # TEMPORARY: prints pthread_fiber.c's scheduler decisions straight to
-    # console.error to find the st core's transcode hang; remove once
-    # root-caused (see pthread_fiber.c's pf_debug comment).
-    -DPFIBER_DEBUG=1
-    # -sASSERTIONS=2 and -sSTACK_OVERFLOW_CHECK=2 were on while testing
-    # whether a fiber stack overflow explained the transcode hang. They are
-    # off again: 8MB fiber stacks took that away on their own, and ASSERTIONS
-    # makes the module reject Module.mainScriptUrlOrBlob, which
-    # @project516/ffmpeg-wasm passes, so every test page aborted at load.
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach
