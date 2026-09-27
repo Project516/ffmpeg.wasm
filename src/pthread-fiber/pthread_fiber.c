@@ -229,6 +229,35 @@ static void pf_report_stall(double now_ms)
     pf_report_js(buf);
 }
 
+/* Reports the two shapes of stall there is no other way to see from here.
+ * Called from every place the scheduler regains control, so it runs even when
+ * the run never becomes idle: a fiber that spins without blocking would
+ * otherwise keep the whole diagnostic quiet. */
+static void pf_report_if_stalled(double now)
+{
+    /* Nothing has run at all: nothing is runnable, which pf_idle_wait's abort
+     * catches unless a poll is still pending. ffmpeg_sched's main fiber keeps
+     * one, polling stats_period apart for the muxers to report in. */
+    if (now - g_last_switch_ms > PF_STALL_REPORT_MS) {
+        g_last_switch_ms = now;
+        pf_report_stall(now);
+        return;
+    }
+
+    /* One fiber blocked for longer than any single piece of work takes means
+     * something is waiting on a wakeup that is not coming, and the run is over
+     * even though the polling around it looks healthy. */
+    for (int i = -1; i < PFIBER_MAX; i++) {
+        pfiber_t *f = pfiber_at(i);
+        if (f->state == PF_BLOCKED &&
+            now - f->blocked_since_ms > PF_BLOCK_REPORT_MS) {
+            g_last_switch_ms = now;
+            pf_report_stall(now);
+            return;
+        }
+    }
+}
+
 static void pf_idle_wait(double wake_at_ms)
 {
     double now = pf_now_ms();
@@ -261,31 +290,10 @@ static void pf_idle_wait(double wake_at_ms)
                 }
             }
         }
-        /* Two ways a run stops going anywhere. Both are checked before handing
-         * control back, because ffmpeg_sched's main fiber keeps a poll pending
-         * and so wakes this loop every stats_period: an early return above them
-         * would skip both on every pass, which is the shape of hang they exist
-         * to catch.
-         *
-         * No switch at all means nothing is runnable, which the abort below
-         * catches unless that same poll is still pending.
-         *
-         * One fiber blocked for longer than any single piece of work takes
-         * means something is waiting on a wakeup that is not coming, and the
-         * run is over even though the polling around it looks healthy. */
-        if (now - g_last_switch_ms > PF_STALL_REPORT_MS) {
-            g_last_switch_ms = now;
-            pf_report_stall(now);
-        }
-        for (int k = -1; k < PFIBER_MAX; k++) {
-            pfiber_t *f = pfiber_at(k);
-            if (f->state == PF_BLOCKED &&
-                now - f->blocked_since_ms > PF_BLOCK_REPORT_MS) {
-                g_last_switch_ms = now;
-                pf_report_stall(now);
-                break;
-            }
-        }
+        /* Before handing control back: ffmpeg_sched's main fiber keeps a poll
+         * pending and so wakes this loop every stats_period, and an early
+         * return above the checks would skip them on every pass. */
+        pf_report_if_stalled(now);
 
         /* Hand control back as soon as a fiber is runnable again. Falling
          * through to the checks below instead aborts on the one deadline just
@@ -434,6 +442,8 @@ static void pf_wake_waiters_on(void *ptr)
 static void pfiber_reschedule(void)
 {
     for (;;) {
+        pf_report_if_stalled(pf_now_ms());
+
         for (int i = 0; i < PFIBER_MAX; i++) {
             pfiber_t *f = &g_table[i];
             if (f->state == PF_DONE && f->detached &&
