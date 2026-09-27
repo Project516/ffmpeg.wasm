@@ -83,6 +83,7 @@ typedef struct pfiber {
     int has_deadline;            /* set while blocked in pthread_cond_timedwait */
     double deadline_ms;          /* pf_now_ms() value this fiber's wait expires at */
     int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
+    double blocked_since_ms;      /* when it last went PF_BLOCKED, 0 when runnable */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -132,9 +133,27 @@ typedef struct {
     unsigned epoch;
 } pf_cond_t;
 
+static double pf_now_ms(void);
+static int pfiber_index_of(pfiber_t *f);
+
 static pfiber_t *pfiber_at(int idx)
 {
     return idx < 0 ? &g_main : &g_table[idx];
+}
+
+/* Going to sleep and waking up, in one place each, so blocked_since_ms cannot
+ * be left stale: a fiber that is marked runnable but still looks blocked is
+ * what a stall report has to be able to rule out. */
+static void pf_block(pfiber_t *f)
+{
+    f->state = PF_BLOCKED;
+    f->blocked_since_ms = pf_now_ms();
+}
+
+static void pf_unblock(pfiber_t *f)
+{
+    f->state = PF_RUNNABLE;
+    f->blocked_since_ms = 0;
 }
 
 /* Spin until a pthread_cond_timedwait deadline comes due, or until
@@ -160,12 +179,16 @@ static pfiber_t *pfiber_at(int idx)
  * deadline pending at all is a real deadlock and aborts.
  */
 #define PF_STALL_REPORT_MS 5000
+/* How long one fiber can sit blocked before the run is called stalled. A
+ * pipeline that is working has some fiber running or about to be woken every
+ * few milliseconds; the only wait this long is one nothing is going to
+ * satisfy. Set well above any single frame's work so a slow transcode does not
+ * report itself, and well below the CI watchdog so the report lands in the log
+ * rather than a killed job. */
+#define PF_BLOCK_REPORT_MS 10000
 /* Passes between clock reads, which is the cost of a clock read against the
  * work skipped between them. See pf_idle_wait. */
 #define PF_IDLE_CLOCK_EVERY 4096
-
-static double pf_now_ms(void);
-static int pfiber_index_of(pfiber_t *f);
 
 /* Straight to console.error, not stderr. stderr in this module is
  * Module.printErr, which is Module.logger, and every caller that runs a
@@ -174,23 +197,27 @@ static int pfiber_index_of(pfiber_t *f);
  * like a hang. */
 EM_JS(void, pf_report_js, (const char *s), { console.error(UTF8ToString(s)); });
 
-/* Writes every fiber's state and what it is blocked on, so a stall says who is
- * waiting on whom instead of just hanging. */
-static void pf_report_stall(double waited_ms)
+/* Writes every fiber's state, what it is blocked on and for how long, so a
+ * stall says who is waiting on whom instead of just hanging. */
+static void pf_report_stall(double now_ms)
 {
     static const char *names[] = { "free", "runnable", "blocked", "done" };
     char buf[2048];
     int n = snprintf(buf, sizeof(buf),
-                     "pthread-fiber: no fiber has run for %.0fms, after %llu "
-                     "switches and %llu waits. fibers:",
-                     waited_ms, g_switches, g_idle_waits);
+                     "pthread-fiber: stalled, after %llu switches and %llu "
+                     "waits. fibers:",
+                     g_switches, g_idle_waits);
     for (int i = -1; i < PFIBER_MAX; i++) {
         pfiber_t *f = pfiber_at(i);
         if (f->state == PF_FREE)
             continue;
-        n += snprintf(buf + n, sizeof(buf) - n, " [%d %s on %p%s]",
+        n += snprintf(buf + n, sizeof(buf) - n, " [%d %s on %p%s",
                       pfiber_index_of(f), names[f->state], f->wait_on,
                       f->has_deadline ? " timed" : "");
+        if (f->state == PF_BLOCKED)
+            n += snprintf(buf + n, sizeof(buf) - n, " for %.0fms",
+                          now_ms - f->blocked_since_ms);
+        n += snprintf(buf + n, sizeof(buf) - n, "]");
         if (n >= (int)sizeof(buf) - 96)
             break;
     }
@@ -225,7 +252,7 @@ static void pf_idle_wait(double wake_at_ms)
                     f->wait_on = NULL;
                     f->has_deadline = 0;
                     f->woke_by_timeout = 1;
-                    f->state = PF_RUNNABLE;
+                    pf_unblock(f);
                     woke_someone = 1;
                 }
             }
@@ -258,13 +285,30 @@ static void pf_idle_wait(double wake_at_ms)
         if (wake_at_ms > 0 && now >= wake_at_ms)
             return;
 
-        /* No fiber has run for longer than any deadline FFmpeg arms, so the
-         * run is not going to end by itself. Report where everything is instead
-         * of freezing the page, and keep reporting: a stall that resolves on its
-         * own looks the same as one that never does, from in here. */
+        /* Two ways a run stops going anywhere, and both have to be reported
+         * from here, because this is the only place the scheduler still gets
+         * control when the pipeline is stuck.
+         *
+         * No switch at all: nothing is runnable, which the abort above catches
+         * unless a deadline is still pending. ffmpeg_sched's main fiber keeps one
+         * pending, polling stats_period apart for the muxers to report in, so
+         * that case is exactly the one that hides.
+         *
+         * One fiber blocked for longer than any single piece of work takes:
+         * something is waiting on a wakeup that is not coming, and the run is
+         * over even though the polling looks healthy. */
         if (now - g_last_switch_ms > PF_STALL_REPORT_MS) {
-            pf_report_stall(now - g_last_switch_ms);
             g_last_switch_ms = now;
+            pf_report_stall(now);
+        }
+        for (int k = -1; k < PFIBER_MAX; k++) {
+            pfiber_t *f = pfiber_at(k);
+            if (f->state == PF_BLOCKED &&
+                now - f->blocked_since_ms > PF_BLOCK_REPORT_MS) {
+                g_last_switch_ms = now;
+                pf_report_stall(now);
+                break;
+            }
         }
     }
 }
@@ -365,7 +409,7 @@ static void pf_wake_waiters_on(void *ptr)
         pfiber_t *f = pfiber_at(i);
         if (f->state == PF_BLOCKED && f->wait_on == ptr) {
             f->wait_on = NULL;
-            f->state = PF_RUNNABLE;
+            pf_unblock(f);
         }
     }
 }
@@ -418,7 +462,7 @@ static void pfiber_reschedule(void)
                 f->wait_on = NULL;
                 f->has_deadline = 0;
                 f->woke_by_timeout = 1;
-                f->state = PF_RUNNABLE;
+                pf_unblock(f);
             }
         }
 
@@ -475,7 +519,7 @@ static void pfiber_trampoline(void *arg)
     f->retval = f->start_routine(f->arg);
     f->state = PF_DONE;
     if (f->join_waiter) {
-        f->join_waiter->state = PF_RUNNABLE;
+        pf_unblock(f->join_waiter);
         f->join_waiter = NULL;
     }
 
@@ -552,10 +596,10 @@ int __wrap_pthread_join(pthread_t thread, void **retval)
     pfiber_t *f = (pfiber_t *)(uintptr_t)thread;
 
     f->join_waiter = g_current;
-    g_current->state = PF_BLOCKED;
+    pf_block(g_current);
     while (f->state != PF_DONE)
         pfiber_reschedule();
-    g_current->state = PF_RUNNABLE;
+    pf_unblock(g_current);
 
     if (retval)
         *retval = f->retval;
@@ -668,10 +712,10 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
     if (m->owner != NULL)
     while (m->owner != NULL) {
         g_current->wait_on = (void *)mutex;
-        g_current->state = PF_BLOCKED;
+        pf_block(g_current);
         pfiber_reschedule();
         g_current->wait_on = NULL;
-        g_current->state = PF_RUNNABLE;
+        pf_unblock(g_current);
     }
     m->owner = g_current;
     return 0;
@@ -736,7 +780,7 @@ int __wrap_pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 
     __wrap_pthread_mutex_unlock(mutex);
     g_current->wait_on = cond_ptr;
-    g_current->state = PF_BLOCKED;
+    pf_block(g_current);
     while (g_current->wait_on == cond_ptr)
         pfiber_reschedule();
 
@@ -757,7 +801,7 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
     g_current->has_deadline = 1;
     g_current->deadline_ms = deadline;
     g_current->woke_by_timeout = 0;
-    g_current->state = PF_BLOCKED;
+    pf_block(g_current);
     /* pf_idle_wait is what expires `deadline` when no other fiber is
      * runnable, so this loop cannot park forever. */
     while (g_current->wait_on == cond_ptr)
