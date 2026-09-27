@@ -101,6 +101,13 @@ typedef struct {
 
 static unsigned g_epoch = 1;
 
+/* Wall-clock of the last time any fiber became runnable. A stall is progress
+ * that stopped, not one long wait: ffmpeg_sched's sch_wait() polls on a short
+ * timeout, so a pipeline that will never finish shows up as thousands of short
+ * waits rather than one long one, and only a clock spanning calls can tell
+ * those apart. */
+static double g_last_progress_ms;
+
 /* Same idea for pthread_cond_t; the struct itself carries no state beyond
  * existing, since which fibers are waiting lives in pfiber_t.wait_on. */
 typedef struct {
@@ -172,9 +179,7 @@ static void pf_report_stall(double waited_ms)
 
 static void pf_idle_wait(double wake_at_ms)
 {
-    double started = pf_now_ms();
-    double reported = started;
-    double now = started;
+    double now = pf_now_ms();
 
     /* Sample the clock in batches, not every pass. pf_now_ms is a clock_gettime,
      * which is a JavaScript import under Emscripten, so reading it on every
@@ -191,6 +196,7 @@ static void pf_idle_wait(double wake_at_ms)
                         f->has_deadline = 0;
                         f->woke_by_timeout = 1;
                         f->state = PF_RUNNABLE;
+                        g_last_progress_ms = now;
                     }
                 }
             }
@@ -214,13 +220,13 @@ static void pf_idle_wait(double wake_at_ms)
         if (wake_at_ms > 0 && now >= wake_at_ms)
             return;
 
-        /* Nothing became runnable. Normally that costs one deadline, a few
-         * milliseconds. Needing far longer than any deadline FFmpeg arms means
-         * the wait is not going to end, so report it rather than freezing the
-         * page. */
-        if (now - reported > PF_STALL_REPORT_MS) {
-            pf_report_stall(now - started);
-            reported = now;
+        /* Nothing has become runnable anywhere, across every wait so far.
+         * Normally that costs one deadline, a few milliseconds. Far longer than
+         * any deadline FFmpeg arms means it is not going to end, so report it
+         * rather than freezing the page. */
+        if (now - g_last_progress_ms > PF_STALL_REPORT_MS) {
+            pf_report_stall(now - g_last_progress_ms);
+            g_last_progress_ms = now;
         }
     }
 }
@@ -281,6 +287,7 @@ static void pfiber_reset(void)
     emscripten_fiber_init_from_current_context(&g_main.ctx, g_main.asyncify_stack,
                                                 g_main.asyncify_stack_size);
     g_current = &g_main;
+    g_last_progress_ms = pf_now_ms();
     g_initialized = 1;
 }
 
@@ -383,6 +390,7 @@ static void pfiber_reschedule(void)
         }
 
         if (next) {
+            g_last_progress_ms = pf_now_ms();
             pfiber_t *prev = g_current;
             g_current = next;
             /* emscripten_fiber_swap does not update the stack-overflow
@@ -582,11 +590,13 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
          * and no other fiber can release it. av_log() holds a static mutex,
          * so this is where a re-entrant log call would otherwise hang the
          * core with nothing to show for it. */
-        fprintf(stderr,
-                "pthread-fiber: fiber %d locked a mutex it already holds "
-                "(%p). The lock is not recursive, so this can never be "
-                "satisfied.\n",
-                pfiber_index_of(g_current), (void *)mutex);
+        char msg[256];
+        snprintf(msg, sizeof(msg),
+                 "pthread-fiber: fiber %d locked a mutex it already holds "
+                 "(%p). The lock is not recursive, so this can never be "
+                 "satisfied.\n",
+                 pfiber_index_of(g_current), (void *)mutex);
+        pf_report_js(msg);
         abort();
     }
     if (m->owner != NULL)
