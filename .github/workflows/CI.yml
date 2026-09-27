@@ -159,10 +159,22 @@ jobs:
             echo "::error::failed test pages:$failed"
             # mocha-headless-chrome reports only pass/fail, so a page that
             # wedges or fails inside a Web Worker is otherwise a black box.
-            # Re-open each one and dump its console for the log.
+            # Re-open each one and dump its console for the log. One at a time
+            # would add a minute per failed page to a job that is already
+            # red, so they all run at once and each writes to its own file,
+            # replayed in a fixed order below for the same reason as above.
+            dump_pids=""
             for page in $failed; do
+              timeout 100 node scripts/dump-test-page.mjs \
+                "http://localhost:3000/tests/$page.test.html" \
+                > "$page.dump.log" 2>&1 &
+              dump_pids="$dump_pids $!:$page"
+            done
+            for entry in $dump_pids; do
+              page="${entry#*:}"
+              wait "${entry%%:*}" || true
               echo "::group::page output: $page"
-              timeout 100 node scripts/dump-test-page.mjs "http://localhost:3000/tests/$page.test.html" || true
+              cat "$page.dump.log"
               echo "::endgroup::"
             done
             exit 1

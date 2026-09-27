@@ -9,26 +9,35 @@
 // adds nothing to the lockfile. Worker output has to come over CDP: Puppeteer's
 // own Worker API does not surface a worker's console.
 //
-// Usage: node scripts/dump-test-page.mjs <url> [watchMs]
+// Usage: node scripts/dump-test-page.mjs <url> [watchMs] [hardMs]
 import puppeteer from "puppeteer-core";
 
 const url = process.argv[2];
 if (!url) {
-  console.error("usage: node scripts/dump-test-page.mjs <url> [watchMs]");
+  console.error(
+    "usage: node scripts/dump-test-page.mjs <url> [watchMs] [hardMs]"
+  );
   process.exit(1);
 }
 const WATCH_MS = Number(process.argv[3] || 45000);
+// How long the whole run may take, including launch and close. Only reached
+// when Chrome itself is wedged, so it defaults to well past the watch window
+// rather than racing it.
+const HARD_MS = Number(process.argv[4] || WATCH_MS + 45000);
 
 let browser = null;
 const hardTimer = setTimeout(() => {
   console.log("[dump] hard deadline reached, killing the browser and exiting");
   try {
+    // Browser.process() is public API (Browser#process in puppeteer's types),
+    // and this is the one case browser.close() cannot handle: a browser that
+    // stopped answering will not close.
     browser?.process()?.kill("SIGKILL");
   } catch {
     // best effort
   }
   process.exit(1);
-}, WATCH_MS + 45000);
+}, HARD_MS);
 hardTimer.unref?.();
 
 const withTimeout = (p, ms, label) =>
@@ -53,7 +62,9 @@ browser.on("targetcreated", async (target) => {
   if (type !== "worker" && type !== "shared_worker" && type !== "service_worker" && type !== "other") return;
   try {
     const session = await target.createCDPSession();
-    await session.send("Runtime.enable");
+    // Listeners first: Runtime.enable replays what the worker already logged,
+    // so anything registered after it misses the startup output, which is
+    // exactly the part worth having when a worker dies on load.
     session.on("Runtime.consoleAPICalled", (e) => {
       const text = e.args.map((a) => a.value ?? a.description ?? "").join(" ");
       console.log(`[worker console:${e.type}] ${text}`);
@@ -62,6 +73,7 @@ browser.on("targetcreated", async (target) => {
       const d = e.exceptionDetails;
       console.log(`[worker exception] ${d.text} ${d.exception?.description ?? ""}`);
     });
+    await session.send("Runtime.enable");
   } catch (err) {
     console.log(`[dump] could not attach to a ${type} target: ${err.message}`);
   }
