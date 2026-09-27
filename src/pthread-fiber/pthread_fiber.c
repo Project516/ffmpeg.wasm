@@ -177,6 +177,7 @@ static pfiber_t *pfiber_at(int idx)
 #define PF_IDLE_SPIN_REPORT 100000000ULL
 
 static double pf_now_ms(void);
+static int pfiber_index_of(pfiber_t *f);
 
 /* The whole fiber table, on demand. Per-event tracing cannot answer the
  * question that matters when a transcode wedges: not "what was the last call"
