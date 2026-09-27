@@ -194,22 +194,28 @@ static void pf_idle_wait(double wake_at_ms)
     /* Sample the clock in batches, not every pass. pf_now_ms is a clock_gettime,
      * which is a JavaScript import under Emscripten, so reading it on every
      * iteration turns a five millisecond wait into millions of JS calls and
-     * makes a whole transcode look like a hang. */
+     * makes a whole transcode look like a hang.
+     *
+     * Nothing but the sample can change anything: this fiber is the only one
+     * running, so nothing else can wake, block or arm a deadline until control
+     * leaves here. The checks that depend on the clock therefore belong in the
+     * sampled pass, and the passes between them only wait. */
     for (unsigned long long i = 0;; i++) {
+        if (i % PF_IDLE_CLOCK_EVERY != 0)
+            continue;
+
         int woke_someone = 0;
-        if (i % PF_IDLE_CLOCK_EVERY == 0) {
-            now = pf_now_ms();
-            for (int k = -1; k < PFIBER_MAX; k++) {
-                pfiber_t *f = pfiber_at(k);
-                if (f->state == PF_BLOCKED && f->has_deadline) {
-                    if (now >= f->deadline_ms) {
-                        f->wait_on = NULL;
-                        f->has_deadline = 0;
-                        f->woke_by_timeout = 1;
-                        f->state = PF_RUNNABLE;
-                        g_last_progress_ms = now;
-                        woke_someone = 1;
-                    }
+        now = pf_now_ms();
+        for (int k = -1; k < PFIBER_MAX; k++) {
+            pfiber_t *f = pfiber_at(k);
+            if (f->state == PF_BLOCKED && f->has_deadline) {
+                if (now >= f->deadline_ms) {
+                    f->wait_on = NULL;
+                    f->has_deadline = 0;
+                    f->woke_by_timeout = 1;
+                    f->state = PF_RUNNABLE;
+                    g_last_progress_ms = now;
+                    woke_someone = 1;
                 }
             }
         }
