@@ -261,6 +261,31 @@ static void pf_idle_wait(double wake_at_ms)
                 }
             }
         }
+        /* Two ways a run stops going anywhere. Both are checked before handing
+         * control back, because ffmpeg_sched's main fiber keeps a poll pending
+         * and so wakes this loop every stats_period: an early return above them
+         * would skip both on every pass, which is the shape of hang they exist
+         * to catch.
+         *
+         * No switch at all means nothing is runnable, which the abort below
+         * catches unless that same poll is still pending.
+         *
+         * One fiber blocked for longer than any single piece of work takes
+         * means something is waiting on a wakeup that is not coming, and the
+         * run is over even though the polling around it looks healthy. */
+        if (now - g_last_switch_ms > PF_STALL_REPORT_MS) {
+            g_last_switch_ms = now;
+            pf_report_stall(now);
+        }
+        for (int k = -1; k < PFIBER_MAX; k++) {
+            pfiber_t *f = pfiber_at(k);
+            if (f->state == PF_BLOCKED &&
+                now - f->blocked_since_ms > PF_BLOCK_REPORT_MS) {
+                g_last_switch_ms = now;
+                pf_report_stall(now);
+                break;
+            }
+        }
 
         /* Hand control back as soon as a fiber is runnable again. Falling
          * through to the checks below instead aborts on the one deadline just
@@ -288,32 +313,6 @@ static void pf_idle_wait(double wake_at_ms)
 
         if (wake_at_ms > 0 && now >= wake_at_ms)
             return;
-
-        /* Two ways a run stops going anywhere, and both have to be reported
-         * from here, because this is the only place the scheduler still gets
-         * control when the pipeline is stuck.
-         *
-         * No switch at all: nothing is runnable, which the abort above catches
-         * unless a deadline is still pending. ffmpeg_sched's main fiber keeps one
-         * pending, polling stats_period apart for the muxers to report in, so
-         * that case is exactly the one that hides.
-         *
-         * One fiber blocked for longer than any single piece of work takes:
-         * something is waiting on a wakeup that is not coming, and the run is
-         * over even though the polling looks healthy. */
-        if (now - g_last_switch_ms > PF_STALL_REPORT_MS) {
-            g_last_switch_ms = now;
-            pf_report_stall(now);
-        }
-        for (int k = -1; k < PFIBER_MAX; k++) {
-            pfiber_t *f = pfiber_at(k);
-            if (f->state == PF_BLOCKED &&
-                now - f->blocked_since_ms > PF_BLOCK_REPORT_MS) {
-                g_last_switch_ms = now;
-                pf_report_stall(now);
-                break;
-            }
-        }
     }
 }
 
