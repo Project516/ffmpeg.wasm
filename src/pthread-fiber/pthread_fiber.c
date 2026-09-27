@@ -196,6 +196,7 @@ static void pf_idle_wait(double wake_at_ms)
      * iteration turns a five millisecond wait into millions of JS calls and
      * makes a whole transcode look like a hang. */
     for (unsigned long long i = 0;; i++) {
+        int woke_someone = 0;
         if (i % PF_IDLE_CLOCK_EVERY == 0) {
             now = pf_now_ms();
             for (int k = -1; k < PFIBER_MAX; k++) {
@@ -207,10 +208,17 @@ static void pf_idle_wait(double wake_at_ms)
                         f->woke_by_timeout = 1;
                         f->state = PF_RUNNABLE;
                         g_last_progress_ms = now;
+                        woke_someone = 1;
                     }
                 }
             }
         }
+
+        /* Hand control back as soon as a fiber is runnable again. Falling
+         * through to the checks below instead aborts on the one deadline just
+         * expired, since the fiber it woke is no longer a pending deadline. */
+        if (woke_someone)
+            return;
 
         int something_can_wake_us = wake_at_ms > 0;
         for (int k = -1; k < PFIBER_MAX; k++) {
