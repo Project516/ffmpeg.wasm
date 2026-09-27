@@ -107,12 +107,20 @@ typedef struct {
 
 static unsigned g_epoch = 1;
 
-/* Wall-clock of the last time any fiber became runnable. A stall is progress
- * that stopped, not one long wait: ffmpeg_sched's sch_wait() polls on a short
- * timeout, so a pipeline that will never finish shows up as thousands of short
- * waits rather than one long one, and only a clock spanning calls can tell
- * those apart. */
-static double g_last_progress_ms;
+/* Wall-clock of the last fiber switch, and the switch and wait counts since
+ * the call started. A stall is progress that stopped, not one long wait:
+ * ffmpeg_sched's sch_wait() polls on a short timeout, so a pipeline that will
+ * never finish shows up as thousands of short waits rather than one long one.
+ *
+ * The clock is deliberately the last switch and not the last time something
+ * became runnable. Those differ exactly when the scheduler is thrashing, which
+ * is the case worth reporting: a run where fibers keep waking each other and
+ * going straight back to sleep never lets the second clock expire, so it looks
+ * alive however long it goes on. Counting switches and waits alongside the
+ * report says which of the two it is. */
+static double g_last_switch_ms;
+static unsigned long long g_switches;
+static unsigned long long g_idle_waits;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -146,13 +154,14 @@ static pfiber_t *pfiber_at(int idx)
  *
  * So the spin is bounded rather than open-ended. It is only ever waiting for a
  * deadline, and FFmpeg's are short (ffmpeg_sched's sch_wait() polls every
- * 5ms). A wait that outlasts PF_STALL_REPORT_MS with nothing becoming runnable
- * is reported fiber by fiber, so a stall is diagnosable from a log instead of
- * being a frozen tab, and one with no deadline pending at all is a real
- * deadlock and aborts.
+ * 5ms). A run that goes PF_STALL_REPORT_MS without a single fiber switch is
+ * reported fiber by fiber with its switch and wait counts, so a stall is
+ * diagnosable from a log instead of being a frozen tab, and one with no
+ * deadline pending at all is a real deadlock and aborts.
  */
 #define PF_STALL_REPORT_MS 5000
-/* Passes between clock reads. See pf_idle_wait. */
+/* Passes between clock reads, which is the cost of a clock read against the
+ * work skipped between them. See pf_idle_wait. */
 #define PF_IDLE_CLOCK_EVERY 4096
 
 static double pf_now_ms(void);
@@ -172,7 +181,9 @@ static void pf_report_stall(double waited_ms)
     static const char *names[] = { "free", "runnable", "blocked", "done" };
     char buf[2048];
     int n = snprintf(buf, sizeof(buf),
-                     "pthread-fiber: stalled for %.0fms. fibers:", waited_ms);
+                     "pthread-fiber: no fiber has run for %.0fms, after %llu "
+                     "switches and %llu waits. fibers:",
+                     waited_ms, g_switches, g_idle_waits);
     for (int i = -1; i < PFIBER_MAX; i++) {
         pfiber_t *f = pfiber_at(i);
         if (f->state == PF_FREE)
@@ -190,6 +201,7 @@ static void pf_report_stall(double waited_ms)
 static void pf_idle_wait(double wake_at_ms)
 {
     double now = pf_now_ms();
+    g_idle_waits++;
 
     /* Sample the clock in batches, not every pass. pf_now_ms is a clock_gettime,
      * which is a JavaScript import under Emscripten, so reading it on every
@@ -214,7 +226,6 @@ static void pf_idle_wait(double wake_at_ms)
                     f->has_deadline = 0;
                     f->woke_by_timeout = 1;
                     f->state = PF_RUNNABLE;
-                    g_last_progress_ms = now;
                     woke_someone = 1;
                 }
             }
@@ -247,13 +258,13 @@ static void pf_idle_wait(double wake_at_ms)
         if (wake_at_ms > 0 && now >= wake_at_ms)
             return;
 
-        /* Nothing has become runnable anywhere, across every wait so far.
-         * Normally that costs one deadline, a few milliseconds. Far longer than
-         * any deadline FFmpeg arms means it is not going to end, so report it
-         * rather than freezing the page. */
-        if (now - g_last_progress_ms > PF_STALL_REPORT_MS) {
-            pf_report_stall(now - g_last_progress_ms);
-            g_last_progress_ms = now;
+        /* No fiber has run for longer than any deadline FFmpeg arms, so the
+         * run is not going to end by itself. Report where everything is instead
+         * of freezing the page, and keep reporting: a stall that resolves on its
+         * own looks the same as one that never does, from in here. */
+        if (now - g_last_switch_ms > PF_STALL_REPORT_MS) {
+            pf_report_stall(now - g_last_switch_ms);
+            g_last_switch_ms = now;
         }
     }
 }
@@ -322,7 +333,9 @@ static void pfiber_reset(void)
     emscripten_fiber_init_from_current_context(&g_main.ctx, g_main.asyncify_stack,
                                                 g_main.asyncify_stack_size);
     g_current = &g_main;
-    g_last_progress_ms = pf_now_ms();
+    g_last_switch_ms = pf_now_ms();
+    g_switches = 0;
+    g_idle_waits = 0;
     g_initialized = 1;
 }
 
@@ -425,7 +438,8 @@ static void pfiber_reschedule(void)
         }
 
         if (next) {
-            g_last_progress_ms = pf_now_ms();
+            g_switches++;
+            g_last_switch_ms = pf_now_ms();
             pfiber_t *prev = g_current;
             g_current = next;
             /* emscripten_fiber_swap does not update the stack-overflow

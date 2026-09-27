@@ -113,7 +113,15 @@ function preflight(test, refDir, samplesDir, generatedDir) {
 async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir) {
   const core = await createFFmpegCore();
   const logLines = [];
-  core.setLogger(({ message }) => logLines.push(message));
+  // Collect and print. A test that hangs never returns, so the collected lines
+  // would die with the child and the collected log would say nothing about how
+  // far it got. Writing each line out as it arrives is what makes a hang
+  // readable: ffmpeg's own progress lines show whether the run was still
+  // advancing, and the fiber shim's reports show where it was parked.
+  core.setLogger(({ message }) => {
+    logLines.push(message);
+    process.stderr.write(message.endsWith("\n") ? message : message + "\n");
+  });
   core.setProgress(() => {});
   core.setTimeout(EXEC_TIMEOUT_MS);
 
