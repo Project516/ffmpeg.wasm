@@ -593,8 +593,13 @@ static pf_mutex_t *pf_mutex_ensure(pthread_mutex_t *mutex)
          * ffmpeg in a loop would otherwise accumulate one per mutex per call. */
         free(*slot);
         *slot = calloc(1, sizeof(pf_mutex_t));
-        if (*slot)
-            (*slot)->epoch = g_epoch;
+        if (!*slot) {
+            /* No error to hand back: FFmpeg ignores pthread_mutex_lock's
+             * return value, and pthread_cond_wait cannot pass one on. */
+            pf_report_js("pthread-fiber: out of memory for mutex state\n");
+            abort();
+        }
+        (*slot)->epoch = g_epoch;
     }
     return *slot;
 }
