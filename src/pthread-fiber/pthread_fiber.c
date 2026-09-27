@@ -183,13 +183,15 @@ static void pf_unblock(pfiber_t *f)
  * deadline pending at all is a real deadlock and aborts.
  */
 #define PF_STALL_REPORT_MS 5000
-/* How long one fiber can sit blocked before the run is called stalled. A
- * pipeline that is working has some fiber running or about to be woken every
- * few milliseconds; the only wait this long is one nothing is going to
- * satisfy. Set well above any single frame's work so a slow transcode does not
- * report itself, and well below the CI watchdog so the report lands in the log
- * rather than a killed job. */
+/* How long one fiber can sit blocked before the run is called stalled, and how
+ * long before it is given up on. A pipeline that is working has some fiber
+ * running or about to be woken every few milliseconds, so a fiber blocked
+ * across a whole frame of work is waiting on a wakeup that is not coming. The
+ * second threshold is what turns that from a frozen tab into an exec() that
+ * returns -1, which is the same choice already made for a run with nothing
+ * runnable and no deadline pending. */
 #define PF_BLOCK_REPORT_MS 10000
+#define PF_BLOCK_ABORT_MS 30000
 /* Passes between clock reads, which is the cost of a clock read against the
  * work skipped between them. See pf_idle_wait. */
 #define PF_IDLE_CLOCK_EVERY 4096
@@ -249,12 +251,23 @@ static void pf_report_if_stalled(double now)
      * even though the polling around it looks healthy. */
     for (int i = -1; i < PFIBER_MAX; i++) {
         pfiber_t *f = pfiber_at(i);
-        if (f->state == PF_BLOCKED &&
-            now - f->blocked_since_ms > PF_BLOCK_REPORT_MS) {
-            g_last_switch_ms = now;
-            pf_report_stall(now);
-            return;
+        if (f->state != PF_BLOCKED)
+            continue;
+        double blocked_ms = now - f->blocked_since_ms;
+        if (blocked_ms <= PF_BLOCK_REPORT_MS)
+            continue;
+        g_last_switch_ms = now;
+        pf_report_stall(now);
+        if (blocked_ms > PF_BLOCK_ABORT_MS) {
+            char msg[160];
+            snprintf(msg, sizeof(msg),
+                     "pthread-fiber: fiber %d has been blocked for %.0fms, so "
+                     "this run is not going to finish.\n",
+                     pfiber_index_of(f), blocked_ms);
+            pf_report_js(msg);
+            abort();
         }
+        return;
     }
 }
 
