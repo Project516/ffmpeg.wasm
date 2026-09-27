@@ -126,6 +126,10 @@ static unsigned g_epoch = 1;
 static double g_last_switch_ms;
 static unsigned long long g_switches;
 static unsigned long long g_idle_waits;
+/* Switches in the window the rate below is measured over, and where that
+ * window started. */
+static unsigned long long g_reported_switches;
+static double g_rate_ms;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -192,6 +196,11 @@ static void pf_unblock(pfiber_t *f)
  * runnable and no deadline pending. */
 #define PF_BLOCK_REPORT_MS 10000
 #define PF_BLOCK_ABORT_MS 30000
+/* Switches in one second that mean a livelock rather than a working pipeline.
+ * Every blocking point is a switch, and a transcode of any length does tens of
+ * thousands of them spread over seconds; thousands inside one second is the
+ * scheduler handing control around without the pipeline moving. */
+#define PF_SWITCH_REPORT_PER_SEC 2000
 /* Passes between clock reads, which is the cost of a clock read against the
  * work skipped between them. See pf_idle_wait. */
 #define PF_IDLE_CLOCK_EVERY 4096
@@ -244,6 +253,26 @@ static void pf_report_if_stalled(double now)
         g_last_switch_ms = now;
         pf_report_stall(now);
         return;
+    }
+
+    /* The other shape of hang: fibers that keep waking each other and going
+     * straight back to sleep. Every wait such a run makes is a short one, so
+     * neither check above can see it, and it looks busy from in here. The rate
+     * is what tells it apart from a pipeline doing real work. */
+    if (now - g_rate_ms >= 1000) {
+        unsigned long long switches = g_switches - g_reported_switches;
+        double window_ms = now - g_rate_ms;
+        g_rate_ms = now;
+        g_reported_switches = g_switches;
+        if (switches > PF_SWITCH_REPORT_PER_SEC) {
+            char msg[160];
+            snprintf(msg, sizeof(msg),
+                     "pthread-fiber: %llu switches in %.0fms, and %llu waits.\n",
+                     switches, window_ms, g_idle_waits);
+            pf_report_js(msg);
+            pf_report_stall(now);
+            return;
+        }
     }
 
     /* One fiber blocked for longer than any single piece of work takes means
@@ -404,6 +433,8 @@ static void pfiber_reset(void)
     g_last_switch_ms = pf_now_ms();
     g_switches = 0;
     g_idle_waits = 0;
+    g_reported_switches = 0;
+    g_rate_ms = g_last_switch_ms;
     g_initialized = 1;
 }
 
