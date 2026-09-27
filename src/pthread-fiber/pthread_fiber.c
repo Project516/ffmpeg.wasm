@@ -30,7 +30,13 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Threads a single FFmpeg run can have alive at once: one per demuxer,
+ * decoder, filtergraph, encoder and muxer, which for a transcode of any
+ * complexity is well under a dozen. Overridable at build time for the ones
+ * that are not. */
+#ifndef PFIBER_MAX
 #define PFIBER_MAX 48
+#endif
 
 /* Each fiber gets a C stack and, separately, the asyncify stack that
  * emscripten_fiber_swap unwinds into.
@@ -108,10 +114,14 @@ static unsigned g_epoch = 1;
  * those apart. */
 static double g_last_progress_ms;
 
-/* Same idea for pthread_cond_t; the struct itself carries no state beyond
- * existing, since which fibers are waiting lives in pfiber_t.wait_on. */
+/* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
+ * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
+ * are file-scope statics that are never destroyed. Which fibers are waiting
+ * lives in pfiber_t.wait_on, and pfiber_reset() clears the table those live
+ * in, so no waiter can carry across a call; the epoch is here to reclaim the
+ * block rather than to invalidate anything. */
 typedef struct {
-    int allocated;
+    unsigned epoch;
 } pf_cond_t;
 
 static pfiber_t *pfiber_at(int idx)
@@ -209,6 +219,9 @@ static void pf_idle_wait(double wake_at_ms)
                 something_can_wake_us = 1;
         }
         if (!something_can_wake_us) {
+            /* The round-robin in pfiber_reschedule only calls here after
+             * finding no runnable fiber anywhere, so with no deadline left
+             * either, nothing can ever run again. */
             char msg[256];
             snprintf(msg, sizeof(msg),
                      "pthread-fiber: no fiber is runnable and none has a "
@@ -274,7 +287,10 @@ static void pfiber_reset(void)
         free(g_table[i].asyncify_stack);
     }
     memset(g_table, 0, sizeof(g_table));
-    g_epoch++;
+    /* Epoch 0 is never handed out, so a wrapped counter cannot make a mutex
+     * left over from 2^32 calls ago look like the current one. */
+    if (++g_epoch == 0)
+        g_epoch = 1;
 
     /* The old g_main.asyncify_stack is reachable through the memset below, so
      * free it first. Without this every exec() leaks a megabyte, and an
@@ -284,6 +300,11 @@ static void pfiber_reset(void)
     g_main.state = PF_RUNNABLE;
     g_main.asyncify_stack = malloc(PFIBER_MAIN_ASYNCIFY_STACK_SIZE);
     g_main.asyncify_stack_size = PFIBER_MAIN_ASYNCIFY_STACK_SIZE;
+    if (!g_main.asyncify_stack) {
+        pf_report_js("pthread-fiber: out of memory for the main fiber's "
+                     "asyncify stack\n");
+        abort();
+    }
     emscripten_fiber_init_from_current_context(&g_main.ctx, g_main.asyncify_stack,
                                                 g_main.asyncify_stack_size);
     g_current = &g_main;
@@ -455,12 +476,24 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
             break;
         }
     }
-    if (!f)
+    if (!f) {
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "pthread-fiber: all %d fibers are in use, so this thread "
+                 "cannot be created.\n",
+                 PFIBER_MAX);
+        pf_report_js(msg);
         return EAGAIN;
+    }
 
     char *c_stack = malloc(PFIBER_STACK_SIZE);
     char *asyncify_stack = malloc(PFIBER_ASYNCIFY_STACK_SIZE);
     if (!c_stack || !asyncify_stack) {
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "pthread-fiber: out of memory for a fiber's %d byte stack.\n",
+                 PFIBER_STACK_SIZE);
+        pf_report_js(msg);
         free(c_stack);
         free(asyncify_stack);
         return EAGAIN;
@@ -634,8 +667,12 @@ int __wrap_pthread_mutex_unlock(pthread_mutex_t *mutex)
 static pf_cond_t *pf_cond_ensure(pthread_cond_t *cond)
 {
     pf_cond_t **slot = (pf_cond_t **)(void *)cond;
-    if (!*slot)
+    if (!*slot || (*slot)->epoch != g_epoch) {
+        free(*slot);
         *slot = calloc(1, sizeof(pf_cond_t));
+        if (*slot)
+            (*slot)->epoch = g_epoch;
+    }
     return *slot;
 }
 
@@ -645,6 +682,8 @@ int __wrap_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *att
     pf_cond_t **slot = (pf_cond_t **)(void *)cond;
     free(*slot);
     *slot = calloc(1, sizeof(pf_cond_t));
+    if (*slot)
+        (*slot)->epoch = g_epoch;
     return 0;
 }
 
