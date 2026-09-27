@@ -59,24 +59,28 @@ if [ -n "${FFMPEG_ST:-}" ]; then
   FFTOOLS_INC+=(-Isrc/pthread-fiber)
   # No SharedArrayBuffer on the st core, so fftools' real pthread_create/
   # mutex/cond calls are redirected to src/pthread-fiber's cooperative
-  # scheduler built on Emscripten fibers (needs ASYNCIFY for emscripten_sleep
-  # inside the scheduler's blocking loop).
+  # scheduler built on Emscripten fibers.
+  #
+  # ASYNCIFY is required, not optional: emscripten implements
+  # emscripten_fiber_swap itself in src/lib/libasync.js and a build without
+  # ASYNCIFY only gets a stub that aborts. What the scheduler must not do is
+  # call emscripten_sleep(), which would start a second asyncify operation
+  # while a fiber swap is still rewinding; see pf_idle_wait in
+  # src/pthread-fiber/pthread_fiber.c.
   PTHREAD_FIBER_FLAGS+=(
     -sASYNCIFY
+    # Only used by emscripten_sleep(), which this shim no longer calls. Each
+    # fiber carries its own asyncify stack for fiber swaps.
     -sASYNCIFY_STACK_SIZE=65536
     # TEMPORARY: prints pthread_fiber.c's scheduler decisions straight to
     # console.error to find the st core's transcode hang; remove once
     # root-caused (see pthread_fiber.c's pf_debug comment).
     -DPFIBER_DEBUG=1
-    # TEMPORARY: testing whether the hang is a fiber stack overflow (silent
-    # heap/global corruption on wasm otherwise). ASSERTIONS=2 turns on
-    # Emscripten's runtime checks including stack-overflow detection;
-    # STACK_OVERFLOW_CHECK=2 adds an explicit check on every function entry.
-    # Only useful together with pthread_fiber.c's emscripten_stack_set_limits
-    # calls on every fiber swap, since the checker otherwise validates against
-    # whichever fiber's bounds were set last, not the one actually running.
-    -sASSERTIONS=2
-    -sSTACK_OVERFLOW_CHECK=2
+    # -sASSERTIONS=2 and -sSTACK_OVERFLOW_CHECK=2 were on while testing
+    # whether a fiber stack overflow explained the transcode hang. They are
+    # off again: 8MB fiber stacks took that away on their own, and ASSERTIONS
+    # makes the module reject Module.mainScriptUrlOrBlob, which
+    # @project516/ffmpeg-wasm passes, so every test page aborted at load.
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach

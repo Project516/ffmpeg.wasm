@@ -864,50 +864,20 @@ diff -ruN a/fftools/thread_queue.c b/fftools/thread_queue.c
 + * queue between scheduler tasks or deeper in real codec/filter processing.
 + * Remove once root-caused (see pthread_fiber.c's pf_debug comment). */
 +#include <emscripten.h>
-+EM_JS(void, wasm_st_tq_trace, (const char *what, int starting), {
-+    console.error("thread_queue: " + (starting ? "enter " : "exit ") + UTF8ToString(what));
++EM_JS(void, wasm_st_tq_trace, (const char *what, int v), {
++    console.error("thread_queue: " + UTF8ToString(what) + " ret=" + v);
 +});
 +#endif
 +
  #include "libavcodec/packet.h"
  
  #include "thread_queue.h"
-@@ -119,6 +129,9 @@
-     int *finished;
-     int ret;
- 
-+#ifdef FFMPEG_WASM_ST
-+    wasm_st_tq_trace("tq_send", 1);
-+#endif
-     av_assert0(stream_idx < tq->nb_streams);
-     finished = &tq->finished[stream_idx];
- 
-@@ -150,6 +163,9 @@
- finish:
-     pthread_mutex_unlock(&tq->lock);
- 
-+#ifdef FFMPEG_WASM_ST
-+    wasm_st_tq_trace("tq_send", 0);
-+#endif
-     return ret;
- }
- 
-@@ -198,6 +214,9 @@
- {
-     int ret;
- 
-+#ifdef FFMPEG_WASM_ST
-+    wasm_st_tq_trace("tq_receive", 1);
-+#endif
-     *stream_idx = -1;
- 
-     pthread_mutex_lock(&tq->lock);
 @@ -221,6 +240,9 @@
  
      pthread_mutex_unlock(&tq->lock);
  
 +#ifdef FFMPEG_WASM_ST
-+    wasm_st_tq_trace("tq_receive", 0);
++    wasm_st_tq_trace("tq_receive", ret);
 +#endif
      return ret;
  }
@@ -1129,7 +1099,7 @@ diff -ruN a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c
 diff -ruN a/libavutil/log.c b/libavutil/log.c
 --- a/libavutil/log.c	2026-09-24 09:59:45.000000000 -0500
 +++ b/libavutil/log.c	2026-09-24 09:59:45.000000000 -0500
-@@ -43,6 +43,17 @@
+@@ -43,6 +43,19 @@
  #include "internal.h"
  #include "log.h"
  #include "thread.h"
@@ -1141,6 +1111,8 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
 + * root-caused (see pthread_fiber.c's pf_debug comment). */
 +#include <emscripten.h>
 +EM_JS(void, wasm_st_log_trace, (const char *what, int a), {
++    globalThis.__stTrace = (globalThis.__stTrace || 0) + 1;
++    if (globalThis.__stTrace > 40) return;
 +    console.error("av_log: " + UTF8ToString(what) + " a=" + a);
 +});
 +#endif
@@ -1219,7 +1191,7 @@ diff -ruN a/libavutil/log.c b/libavutil/log.c
  }
  
  static atomic_uintptr_t av_log_callback = (uintptr_t)av_log_default_callback;
-@@ -462,11 +503,24 @@
+@@ -462,12 +503,25 @@
      AVClass* avc = avcl ? *(AVClass **) avcl : NULL;
      void (*log_callback)(void*, int, const char*, va_list) =
          (void *)atomic_load_explicit(&av_log_callback, memory_order_relaxed);

@@ -93,6 +93,12 @@ function exec(..._args) {
   const argc = args.length;
   const sp = stackSave();
   const argvPtr = stringsToPtr(args);
+  // Only the st core has this: it runs FFmpeg's threaded scheduler on a
+  // cooperative fiber shim, and that shim captures the wasm stack pointer once
+  // per call. The stackSave()/stackRestore() pair below moves that pointer, so
+  // without this the second exec() in a process runs on a fiber context left
+  // over from the first and never returns.
+  Module["_pfiber_begin_call"]?.();
   try {
     Module["_ffmpeg"](argc, argvPtr);
   } catch (e) {
@@ -111,6 +117,7 @@ function ffprobe(..._args) {
   const argc = args.length;
   const sp = stackSave();
   const argvPtr = stringsToPtr(args);
+  Module["_pfiber_begin_call"]?.();
   try {
     Module["_ffprobe"](argc, argvPtr);
   } catch (e) {

@@ -40,7 +40,7 @@ static void pf_debug(const char *fmt, ...)
 {
     /* Cap output: a genuine tight-loop deadlock would otherwise print
      * unbounded lines and drown the CI log before anything can read it. */
-    static int budget = 200;
+    static int budget = 4000;
     char buf[256];
     va_list ap;
     if (budget <= 0)
@@ -75,6 +75,7 @@ EM_JS(void, pf_heartbeat_start_js, (void), {
 });
 #else
 static void pf_debug(const char *fmt, ...) { (void)fmt; }
+static void pf_dump_table(const char *why) { (void)why; }
 static void pf_heartbeat_tick_js(void) {}
 static void pf_heartbeat_start_js(void) {}
 #endif
@@ -90,7 +91,13 @@ static void pf_heartbeat_start_js(void) {}
  * comment and -sSTACK_OVERFLOW_CHECK in build/ffmpeg-wasm.sh. */
 #define PFIBER_STACK_SIZE (8 * 1024 * 1024)
 #define PFIBER_ASYNCIFY_STACK_SIZE (1024 * 1024)
-#define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (64 * 1024)
+/* g_main runs the whole of main(), so its asyncify stack has to hold an
+ * unwind of the deepest chain in the program, not just one task. It was 64KB
+ * while every worker fiber got 1MB, and g_main's deepest point is
+ * sch_wait() -> pthread_cond_timedwait -> the scheduler, well below
+ * ffmpeg_opt_run() on top. Overflowing this does not fault: the unwind just
+ * writes past the region, and the damage shows up later. */
+#define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (1024 * 1024)
 
 typedef struct pfiber {
     emscripten_fiber_t ctx;
@@ -118,10 +125,19 @@ static int g_initialized = 0;
 /* Backing struct for a pthread_mutex_t. The opaque musl struct is treated as
  * a lazily-allocated pointer to one of these, stored in its first
  * sizeof(void*) bytes (a zero-initialized PTHREAD_MUTEX_INITIALIZER mutex
- * therefore reliably means "not yet allocated"). */
+ * therefore reliably means "not yet allocated").
+ *
+ * epoch is bumped by every pfiber_reset(). Most of FFmpeg's mutexes are
+ * file-scope statics, so the block behind one outlives the exec() that filled
+ * it, and with it the owner left by a fiber that was mid-lock when that exec
+ * ended. A later exec() then blocks forever on a lock held by a fiber that no
+ * longer exists, because nothing is ever going to unlock it. */
 typedef struct {
     pfiber_t *owner;
+    unsigned epoch;
 } pf_mutex_t;
+
+static unsigned g_epoch = 1;
 
 /* Same idea for pthread_cond_t; the struct itself carries no state beyond
  * existing, since which fibers are waiting lives in pfiber_t.wait_on. */
@@ -132,6 +148,86 @@ typedef struct {
 static pfiber_t *pfiber_at(int idx)
 {
     return idx < 0 ? &g_main : &g_table[idx];
+}
+
+/* Busy-wait, then return, so the caller's scheduler loop can re-pick who runs.
+ *
+ * Returns as soon as `wake_at_ms` has passed, where 0 means "no time of my
+ * own to wait for". Either way it also expires any pthread_cond_timedwait
+ * deadline that has come due, since that is usually what ends the wait.
+ *
+ * This deliberately does not call emscripten_sleep(). Emscripten implements
+ * emscripten_fiber_swap in src/lib/libasync.js: the swap unwinds the outgoing
+ * fiber to JS, and the trampoline then rewinds into the incoming fiber, all
+ * through one asyncify operation at a time (Asyncify.state, Asyncify.currData
+ * are module-global, and each fiber embeds its own asyncify_data). Calling
+ * emscripten_sleep() from inside a fiber starts a *second* asyncify operation
+ * on top of the one the swap is still rewinding, and the two corrupt each
+ * other. Observed effect before this was changed: a transcode ran to the last
+ * queue handoff, then wedged inside Asyncify.doRewind with the worker's event
+ * loop never running again, which is what the st core's transcode hang was.
+ *
+ * Spinning costs CPU, which is the right trade here. The only reason to wait
+ * is a pending deadline, real-time code is not idle for long, and without
+ * SharedArrayBuffer there is no second thread to hand the core to. The clock
+ * is sampled once per PF_IDLE_CLOCK_EVERY passes so a wait does not turn into
+ * a storm of clock_gettime calls. */
+#define PF_IDLE_CLOCK_EVERY 4096
+/* Roughly a second of spinning before pf_idle_wait starts saying so. */
+#define PF_IDLE_SPIN_REPORT 100000000ULL
+
+static double pf_now_ms(void);
+
+/* The whole fiber table, on demand. Per-event tracing cannot answer the
+ * question that matters when a transcode wedges: not "what was the last call"
+ * but "who is every fiber waiting on". The last dump before the wedge does,
+ * on its own. */
+#ifdef PFIBER_DEBUG
+static void pf_dump_table(const char *why)
+{
+    static const char *names[] = { "free", "runnable", "blocked", "done" };
+    char buf[2048];
+    int n = snprintf(buf, sizeof(buf), "FIBERS(%s) current=%d", why,
+                     pfiber_index_of(g_current));
+    for (int i = -1; i < PFIBER_MAX; i++) {
+        pfiber_t *f = pfiber_at(i);
+        if (f->state == PF_FREE)
+            continue;
+        n += snprintf(buf + n, sizeof(buf) - n, " [%d %s on=%p dl=%d]",
+                      pfiber_index_of(f), names[f->state], f->wait_on,
+                      f->has_deadline);
+        if (n >= (int)sizeof(buf) - 128)
+            break;
+    }
+    snprintf(buf + n, sizeof(buf) - n, "\n");
+    pf_debug_js(buf);
+}
+#endif
+
+static void pf_idle_wait(double wake_at_ms)
+{
+    for (unsigned long long i = 0;; i++) {
+        if (i % PF_IDLE_CLOCK_EVERY == 0) {
+            double now = pf_now_ms();
+            for (int k = -1; k < PFIBER_MAX; k++) {
+                pfiber_t *f = pfiber_at(k);
+                if (f->state == PF_BLOCKED && f->has_deadline && now >= f->deadline_ms) {
+                    f->wait_on = NULL;
+                    f->has_deadline = 0;
+                    f->woke_by_timeout = 1;
+                    f->state = PF_RUNNABLE;
+                }
+            }
+            if (wake_at_ms > 0 && now >= wake_at_ms)
+                return;
+            /* Nothing has become runnable in a very long time. Say so instead
+             * of spinning silently: a caller reading only the trace would
+             * otherwise see it stop at whatever it last managed to print,
+             * which is not where it is stuck. */
+            if (i > PF_IDLE_SPIN_REPORT && (i / PF_IDLE_CLOCK_EVERY) % 2000 == 0)
+                pf_dump_table("idle-wait-spinning");
+        }
+    }
 }
 
 static int pfiber_index_of(pfiber_t *f)
@@ -149,11 +245,30 @@ static double pf_now_ms(void)
     return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
 }
 
-static void pfiber_ensure_main(void)
+/*
+ * (Re)capture the main fiber's context. Called at the start of every top-level
+ * invocation, not just the first one.
+ *
+ * This has to be repeatable. bind.js wraps each exec()/ffprobe() in
+ * stackSave()/stackRestore(), because ffmpeg finishes by calling exit(), which
+ * Emscripten implements by throwing, and nothing unwinds the wasm stack for
+ * it. So each call runs on a stack pointer the previous call moved and then
+ * put back, while emscripten_fiber_init_from_current_context() captures the
+ * stack pointer as it is right now. Capture it once and every later call
+ * inherits a context that describes a stack frame which no longer exists:
+ * the first exec() transcodes fine, and the second one spins at 100% CPU
+ * partway through its startup banner, where the inspector cannot even pause
+ * it because it never reaches a safepoint.
+ */
+static void pfiber_reset(void)
 {
-    if (g_initialized)
-        return;
-    g_initialized = 1;
+    for (int i = 0; i < PFIBER_MAX; i++) {
+        free(g_table[i].c_stack);
+        free(g_table[i].asyncify_stack);
+    }
+    memset(g_table, 0, sizeof(g_table));
+    g_epoch++;
+
     memset(&g_main, 0, sizeof(g_main));
     g_main.state = PF_RUNNABLE;
     g_main.asyncify_stack = malloc(PFIBER_MAIN_ASYNCIFY_STACK_SIZE);
@@ -161,7 +276,22 @@ static void pfiber_ensure_main(void)
     emscripten_fiber_init_from_current_context(&g_main.ctx, g_main.asyncify_stack,
                                                 g_main.asyncify_stack_size);
     g_current = &g_main;
+    g_initialized = 1;
     pf_heartbeat_start_js();
+}
+
+/* Exported so bind.js can call it at the top of exec()/ffprobe(). Declared
+ * without pthread_fiber.h on the FFmpeg side because the linker --wrap flags
+ * are what pull this file in; see the comment at the top of the file. */
+void pfiber_begin_call(void)
+{
+    pfiber_reset();
+}
+
+static void pfiber_ensure_main(void)
+{
+    if (!g_initialized)
+        pfiber_reset();
 }
 
 /* Wake every fiber blocked on the given mutex/cond pointer. Waking more than
@@ -190,10 +320,9 @@ static void pf_wake_waiters_on(void *ptr)
  *  3. If one exists, swap to it.
  *  4. If none exists and the caller was only voluntarily yielding (still
  *     PF_RUNNABLE), just return.
- *  5. If none exists and the caller is genuinely blocked, yield to the
- *     browser event loop for ~1ms (emscripten_sleep, needs ASYNCIFY) so
- *     real-time waits (timedwait, usleep) can make progress, then retry.
- *     A true deadlock (nothing ever becomes runnable) spins here forever
+ *  5. If none exists and the caller is genuinely blocked, spin until a
+ *     deadline expires (pf_idle_wait), then retry. A true deadlock, where
+ *     nothing is runnable and no deadline ever passes, spins here forever
  *     rather than crashing; that is a known limitation, not fixed here.
  */
 static void pfiber_reschedule(void)
@@ -271,9 +400,9 @@ static void pfiber_reschedule(void)
         if (g_current->state == PF_RUNNABLE)
             return;
 
-        pf_debug("reschedule: nothing runnable, current=%d blocked on %p, sleeping",
+        pf_debug("reschedule: nothing runnable, current=%d blocked on %p, spinning",
                  pfiber_index_of(g_current), g_current->wait_on);
-        emscripten_sleep(1);
+        pf_idle_wait(0);
     }
 }
 
@@ -407,8 +536,11 @@ int __wrap_pthread_once(pthread_once_t *once_control, void (*init_routine)(void)
 static pf_mutex_t *pf_mutex_ensure(pthread_mutex_t *mutex)
 {
     pf_mutex_t **slot = (pf_mutex_t **)(void *)mutex;
-    if (!*slot)
+    if (!*slot || (*slot)->epoch != g_epoch) {
         *slot = calloc(1, sizeof(pf_mutex_t));
+        if (*slot)
+            (*slot)->epoch = g_epoch;
+    }
     return *slot;
 }
 
@@ -421,6 +553,8 @@ int __wrap_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t 
     pf_mutex_t **slot = (pf_mutex_t **)(void *)mutex;
     free(*slot);
     *slot = calloc(1, sizeof(pf_mutex_t));
+    if (*slot)
+        (*slot)->epoch = g_epoch;
     return 0;
 }
 
@@ -436,6 +570,16 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
     pf_mutex_t *m = pf_mutex_ensure(mutex);
+    if (m->owner == g_current) {
+        /* A non-recursive lock taken twice by the same fiber can never be
+         * satisfied: the wait below would block on a lock this fiber holds.
+         * av_log() takes a static mutex, so this is where a re-entrant log
+         * call would hang. Say so loudly instead of spinning. */
+        pf_debug("mutex_lock: SELF-DEADLOCK on %p, fiber=%d",
+                 (void *)mutex, pfiber_index_of(g_current));
+        for (;;) {
+        }
+    }
     if (m->owner != NULL)
         pf_debug("mutex_lock: %p contended, owner=%d, waiter=%d",
                  (void *)mutex, pfiber_index_of(m->owner), pfiber_index_of(g_current));
@@ -567,7 +711,7 @@ int __wrap_usleep(unsigned usec)
     while (emscripten_get_now() < deadline) {
         pfiber_reschedule();
         if (emscripten_get_now() < deadline)
-            emscripten_sleep(1);
+            pf_idle_wait(deadline);
     }
     return 0;
 }
@@ -580,7 +724,7 @@ int __wrap_nanosleep(const struct timespec *req, struct timespec *rem)
     while (emscripten_get_now() < deadline) {
         pfiber_reschedule();
         if (emscripten_get_now() < deadline)
-            emscripten_sleep(1);
+            pf_idle_wait(deadline);
     }
     if (rem) {
         rem->tv_sec = 0;
