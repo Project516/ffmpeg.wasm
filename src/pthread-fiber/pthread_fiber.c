@@ -124,6 +124,8 @@ static pfiber_t *pfiber_at(int idx)
  * deadlock and aborts.
  */
 #define PF_STALL_REPORT_MS 5000
+/* Passes between clock reads. See pf_idle_wait. */
+#define PF_IDLE_CLOCK_EVERY 4096
 
 static double pf_now_ms(void);
 static int pfiber_index_of(pfiber_t *f);
@@ -161,8 +163,28 @@ static void pf_idle_wait(double wake_at_ms)
 {
     double started = pf_now_ms();
     double reported = started;
+    double now = started;
 
-    for (;;) {
+    /* Sample the clock in batches, not every pass. pf_now_ms is a clock_gettime,
+     * which is a JavaScript import under Emscripten, so reading it on every
+     * iteration turns a five millisecond wait into millions of JS calls and
+     * makes a whole transcode look like a hang. */
+    for (unsigned long long i = 0;; i++) {
+        if (i % PF_IDLE_CLOCK_EVERY == 0) {
+            now = pf_now_ms();
+            for (int k = -1; k < PFIBER_MAX; k++) {
+                pfiber_t *f = pfiber_at(k);
+                if (f->state == PF_BLOCKED && f->has_deadline) {
+                    if (now >= f->deadline_ms) {
+                        f->wait_on = NULL;
+                        f->has_deadline = 0;
+                        f->woke_by_timeout = 1;
+                        f->state = PF_RUNNABLE;
+                    }
+                }
+            }
+        }
+
         int something_can_wake_us = wake_at_ms > 0;
         for (int k = -1; k < PFIBER_MAX; k++) {
             pfiber_t *f = pfiber_at(k);
@@ -178,16 +200,6 @@ static void pf_idle_wait(double wake_at_ms)
             abort();
         }
 
-        double now = pf_now_ms();
-        for (int k = -1; k < PFIBER_MAX; k++) {
-            pfiber_t *f = pfiber_at(k);
-            if (f->state == PF_BLOCKED && f->has_deadline && now >= f->deadline_ms) {
-                f->wait_on = NULL;
-                f->has_deadline = 0;
-                f->woke_by_timeout = 1;
-                f->state = PF_RUNNABLE;
-            }
-        }
         if (wake_at_ms > 0 && now >= wake_at_ms)
             return;
 
