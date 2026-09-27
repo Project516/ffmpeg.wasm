@@ -20,6 +20,14 @@ on:
           - fast
           - full
         default: full
+      fate_only:
+        description: "Comma separated test name fragments, to rerun only those"
+        type: string
+        default: ""
+      fate_loglevel:
+        description: "Value for -loglevel, to localise a hang"
+        type: string
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
@@ -293,6 +301,9 @@ jobs:
       - name: Fetch samples
         run: node scripts/fate/fetch-samples.mjs --manifest manifest-${{ matrix.core }}.json --tag ${{ steps.tag.outputs.tag }}
       - name: Run FATE subset against the ${{ matrix.core }} core
+        env:
+          FATE_ONLY: ${{ inputs.fate_only }}
+          FATE_LOGLEVEL: ${{ inputs.fate_loglevel }}
         run: |
           node scripts/fate/run.mjs \
             --core packages/core${{ matrix.core == 'mt' && '-mt' || '' }} \

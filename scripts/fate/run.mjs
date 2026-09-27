@@ -18,6 +18,11 @@
 // below), which the parent kills, process group included, if it outlives
 // CHILD_TIMEOUT_MS; see scripts/bench/run.mjs for the same pattern.
 //
+// FATE_LOGLEVEL appends -loglevel to each test, for localising a hang inside
+// FFmpeg's own setup path. FATE_ONLY narrows the run to tests whose name
+// contains one of the comma separated fragments, so iterating on one failure
+// does not pay the per-test watchdog for the ones already known to pass.
+//
 // Usage: node scripts/fate/run.mjs --core packages/core --manifest manifest.json --out results.json
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
@@ -119,7 +124,10 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
   // readable: ffmpeg's own progress lines show whether the run was still
   // advancing, and the fiber shim's reports show where it was parked.
   core.setLogger(({ message }) => {
+    // Collected lines are only read back on failure, and a trace-level run
+    // produces millions of them, so this keeps the tail and drops the rest.
     logLines.push(message);
+    if (logLines.length > 200) logLines.shift();
     process.stderr.write(message.endsWith("\n") ? message : message + "\n");
   });
   core.setProgress(() => {});
@@ -132,7 +140,9 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
 
   const args = test.args.replaceAll("$(TARGET_SAMPLES)", SAMPLES_MOUNT).replaceAll("$(TARGET_PATH)", BUILD_ROOT);
   const outPath = "/fate-out";
-  const argv = [...tokenize(args), "-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath];
+  const argv = [...tokenize(args)];
+  if (process.env.FATE_LOGLEVEL) argv.push("-loglevel", process.env.FATE_LOGLEVEL);
+  argv.push("-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath);
 
   let ret;
   const execStart = Date.now();
@@ -236,8 +246,24 @@ async function main() {
     return;
   }
 
-  const { core: corePkg, manifest: manifestPath, out } = args;
+  const { core: corePkg, out } = args;
+  let manifestPath = args.manifest;
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+  // Each child re-reads the manifest by path and indexes into it, so a narrowed
+  // run has to be written back out for the indexes to line up.
+  const only = (process.env.FATE_ONLY ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let narrowedDir = null;
+  if (only.length > 0) {
+    manifest.tests = manifest.tests.filter((t) => only.some((frag) => t.name.includes(frag)));
+    narrowedDir = mkdtempSync(join(tmpdir(), "fate-only-"));
+    manifestPath = join(narrowedDir, "manifest.json");
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log(`FATE_ONLY: narrowed to ${manifest.tests.length} test(s)`);
+  }
 
   const ffmpegSrcTests = join(repoRoot, cacheDirForTag(manifest.tag), "ffmpeg-src", "tests");
   const refDir = join(ffmpegSrcTests, "ref", "fate");
@@ -295,6 +321,7 @@ async function main() {
     if (summary.fail > 0) process.exitCode = 1;
   } finally {
     rmSync(generatedDir, { recursive: true, force: true });
+    if (narrowedDir) rmSync(narrowedDir, { recursive: true, force: true });
   }
 }
 

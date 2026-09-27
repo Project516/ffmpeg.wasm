@@ -108,6 +108,10 @@ typedef struct {
 
 static unsigned g_epoch = 1;
 
+/* Values this file writes into a pthread_once_t. See __wrap_pthread_once. */
+#define PF_ONCE_RUNNING 2
+#define PF_ONCE_DONE 1
+
 /* Wall-clock of the last fiber switch, and the switch and wait counts since
  * the call started. A stall is progress that stopped, not one long wait:
  * ffmpeg_sched's sch_wait() polls on a short timeout, so a pipeline that will
@@ -640,11 +644,30 @@ int __wrap_pthread_equal(pthread_t a, pthread_t b)
 
 int __wrap_pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
 {
-    /* Only one fiber's C code ever executes at a time, so there is no real
-     * concurrency to guard against here. */
-    if (*once_control == 0) {
-        *once_control = 1;
+    pfiber_ensure_main();
+
+    /* A fiber that arrives while the initializer is still running has to wait
+     * for it, not run the routine again and not carry on either. Real
+     * pthread_once blocks, and the routines behind it (ff_h264_decode_init_vlc
+     * and friends) fill in tables of pointers that the first fiber is still
+     * writing; letting a second fiber through hands it half-built state, and
+     * with frame threaded decoding there is more than one fiber in the H.264
+     * decoder at a time.
+     *
+     * "Running" is this file's own marker so it cannot collide with the 0 and 1
+     * a real pthread_once uses. Nothing else looks at *once_control. */
+    if (*once_control == PF_ONCE_RUNNING) {
+        g_current->wait_on = once_control;
+        pf_block(g_current);
+        while (*once_control == PF_ONCE_RUNNING)
+            pfiber_reschedule();
+    }
+
+    if (*once_control != PF_ONCE_DONE) {
+        *once_control = PF_ONCE_RUNNING;
         init_routine();
+        *once_control = PF_ONCE_DONE;
+        pf_wake_waiters_on(once_control);
     }
     return 0;
 }
