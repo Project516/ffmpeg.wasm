@@ -128,21 +128,33 @@ static pfiber_t *pfiber_at(int idx)
 static double pf_now_ms(void);
 static int pfiber_index_of(pfiber_t *f);
 
+/* Straight to console.error, not stderr. stderr in this module is
+ * Module.printErr, which is Module.logger, and every caller that runs a
+ * transcode either leaves that a no-op or replaces it with a progress
+ * handler, so a stall report written there is discarded and the run just looks
+ * like a hang. */
+EM_JS(void, pf_report_js, (const char *s), { console.error(UTF8ToString(s)); });
+
 /* Writes every fiber's state and what it is blocked on, so a stall says who is
  * waiting on whom instead of just hanging. */
 static void pf_report_stall(double waited_ms)
 {
     static const char *names[] = { "free", "runnable", "blocked", "done" };
-    fprintf(stderr, "pthread-fiber: stalled for %.0fms. fibers:", waited_ms);
+    char buf[2048];
+    int n = snprintf(buf, sizeof(buf),
+                     "pthread-fiber: stalled for %.0fms. fibers:", waited_ms);
     for (int i = -1; i < PFIBER_MAX; i++) {
         pfiber_t *f = pfiber_at(i);
         if (f->state == PF_FREE)
             continue;
-        fprintf(stderr, " [%d %s on %p%s]", pfiber_index_of(f), names[f->state],
-                f->wait_on, f->has_deadline ? " timed" : "");
+        n += snprintf(buf + n, sizeof(buf) - n, " [%d %s on %p%s]",
+                      pfiber_index_of(f), names[f->state], f->wait_on,
+                      f->has_deadline ? " timed" : "");
+        if (n >= (int)sizeof(buf) - 96)
+            break;
     }
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    snprintf(buf + n, sizeof(buf) - n, "\n");
+    pf_report_js(buf);
 }
 
 static void pf_idle_wait(double wake_at_ms)
@@ -158,10 +170,11 @@ static void pf_idle_wait(double wake_at_ms)
                 something_can_wake_us = 1;
         }
         if (!something_can_wake_us) {
-            pf_report_stall(pf_now_ms() - started);
-            fprintf(stderr,
-                    "pthread-fiber: no fiber is runnable and none has a "
-                    "pending deadline, so nothing can ever run again.\n");
+            char msg[256];
+            snprintf(msg, sizeof(msg),
+                     "pthread-fiber: no fiber is runnable and none has a "
+                     "pending deadline, so nothing can ever run again.\n");
+            pf_report_js(msg);
             abort();
         }
 
