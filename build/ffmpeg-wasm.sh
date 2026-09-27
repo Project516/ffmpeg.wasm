@@ -73,6 +73,18 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # uses and nothing here calls. Each fiber carries its own asyncify stack
     # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
     -sASYNCIFY_STACK_SIZE=65536
+    # A fiber whose stack runs out does not fault on wasm, it writes past the end
+    # of its allocation and takes the heap with it, which surfaces later as
+    # whatever the corruption reaches. That is the same shape as a logic hang,
+    # so the check is on: STACK_OVERFLOW_CHECK=2 tests the stack pointer on
+    # every function entry, and ASSERTIONS=2 turns on the runtime checks that
+    # report one instead of corrupting quietly. Both are only meaningful with
+    # pthread_fiber.c's emscripten_stack_set_limits() calls around every swap,
+    # since the checker otherwise compares against whichever fiber's bounds
+    # were set last rather than the one actually running. They cost speed, so
+    # they come out once the st core is not hanging.
+    -sASSERTIONS=2
+    -sSTACK_OVERFLOW_CHECK=2
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach
