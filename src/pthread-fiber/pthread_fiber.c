@@ -31,24 +31,35 @@
 #include <unistd.h>
 
 #define PFIBER_MAX 48
-/* 8MB per worker fiber's C stack. At 2MB the filter task overflowed: it
- * carries the deepest chain in the program (filter_thread -> read_frames ->
- * ... -> avcodec_open2 -> ... -> av_log), and the overflow corrupted the heap
- * silently rather than faulting. Raise it if a future FFmpeg needs more.
+
+/* Each fiber gets a C stack and, separately, the asyncify stack that
+ * emscripten_fiber_swap unwinds into.
  *
- * The asyncify stack is separate and is what emscripten_fiber_swap unwinds
- * into. It has to hold the same chain, hence the same size. This is per fiber
- * and unrelated to -sASYNCIFY_STACK_SIZE, which sizes the single module-wide
- * stack that only emscripten_sleep() uses, and nothing here calls that. */
+ * The two must be the same size, and that is the whole point of the pair.
+ * Unwinding saves every frame it passes through onto the asyncify stack, so
+ * the asyncify stack has to hold the deepest chain the fiber can be in, which
+ * is bounded by its C stack. Too small does not fault: the unwind writes past
+ * the end of the region and the damage shows up later as something unrelated,
+ * which is what a st core that hangs on some transcodes and not others looks
+ * like.
+ *
+ * 8MB because 2MB was tried and the filter task overflowed, carrying the
+ * deepest chain in the program: filter_thread -> read_frames -> ... ->
+ * avcodec_open2 -> ... -> av_log.
+ *
+ * These are per fiber and unrelated to -sASYNCIFY_STACK_SIZE, which sizes the
+ * single module-wide stack that only emscripten_sleep() uses. Nothing here
+ * calls that. */
 #define PFIBER_STACK_SIZE (8 * 1024 * 1024)
-#define PFIBER_ASYNCIFY_STACK_SIZE (1024 * 1024)
-/* g_main runs the whole of main() on the module's 5MB stack, so its asyncify
- * stack has to hold an unwind of wherever it happens to be when it blocks,
- * which is deep: ffmpeg_opt_run -> transcode -> scheduler_run -> sch_wait ->
- * pthread_cond_timedwait -> the scheduler. 64KB was not enough, and
- * overflowing this does not fault: the unwind writes past the region and the
- * damage surfaces somewhere unrelated later. */
-#define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (1024 * 1024)
+#define PFIBER_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
+
+/* g_main is the odd one out: it runs the whole of main() on the module's own
+ * stack (-sSTACK_SIZE=5MB in build/ffmpeg-wasm.sh) rather than on a stack
+ * allocated here, so its asyncify stack has to cover that. Same rule, and the
+ * same reason 64KB and then 1MB were not enough: ffmpeg_opt_run -> transcode
+ * -> scheduler_run -> sch_wait -> pthread_cond_timedwait -> the scheduler is
+ * a deep chain to be unwinding. */
+#define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
 
 typedef struct pfiber {
     emscripten_fiber_t ctx;
