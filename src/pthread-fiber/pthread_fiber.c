@@ -118,44 +118,74 @@ static pfiber_t *pfiber_at(int idx)
  *
  * So the spin is bounded rather than open-ended. It is only ever waiting for a
  * deadline, and FFmpeg's are short (ffmpeg_sched's sch_wait() polls every
- * 5ms). If nothing is runnable and no deadline is pending, no amount of
- * waiting can help: that is a real deadlock, so say so and abort rather than
- * peg the tab at 100% CPU forever. The clock is sampled once every
- * PF_IDLE_CLOCK_EVERY passes so a wait is not a storm of clock_gettime calls.
+ * 5ms). A wait that outlasts PF_STALL_REPORT_MS with nothing becoming runnable
+ * is reported fiber by fiber, so a stall is diagnosable from a log instead of
+ * being a frozen tab, and one with no deadline pending at all is a real
+ * deadlock and aborts.
  */
-#define PF_IDLE_CLOCK_EVERY 4096
+#define PF_STALL_REPORT_MS 5000
 
 static double pf_now_ms(void);
 static int pfiber_index_of(pfiber_t *f);
 
+/* Writes every fiber's state and what it is blocked on, so a stall says who is
+ * waiting on whom instead of just hanging. */
+static void pf_report_stall(double waited_ms)
+{
+    static const char *names[] = { "free", "runnable", "blocked", "done" };
+    fprintf(stderr, "pthread-fiber: stalled for %.0fms. fibers:", waited_ms);
+    for (int i = -1; i < PFIBER_MAX; i++) {
+        pfiber_t *f = pfiber_at(i);
+        if (f->state == PF_FREE)
+            continue;
+        fprintf(stderr, " [%d %s on %p%s]", pfiber_index_of(f), names[f->state],
+                f->wait_on, f->has_deadline ? " timed" : "");
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
 static void pf_idle_wait(double wake_at_ms)
 {
-    for (unsigned long long i = 0;; i++) {
-        if (i % PF_IDLE_CLOCK_EVERY)
-            continue;
-        double now = pf_now_ms();
+    double started = pf_now_ms();
+    double reported = started;
+
+    for (;;) {
         int something_can_wake_us = wake_at_ms > 0;
         for (int k = -1; k < PFIBER_MAX; k++) {
             pfiber_t *f = pfiber_at(k);
-            if (f->state != PF_BLOCKED || !f->has_deadline)
-                continue;
-            something_can_wake_us = 1;
-            if (now >= f->deadline_ms) {
+            if (f->state == PF_BLOCKED && f->has_deadline)
+                something_can_wake_us = 1;
+        }
+        if (!something_can_wake_us) {
+            pf_report_stall(pf_now_ms() - started);
+            fprintf(stderr,
+                    "pthread-fiber: no fiber is runnable and none has a "
+                    "pending deadline, so nothing can ever run again.\n");
+            abort();
+        }
+
+        double now = pf_now_ms();
+        for (int k = -1; k < PFIBER_MAX; k++) {
+            pfiber_t *f = pfiber_at(k);
+            if (f->state == PF_BLOCKED && f->has_deadline && now >= f->deadline_ms) {
                 f->wait_on = NULL;
                 f->has_deadline = 0;
                 f->woke_by_timeout = 1;
                 f->state = PF_RUNNABLE;
             }
         }
-        if (!something_can_wake_us) {
-            fprintf(stderr,
-                    "pthread-fiber: every fiber is blocked and none has a "
-                    "pending deadline, so nothing can ever run again. This is "
-                    "a deadlock in the caller, not a wait.\n");
-            abort();
-        }
         if (wake_at_ms > 0 && now >= wake_at_ms)
             return;
+
+        /* Nothing became runnable. Normally that costs one deadline, a few
+         * milliseconds. Needing far longer than any deadline FFmpeg arms means
+         * the wait is not going to end, so report it rather than freezing the
+         * page. */
+        if (now - reported > PF_STALL_REPORT_MS) {
+            pf_report_stall(now - started);
+            reported = now;
+        }
     }
 }
 
