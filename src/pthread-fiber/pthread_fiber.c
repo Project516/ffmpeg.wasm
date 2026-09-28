@@ -646,8 +646,28 @@ static void pfiber_trampoline(void *arg)
 {
     pfiber_t *f = (pfiber_t *)arg;
 
+    /* Say which fiber started and which returned, so a task that never gets
+     * picked up is distinguishable from one that starts and never comes back.
+     * pthread_create in this shim does not swap to the new fiber, it only
+     * marks it PF_RUNNABLE, so a fiber's first line runs some time after the
+     * pthread_create that made it, and the fate logs alone cannot show whether
+     * that ever happened. pf_report_js is the same console.error plus logger
+     * route, and run.mjs keeps anything matching "pthread-fiber:". */
+    {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "pthread-fiber: fiber %d started.\n",
+                 pfiber_index_of(f));
+        pf_report_js(msg);
+    }
+
     f->retval = f->start_routine(f->arg);
     f->state = PF_DONE;
+    {
+        char msg[128];
+        snprintf(msg, sizeof(msg), "pthread-fiber: fiber %d returned %p.\n",
+                 pfiber_index_of(f), f->retval);
+        pf_report_js(msg);
+    }
     if (f->join_waiter) {
         pf_unblock(f->join_waiter);
         f->join_waiter = NULL;
