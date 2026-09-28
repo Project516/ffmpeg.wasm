@@ -130,6 +130,10 @@ static unsigned long long g_idle_waits;
  * window started. */
 static unsigned long long g_reported_switches;
 static double g_rate_ms;
+/* Passes of the contended-mutex wait loop, counted per fiber so the report
+ * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
+ * for why the stall reports cannot see this case on their own. */
+static unsigned long long g_mutex_spins;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -435,6 +439,7 @@ static void pfiber_reset(void)
     g_idle_waits = 0;
     g_reported_switches = 0;
     g_rate_ms = g_last_switch_ms;
+    g_mutex_spins = 0;
     g_initialized = 1;
 }
 
@@ -827,6 +832,25 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
         pfiber_reschedule();
         g_current->wait_on = NULL;
         pf_unblock(g_current);
+        /* This loop hides a hang from the stall reports. Each pass goes through
+         * pf_block, which restarts blocked_since_ms, so a fiber that comes back
+         * here over and over looks like it is making progress: it is never
+         * blocked for PF_BLOCK_REPORT_MS, and every pass counts as a switch, so
+         * neither the long-block nor the switch-rate report fires either. A
+         * mutex held by a fiber that will never release it looks exactly like a
+         * busy pipeline from inside the scheduler. Count the passes so that
+         * case is visible. */
+        if (++g_mutex_spins % 1000000 == 0) {
+            char msg[256];
+            snprintf(msg, sizeof(msg),
+                     "pthread-fiber: fiber %d has spun on mutex %p, held by "
+                     "fiber %d, for %llu passes.\n",
+                     pfiber_index_of(g_current), (void *)mutex,
+                     m->owner ? pfiber_index_of(m->owner) : -1,
+                     (unsigned long long)g_mutex_spins);
+            pf_report_js(msg);
+            pf_report_stall(pf_now_ms());
+        }
     }
     m->owner = g_current;
     return 0;
