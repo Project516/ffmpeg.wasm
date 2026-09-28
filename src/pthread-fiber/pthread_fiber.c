@@ -213,12 +213,22 @@ static void pf_unblock(pfiber_t *f)
  * work skipped between them. See pf_idle_wait. */
 #define PF_IDLE_CLOCK_EVERY 4096
 
-/* Straight to console.error, not stderr. stderr in this module is
- * Module.printErr, which is Module.logger, and every caller that runs a
- * transcode either leaves that a no-op or replaces it with a progress
- * handler, so a stall report written there is discarded and the run just looks
- * like a hang. */
-EM_JS(void, pf_report_js, (const char *s), { console.error(UTF8ToString(s)); });
+/* Reports go to console.error, and to Module.logger as well.
+ *
+ * console.error alone is not enough to diagnose a hang. The runners that
+ * matter here capture Module.logger, not the console: scripts/fate/run.mjs
+ * keeps the last 200 logger lines and puts them in the results JSON, and
+ * scripts/dump-test-page.mjs attaches to worker console output. console.error
+ * to a pipe is written asynchronously in Node, so a report written while the
+ * process is being SIGKILLed at a watchdog can be lost, and a hang produces its
+ * reports exactly during that window. Module.logger is collected in-process, so
+ * whatever the caller records survives. */
+EM_JS(void, pf_report_js, (const char *s), {
+  var msg = UTF8ToString(s);
+  console.error(msg);
+  var logger = Module['logger'];
+  if (logger) logger({ type: 'stderr', message: msg });
+});
 
 /* Writes every fiber's state, what it is blocked on and for how long, so a
  * stall says who is waiting on whom instead of just hanging. */

@@ -26,7 +26,7 @@
 // Usage: node scripts/fate/run.mjs --core packages/core --manifest manifest.json --out results.json
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -123,9 +123,34 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
   // far it got. Writing each line out as it arrives is what makes a hang
   // readable: ffmpeg's own progress lines show whether the run was still
   // advancing, and the fiber shim's reports show where it was parked.
-  core.setLogger(({ message }) => {
-    // Collected lines are only read back on failure, and a trace-level run
-    // produces millions of them, so this keeps the tail and drops the rest.
+  // The fiber shim's stall reports (src/pthread-fiber/pthread_fiber.c) go to
+  // console.error and to this logger, and they are the only thing that says
+  // where a hanging run is parked. Two things lose them: the tail below
+  // evicts them along with a trace-level run's millions of lines, and
+  // console.error to a pipe is written asynchronously, so a report written
+  // while the watchdog is SIGKILLing the child can go out unflushed.
+  //
+  // A hang never returns from exec(), so these cannot be attached to a result:
+  // the child is killed and the parent writes the failure, not the child.
+  // Append each one to a sidecar file as it arrives, and have the parent read
+  // that back for any failure, which is where the evidence has to survive.
+  const stallFile = process.env.FATE_STALL_FILE;
+  core.setLogger((event) => {
+    const { message } = event ?? {};
+    if (typeof message !== "string") return;
+    if (message.includes("pthread-fiber:")) {
+      if (stallFile) {
+        try {
+          appendFileSync(stallFile, message.endsWith("\n") ? message : message + "\n");
+        } catch {
+          // best effort; a lost report must not fail the run
+        }
+      }
+      process.stderr.write(message.endsWith("\n") ? message : message + "\n");
+      return;
+    }
+    // Everything else keeps the tail: collected lines are only read back on
+    // failure, and a trace-level run produces millions of them.
     logLines.push(message);
     if (logLines.length > 200) logLines.shift();
     process.stderr.write(message.endsWith("\n") ? message : message + "\n");
@@ -199,11 +224,25 @@ async function runChild(args) {
 // runUnderTime for the same shape.
 function runIndexWithWatchdog({ corePkg, manifestPath, index, generatedDir }) {
   return new Promise((resolvePromise) => {
-    const resultPath = join(tmpdir(), `fate-result-${process.pid}-${index}-${Math.random().toString(36).slice(2)}.json`);
+    const tag = `${process.pid}-${index}-${Math.random().toString(36).slice(2)}`;
+    const resultPath = join(tmpdir(), `fate-result-${tag}.json`);
+    // Where the child appends the fiber shim's stall reports as they arrive.
+    // A hang is killed rather than returned from, so this is the only channel
+    // that survives one; see the note where runExec writes to it.
+    const stallPath = join(tmpdir(), `fate-stall-${tag}.log`);
+    const readStalls = () => {
+      try {
+        const text = readFileSync(stallPath, "utf8").trim();
+        return text ? text.split("\n") : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
     const child = spawn(
       process.execPath,
       [scriptPath, "--core", corePkg, "--manifest", manifestPath, "--index", String(index), "--result", resultPath, "--generated-dir", generatedDir],
-      { stdio: "inherit", detached: true },
+      { stdio: "inherit", detached: true, env: { ...process.env, FATE_STALL_FILE: stallPath } },
     );
 
     let timedOut = false;
@@ -222,18 +261,21 @@ function runIndexWithWatchdog({ corePkg, manifestPath, index, generatedDir }) {
     });
     child.on("exit", () => {
       clearTimeout(timer);
+      const stall = readStalls();
       if (timedOut) {
         rmSync(resultPath, { force: true });
-        resolvePromise({ status: "fail", reason: "timeout" });
+        resolvePromise({ status: "fail", reason: "timeout", stall });
         return;
       }
       try {
         const result = JSON.parse(readFileSync(resultPath, "utf8"));
+        if (result.status !== "pass" && stall) result.stall = stall;
         resolvePromise(result);
       } catch (err) {
-        resolvePromise({ status: "fail", reason: `child produced no result: ${err.message}` });
+        resolvePromise({ status: "fail", reason: `child produced no result: ${err.message}`, stall });
       } finally {
         rmSync(resultPath, { force: true });
+        rmSync(stallPath, { force: true });
       }
     });
   });
