@@ -134,6 +134,10 @@ static double g_rate_ms;
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
 static unsigned long long g_mutex_spins;
+/* Wall clock of the last unconditional heartbeat, so a run that satisfies none
+ * of the stall thresholds still says whether the scheduler is being entered.
+ * See pf_report_if_stalled. */
+static double g_heartbeat_ms;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -250,6 +254,24 @@ static void pf_report_stall(double now_ms)
  * otherwise keep the whole diagnostic quiet. */
 static void pf_report_if_stalled(double now)
 {
+    /* Unconditional heartbeat, on a wall clock rather than on any of the
+     * thresholds below. Every other report in this file needs something to line
+     * up first: a gap between switches, a switch rate over a threshold, a fiber
+     * blocked past a limit. A run that never satisfies any of those prints
+     * nothing at all, which is indistinguishable from a run that never reached
+     * this code. That is exactly the ambiguity the six hanging fate tests are
+     * in, so this one just asks, every 5s, whether the scheduler is still
+     * being entered at all and who is in it. */
+    if (now - g_heartbeat_ms >= 5000) {
+        g_heartbeat_ms = now;
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "pthread-fiber: alive at %.0fms, %llu switches, %llu waits, "
+                 "current fiber %d.\n",
+                 now, g_switches, g_idle_waits, pfiber_index_of(g_current));
+        pf_report_js(msg);
+    }
+
     /* Nothing has run at all: nothing is runnable, which pf_idle_wait's abort
      * catches unless a poll is still pending. ffmpeg_sched's main fiber keeps
      * one, polling stats_period apart for the muxers to report in. */
@@ -440,6 +462,7 @@ static void pfiber_reset(void)
     g_reported_switches = 0;
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
+    g_heartbeat_ms = g_last_switch_ms;
     g_initialized = 1;
 }
 
