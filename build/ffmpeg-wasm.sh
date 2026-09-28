@@ -77,14 +77,22 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # of its allocation and takes the heap with it, which surfaces later as
     # whatever the corruption reaches. That is the same shape as a logic hang,
     # so the check is on: STACK_OVERFLOW_CHECK=2 tests the stack pointer on
-    # every function entry, and ASSERTIONS=2 turns on the runtime checks that
-    # report one instead of corrupting quietly. Both are only meaningful with
-    # pthread_fiber.c's emscripten_stack_set_limits() calls around every swap,
-    # since the checker otherwise compares against whichever fiber's bounds
-    # were set last rather than the one actually running. They cost speed, so
-    # they come out once the st core is not hanging.
-    -sASSERTIONS=2
+    # every function entry and reports one instead of corrupting quietly. It is
+    # only meaningful with pthread_fiber.c's emscripten_stack_set_limits() calls
+    # around every swap, since the checker otherwise compares against whichever
+    # fiber's bounds were set last rather than the one actually running.
     -sSTACK_OVERFLOW_CHECK=2
+    # ASSERTIONS also turns on emscripten's checkIncomingModuleAPI(), which
+    # aborts at load when the caller supplies a Module property that is not in
+    # INCOMING_MODULE_JS_API. @project516/ffmpeg-wasm always supplies
+    # mainScriptUrlOrBlob (see packages/ffmpeg/src/worker.ts) and bind.js reads
+    # it in _locateFile, but emscripten only adds that property to the incoming
+    # list for a PTHREADS build, and the st core has none: without pthreads
+    # libpthread.js, which is what pulls it in, is not linked. So ASSERTIONS
+    # makes the st core fail to load while the mt core is fine. It costs speed
+    # too, so it comes out; STACK_OVERFLOW_CHECK is what the hang hunt needs
+    # and it works on its own.
+    -sASSERTIONS=0
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach
