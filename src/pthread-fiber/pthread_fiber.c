@@ -469,6 +469,41 @@ static void pf_wake_waiters_on(void *ptr)
     }
 }
 
+/* Bounds check on the asyncify stack, which has none of its own.
+ *
+ * A fiber's C frames are unwound onto this buffer when it is switched away
+ * from, and emscripten_fiber_swap does not check it: the unwind walks the stack
+ * pointer down and writes each frame without ever comparing it against the end
+ * of the buffer. -sSTACK_OVERFLOW_CHECK does not cover it either, that one
+ * watches the C stack, which is a different allocation. So an unwind deeper than
+ * the buffer writes past it into whatever the heap put next, and the run then
+ * misbehaves somewhere unrelated to the cause: a hang, or a crash in code that
+ * has nothing to do with it. This is the only place both ends of the buffer are
+ * known, so the check goes here.
+ *
+ * Called after a switch has completed, so an overflow it reports has already
+ * happened. It is a report, not prevention: the distance past the end is what
+ * says whether the buffer is too small, which is the number needed to size it.
+ */
+static void pf_check_asyncify_stack(pfiber_t *f)
+{
+    char *low = f->asyncify_stack;
+    char *high = low + f->asyncify_stack_size;
+    char *sp = (char *)f->ctx.asyncify_data.stack_ptr;
+
+    if (sp >= low && sp <= high)
+        return;
+
+    char msg[256];
+    snprintf(msg, sizeof(msg),
+             "pthread-fiber: fiber %d unwound outside its %zu byte asyncify "
+             "stack, stack pointer %p against buffer %p..%p.\n",
+             pfiber_index_of(f), f->asyncify_stack_size,
+             (void *)sp, (void *)low, (void *)high);
+    pf_report_js(msg);
+    abort();
+}
+
 /*
  * The scheduler. Called from every blocking point. On each pass:
  *  1. Free the stacks of any finished, detached fiber (must happen here,
@@ -543,17 +578,17 @@ static void pfiber_reschedule(void)
             g_last_switch_ms = pf_now_ms();
             pfiber_t *prev = g_current;
             g_current = next;
-            /* emscripten_fiber_swap does not update the stack-overflow
-             * checker's bounds (see emscripten/system/lib/libc/
-             * emscripten_fiber.c: only *_init sets fiber->stack_base/limit,
-             * swap never calls emscripten_stack_set_limits). Without this,
-             * -sSTACK_OVERFLOW_CHECK validates every fiber's stack pointer
-             * against whichever fiber happened to set the limits last,
-             * catching nothing real. Point it at the fiber we are about to
-             * run, then restore our own once we get control back. */
+            /* emscripten_fiber_swap's own finishContextSwitch already points
+             * -sSTACK_OVERFLOW_CHECK at the fiber being entered, so these two
+             * calls only restore the outgoing fiber's bounds on the way back.
+             * Kept explicit because the swap is async and this is the only
+             * place that knows which fiber is which. */
             emscripten_stack_set_limits(next->ctx.stack_base, next->ctx.stack_limit);
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             emscripten_stack_set_limits(prev->ctx.stack_base, prev->ctx.stack_limit);
+            /* Control is back on prev, so prev's unwind has just finished and
+             * its asyncify stack pointer is where the unwind stopped. */
+            pf_check_asyncify_stack(prev);
             return;
         }
 
