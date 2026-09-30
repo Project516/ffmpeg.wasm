@@ -35,12 +35,9 @@
  * complexity is well under a dozen. Overridable at build time for the ones
  * that are not.
  *
- * The cost is per live fiber, not per slot: a fiber allocates its C stack and
- * asyncify stack on creation and frees them when it is reaped, so a run with
- * three threads alive at once pays for three, not for PFIBER_MAX. The ceiling
- * therefore bounds what a single run may create rather than what it reserves,
- * and __wrap_pthread_create reports it and returns EAGAIN rather than growing
- * past the table. */
+ * The cost is per live fiber, not per slot, so this bounds what one run may
+ * create rather than what it reserves. __wrap_pthread_create reports the
+ * ceiling and returns EAGAIN rather than growing past the table. */
 #ifndef PFIBER_MAX
 #define PFIBER_MAX 48
 #endif
@@ -73,6 +70,9 @@
  * -> scheduler_run -> sch_wait -> pthread_cond_timedwait -> the scheduler is
  * a deep chain to be unwinding. */
 #define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
+
+/* Wrapped mutex operations between forced switches. See pf_maybe_preempt. */
+#define PF_PREEMPT_EVERY 1024
 
 typedef struct pfiber {
     emscripten_fiber_t ctx;
@@ -141,10 +141,16 @@ static double g_rate_ms;
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
 static unsigned long long g_mutex_spins;
+/* g_main's stack bounds. Read during reset, because once a fiber has run they
+ * report whichever fiber was last entered. */
+static void *g_main_stack_base, *g_main_stack_limit;
+
 /* Wall clock of the last unconditional heartbeat, so a run that satisfies none
  * of the stall thresholds still says whether the scheduler is being entered.
  * See pf_report_if_stalled. */
 static double g_heartbeat_ms;
+/* Reset by every switch, so a moving pipeline never reaches the forced one. */
+static unsigned g_preempt_countdown = PF_PREEMPT_EVERY;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -463,6 +469,9 @@ static void pfiber_reset(void)
     free(g_main.asyncify_stack);
     memset(&g_main, 0, sizeof(g_main));
     g_main.state = PF_RUNNABLE;
+    /* See g_main_stack_base: this is the one moment they still describe it. */
+    g_main_stack_base = (void *)emscripten_stack_get_base();
+    g_main_stack_limit = (void *)emscripten_stack_get_end();
     g_main.asyncify_stack = malloc(PFIBER_MAIN_ASYNCIFY_STACK_SIZE);
     g_main.asyncify_stack_size = PFIBER_MAIN_ASYNCIFY_STACK_SIZE;
     if (!g_main.asyncify_stack) {
@@ -480,6 +489,7 @@ static void pfiber_reset(void)
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
     g_heartbeat_ms = g_last_switch_ms;
+    g_preempt_countdown = PF_PREEMPT_EVERY;
     g_initialized = 1;
 }
 
@@ -621,16 +631,21 @@ static void pfiber_reschedule(void)
         if (next) {
             g_switches++;
             g_last_switch_ms = pf_now_ms();
+            g_preempt_countdown = PF_PREEMPT_EVERY;
             pfiber_t *prev = g_current;
             g_current = next;
-            /* emscripten_fiber_swap's own finishContextSwitch already points
-             * -sSTACK_OVERFLOW_CHECK at the fiber being entered, so these two
-             * calls only restore the outgoing fiber's bounds on the way back.
-             * Kept explicit because the swap is async and this is the only
-             * place that knows which fiber is which. */
-            emscripten_stack_set_limits(next->ctx.stack_base, next->ctx.stack_limit);
+            /* Only the way back needs fixing up, and only for g_main: it runs
+             * on the module stack, which
+             * emscripten_fiber_init_from_current_context does not record in
+             * g_main.ctx, so restoring from there leaves a fiber's bounds in
+             * force and bind.js's stackRestore then aborts. */
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
-            emscripten_stack_set_limits(prev->ctx.stack_base, prev->ctx.stack_limit);
+            if (prev == &g_main)
+                emscripten_stack_set_limits(g_main_stack_base,
+                                            g_main_stack_limit);
+            else
+                emscripten_stack_set_limits(prev->ctx.stack_base,
+                                            prev->ctx.stack_limit);
             /* Control is back on prev, so prev's unwind has just finished and
              * its asyncify stack pointer is where the unwind stopped. */
             pf_check_asyncify_stack(prev);
@@ -866,9 +881,22 @@ int __wrap_pthread_mutex_destroy(pthread_mutex_t *mutex)
     return 0;
 }
 
+/* Stand in for the preemption FFmpeg's filter task assumes: it can ask for
+ * input, be told there is none and come straight back around, and a kernel
+ * would end that by handing the CPU to the next runnable thread. Every
+ * blocking point takes a mutex first, so a counter there breaks the spin. */
+static void pf_maybe_preempt(void)
+{
+    if (--g_preempt_countdown)
+        return;
+    g_preempt_countdown = PF_PREEMPT_EVERY;
+    pfiber_reschedule();
+}
+
 int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
+    pf_maybe_preempt();
     pf_mutex_t *m = pf_mutex_ensure(mutex);
     if (m->owner == g_current) {
         /* A non-recursive lock taken twice by the same fiber can never be
