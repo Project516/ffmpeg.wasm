@@ -30,16 +30,26 @@ pthread shim instead.
    Emscripten fibers, linked in via `-Wl,--wrap`. `src/fftools` (the old
    vendored n5.1.10 sources) is dead code kept until this is confirmed
    green in CI, then removed.
+   Open: the st core hangs on video transcodes (`fate (st)` 19/25, `tests`,
+   `node-tests`). Not the muxer. A failing run starts the encoder task
+   (fiber 0) and the filtergraph task (fiber 1) and then stops: the muxer
+   task is never created, so the stall is in the format negotiation
+   between the filtergraph and the encoder, not in `muxer_thread`. One
+   fiber runs C without ever yielding, which is why the stall reports in
+   `src/pthread-fiber` stay silent: they are only reachable by switching,
+   and switching is what stopped happening. Reproduces locally and
+   100% of the time with `testsrc=r=7:d=10` against a downloaded core.
 
-   Open: the st core hung on video transcodes (`fate (st)` 19/25, `tests`,
-   `node-tests`). It was the filter task, not the muxer: `filter_thread` can
-   ask for input, be told there is none and come straight back around without
-   reaching a blocking primitive, and a fiber only gives the CPU up where the
-   shim says to. A kernel would hand it to the next runnable thread, so the
-   stall was silent, the shim's reports being reachable only by switching.
-   `pf_maybe_preempt` in `src/pthread-fiber` forces a switch every
-   `PF_PREEMPT_EVERY` wrapped mutex operations, which that loop passes through
-   on every pass. `src/fftools` is now dead code and is removed in a follow-up.
+   Strongest lead: forcing a switch from `__wrap_pthread_mutex_lock`
+   (a preemption tick, to stand in for the preemption the filter task
+   assumes) does reach that spin, but aborts with
+   `Attempt to set SP to 0x01347650, with stack limits
+   [0x02b89b68 - 0x03389b68]`. That range is 8MB, which is
+   `PFIBER_STACK_SIZE`, where g_main should have the 5MB module stack,
+   so a fiber's limits are in force on the wrong context. That points at
+   the `emscripten_stack_set_limits` pair around `emscripten_fiber_swap`
+   in `pfiber_reschedule`, which is a more promising thing to look at
+   than the filter loop.
 
 ## Layout
 

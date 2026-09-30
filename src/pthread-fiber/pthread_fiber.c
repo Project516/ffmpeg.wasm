@@ -74,10 +74,6 @@
  * a deep chain to be unwinding. */
 #define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
 
-/* Wrapped mutex operations between forced switches. See pf_maybe_preempt for
- * why FFmpeg needs the shim to supply the preemption it assumes. */
-#define PF_PREEMPT_EVERY 1024
-
 typedef struct pfiber {
     emscripten_fiber_t ctx;
     char *c_stack;
@@ -149,10 +145,6 @@ static unsigned long long g_mutex_spins;
  * of the stall thresholds still says whether the scheduler is being entered.
  * See pf_report_if_stalled. */
 static double g_heartbeat_ms;
-/* Wrapped mutex operations left before pf_maybe_preempt forces a switch.
- * Reset by every switch, so a pipeline that keeps yielding never reaches zero
- * and a fiber that has stopped yielding cannot keep the CPU. */
-static unsigned g_preempt_countdown = PF_PREEMPT_EVERY;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -488,7 +480,6 @@ static void pfiber_reset(void)
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
     g_heartbeat_ms = g_last_switch_ms;
-    g_preempt_countdown = PF_PREEMPT_EVERY;
     g_initialized = 1;
 }
 
@@ -630,7 +621,6 @@ static void pfiber_reschedule(void)
         if (next) {
             g_switches++;
             g_last_switch_ms = pf_now_ms();
-            g_preempt_countdown = PF_PREEMPT_EVERY;
             pfiber_t *prev = g_current;
             g_current = next;
             /* emscripten_fiber_swap's own finishContextSwitch already points
@@ -876,40 +866,9 @@ int __wrap_pthread_mutex_destroy(pthread_mutex_t *mutex)
     return 0;
 }
 
-/* Hand the CPU to another runnable fiber every PF_PREEMPT_EVERY wrapped mutex
- * operations, and not at all in between.
- *
- * Fibers here are cooperative, so a fiber only ever gives the CPU up where the
- * shim says to. FFmpeg's threaded scheduler has at least one loop that never
- * reaches one of those places: the filter task asks for input, is told there is
- * none, and comes straight back around. Under a kernel the next runnable
- * thread simply gets the CPU and the loop ends, so the loop is written as if
- * preemption were free. Here it is not, and the task runs its pass over and
- * over with the rest of the pipeline behind it: this is the st core hanging on
- * video transcodes, and it is silent because the shim's own stall reports are
- * only reachable by switching, which is the thing that stopped happening.
- *
- * Wrapped mutex operations are on that loop's path (thread_queue's tq_receive
- * takes tq->lock on every pass), which makes them the one place the shim can
- * stand in for the preemption FFmpeg assumes. Counting operations rather than
- * clock time keeps the cost off the hot path, and resetting the count on every
- * switch means a pipeline that is actually moving resets it constantly and
- * never comes here, so this costs a working transcode nothing.
- *
- * Called before the lock is taken, so the fiber being switched away from is
- * holding nothing and the other fibers see no half-finished lock. */
-static void pf_maybe_preempt(void)
-{
-    if (--g_preempt_countdown)
-        return;
-    g_preempt_countdown = PF_PREEMPT_EVERY;
-    pfiber_reschedule();
-}
-
 int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
-    pf_maybe_preempt();
     pf_mutex_t *m = pf_mutex_ensure(mutex);
     if (m->owner == g_current) {
         /* A non-recursive lock taken twice by the same fiber can never be
