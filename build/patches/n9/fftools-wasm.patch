@@ -614,7 +614,7 @@ diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
 diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
 --- a/fftools/ffmpeg_filter.c
 +++ b/fftools/ffmpeg_filter.c
-@@ -625,6 +625,20 @@
+@@ -625,6 +625,21 @@
  
  static int filter_thread(void *arg);
  
@@ -624,9 +624,10 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
 + * capture shows the phase that was spinning. */
 +static unsigned long long g_ft_iter;
 +#define FT_MARK(phase) do {                                             \
-+    if (((++g_ft_iter) & 0xffff) == 0)                                  \
++    unsigned long long _i = ++g_ft_iter;                                \
++    if (_i < 8 || !(_i & 0xffff))                                      \
 +        av_log(NULL, AV_LOG_ERROR, "wasmtrace iter=%llu phase=%s\r",   \
-+               g_ft_iter, phase);                                       \
++               _i, phase);                                             \
 +} while (0)
 +#else
 +#define FT_MARK(phase) ((void)0)
@@ -635,7 +636,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
  static char *describe_filter_link(FilterGraph *fg, AVFilterInOut *inout, int in)
  {
      AVFilterContext *ctx = inout->filter_ctx;
-@@ -2097,6 +2111,16 @@
+@@ -2097,6 +2112,16 @@
          }
      } else {
          fgt->graph->nb_threads = filter_complex_nbthreads;
@@ -652,7 +653,37 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
      }
  
      if (filter_buffered_frames) {
-@@ -2861,6 +2885,7 @@
+@@ -2107,6 +2132,7 @@
+ 
+     hw_device = hw_device_for_filter();
+ 
++    FT_MARK("cfg_graph_parse");
+     ret = graph_parse(fg, fgt->graph, graph_desc, &inputs, &outputs, hw_device);
+     if (ret < 0)
+         goto fail;
+@@ -2127,9 +2153,11 @@
+         }
+     }
+     avfilter_inout_free(&outputs);
++    FT_MARK("cfg_outputs");
+ 
+     if (fgp->disable_conversions)
+         avfilter_graph_set_auto_convert(fgt->graph, AVFILTER_AUTO_CONVERT_NONE);
++    FT_MARK("cfg_before_graph_config");
+     if ((ret = avfilter_graph_config(fgt->graph, NULL)) < 0)
+         goto fail;
+ 
+@@ -2214,7 +2242,9 @@
+ 
+     if (have_input_eof) {
+         // make sure the EOF propagates to the end of the graph
++        FT_MARK("cfg_eof_before_req");
+         ret = avfilter_graph_request_oldest(fgt->graph);
++        FT_MARK("cfg_eof_after_req");
+         if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
+             goto fail;
+     }
+@@ -2861,6 +2891,7 @@
  {
      FilterGraphPriv *fgp = fgp_from_fg(fg);
  
@@ -660,7 +691,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
      // graph not configured, just select the input to request
      if (!fgt->graph) {
          for (int i = 0; i < fg->nb_inputs; i++) {
-@@ -2881,6 +2906,7 @@
+@@ -2881,6 +2912,7 @@
      if (fgp->nb_outputs_done < fg->nb_outputs) {
          int ret;
  
@@ -668,7 +699,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          /* Reap all buffers present in the buffer sinks */
          for (int i = 0; i < fg->nb_outputs; i++) {
              OutputFilterPriv *ofp = ofp_from_ofilter(fg->outputs[i]);
-@@ -2893,8 +2919,10 @@
+@@ -2893,8 +2925,10 @@
              }
          }
  
@@ -680,7 +711,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          if (ret == AVERROR(EAGAIN)) {
              fgt->next_in = choose_input(fg, fgt);
              return 0;
-@@ -3291,10 +3319,12 @@
+@@ -3291,10 +3325,12 @@
      if (ret < 0)
          goto finish;
  
@@ -693,7 +724,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          ret = configure_filtergraph(fg, &fgt);
          if (ret < 0) {
              av_log(fg, AV_LOG_ERROR, "Error configuring filter graph: %s\n",
-@@ -3303,6 +3333,7 @@
+@@ -3303,6 +3339,7 @@
          }
      }
  
@@ -701,7 +732,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
      while (1) {
          InputFilter *ifilter;
          InputFilterPriv *ifp = NULL;
-@@ -3311,6 +3342,8 @@
+@@ -3311,6 +3348,8 @@
  
          input_status = sch_filter_receive(fgp->sch, fgp->sch_idx,
                                            &input_idx, fgt.frame);
@@ -710,7 +741,7 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
          if (input_status == AVERROR_EOF) {
              av_log(fg, AV_LOG_VERBOSE, "Filtering thread received EOF\n");
              break;
-@@ -3361,6 +3394,7 @@
+@@ -3361,6 +3400,7 @@
              goto finish;
  
  read_frames:
