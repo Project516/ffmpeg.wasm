@@ -612,9 +612,30 @@ diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
 
  void av_cpu_force_count(int count)
 diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
---- a/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
-+++ b/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
-@@ -2097,7 +2110,17 @@
+--- a/fftools/ffmpeg_filter.c
++++ b/fftools/ffmpeg_filter.c
+@@ -625,6 +625,20 @@
+ 
+ static int filter_thread(void *arg);
+ 
++#ifdef FFMPEG_WASM_ST
++/* Rate limited: this hang is sensitive enough to timing that a marker on
++ * every pass can hide it. AV_LOG_ERROR so the fate runner's last-200-lines
++ * capture shows the phase that was spinning. */
++static unsigned long long g_ft_iter;
++#define FT_MARK(phase) do {                                             \
++    if (((++g_ft_iter) & 0xffff) == 0)                                  \
++        av_log(NULL, AV_LOG_ERROR, "wasmtrace iter=%llu phase=%s\r",   \
++               g_ft_iter, phase);                                       \
++} while (0)
++#else
++#define FT_MARK(phase) ((void)0)
++#endif
++
+ static char *describe_filter_link(FilterGraph *fg, AVFilterInOut *inout, int in)
+ {
+     AVFilterContext *ctx = inout->filter_ctx;
+@@ -2097,6 +2111,16 @@
          }
      } else {
          fgt->graph->nb_threads = filter_complex_nbthreads;
@@ -631,3 +652,69 @@ diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
      }
  
      if (filter_buffered_frames) {
+@@ -2861,6 +2885,7 @@
+ {
+     FilterGraphPriv *fgp = fgp_from_fg(fg);
+ 
++    FT_MARK("no_graph");
+     // graph not configured, just select the input to request
+     if (!fgt->graph) {
+         for (int i = 0; i < fg->nb_inputs; i++) {
+@@ -2881,6 +2906,7 @@
+     if (fgp->nb_outputs_done < fg->nb_outputs) {
+         int ret;
+ 
++        FT_MARK("drain_outputs");
+         /* Reap all buffers present in the buffer sinks */
+         for (int i = 0; i < fg->nb_outputs; i++) {
+             OutputFilterPriv *ofp = ofp_from_ofilter(fg->outputs[i]);
+@@ -2893,8 +2919,10 @@
+             }
+         }
+ 
+-
++        FT_MARK("request_oldest");
+         ret = avfilter_graph_request_oldest(fgt->graph);
++        FT_MARK(ret == AVERROR(EAGAIN) ? "oldest_eagain" :
++                ret < 0 ? "oldest_err" : "oldest_ok");
+         if (ret == AVERROR(EAGAIN)) {
+             fgt->next_in = choose_input(fg, fgt);
+             return 0;
+@@ -3291,10 +3319,12 @@
+     if (ret < 0)
+         goto finish;
+ 
++    FT_MARK("set_name");
+     fg_thread_set_name(fg);
+ 
+     // if we have all input parameters the graph can now be configured
+     if (ifilter_has_all_input_formats(fg)) {
++        FT_MARK("configure");
+         ret = configure_filtergraph(fg, &fgt);
+         if (ret < 0) {
+             av_log(fg, AV_LOG_ERROR, "Error configuring filter graph: %s\n",
+@@ -3303,6 +3333,7 @@
+         }
+     }
+ 
++    FT_MARK("loop_top");
+     while (1) {
+         InputFilter *ifilter;
+         InputFilterPriv *ifp = NULL;
+@@ -3311,6 +3342,8 @@
+ 
+         input_status = sch_filter_receive(fgp->sch, fgp->sch_idx,
+                                           &input_idx, fgt.frame);
++        FT_MARK(input_status == AVERROR_EOF ? "recv_eof" :
++                input_status == AVERROR(EAGAIN) ? "recv_eagain" : "recv_ok");
+         if (input_status == AVERROR_EOF) {
+             av_log(fg, AV_LOG_VERBOSE, "Filtering thread received EOF\n");
+             break;
+@@ -3361,6 +3394,7 @@
+             goto finish;
+ 
+ read_frames:
++        FT_MARK("read_frames");
+         // retrieve all newly available frames
+         ret = read_frames(fg, &fgt, fgt.frame);
+         if (ret == AVERROR_EOF) {
