@@ -301,6 +301,12 @@ async function main() {
   let narrowedDir = null;
   if (only.length > 0) {
     manifest.tests = manifest.tests.filter((t) => only.some((frag) => t.name.includes(frag)));
+    // A filter that matches nothing produces an empty run that reports success,
+    // which reads as "FATE_ONLY was right and the core is fine" when in fact
+    // nothing was tested. Refuse instead.
+    if (manifest.tests.length === 0) {
+      throw new Error(`FATE_ONLY matched no tests: ${only.join(", ")}`);
+    }
     narrowedDir = mkdtempSync(join(tmpdir(), "fate-only-"));
     manifestPath = join(narrowedDir, "manifest.json");
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
