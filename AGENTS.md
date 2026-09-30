@@ -40,16 +40,32 @@ pthread shim instead.
    and switching is what stopped happening. Reproduces locally and
    100% of the time with `testsrc=r=7:d=10` against a downloaded core.
 
-   Strongest lead: forcing a switch from `__wrap_pthread_mutex_lock`
-   (a preemption tick, to stand in for the preemption the filter task
-   assumes) does reach that spin, but aborts with
+   The spin is a narrow race, and that is the hard part of it. Every
+   attempt to observe it makes it go away: preemption, an instrumented
+   `_fd_write`, marker logs in `filter_thread`, and markers inside
+   `configure_filtergraph` all turn the same command green. With markers
+   in place the core transcodes all 70 frames and returns 0, and the
+   markers show the healthy path is one loop iteration to receive a
+   frame, one deferred `configure_filtergraph`, then `read_frames`.
+   So instrument to find it and it hides, and the fix has to be robust
+   rather than diagnostic.
+
+   Measured, with the preemption fix in `fix/st-preempt-and-stack-limits`:
+   forcing a switch from `__wrap_pthread_mutex_lock` does reach the spin,
+   but the spin never calls a wrapped mutex, so it never fires: the shim's
+   own 5s heartbeat (`pf_report_if_stalled`) prints zero times during a
+   hang, which means `pfiber_reschedule` is not reached at all. Preemption
+   therefore cannot be the whole answer and the spin is not in
+   `filter_thread`'s loop, which the markers also rule out.
+
+   That same work did find a real, separate bug: `g_main`'s stack limits
+   are never restored, because `emscripten_fiber_init_from_current_context`
+   does not record the module stack in `g_main.ctx`. The module stack is
+   5MB at `0xe47650..0x1347650` and the limits left in force are a fiber's
+   8MB range, so the run fails its own `stackRestore` in `bind.js` with
    `Attempt to set SP to 0x01347650, with stack limits
-   [0x02b89b68 - 0x03389b68]`. That range is 8MB, which is
-   `PFIBER_STACK_SIZE`, where g_main should have the 5MB module stack,
-   so a fiber's limits are in force on the wrong context. That points at
-   the `emscripten_stack_set_limits` pair around `emscripten_fiber_swap`
-   in `pfiber_reschedule`, which is a more promising thing to look at
-   than the filter loop.
+   [0x02b89b68 - 0x03389b68]`. Fixed in that branch, and worth keeping
+   whichever way the hang goes.
 
 ## Layout
 
