@@ -31,14 +31,15 @@ pthread shim instead.
    vendored n5.1.10 sources) is dead code kept until this is confirmed
    green in CI, then removed.
 
-   Open: the st core hangs on video transcodes (`fate (st)` 19/25, `tests`,
-   `node-tests`). The muxer task's fiber starts and never returns, so it is
-   stuck in C inside `muxer_thread`, not parked in one of the shim's waits:
-   the filter and encoder fibers of the same run return 0. That is why the
-   stall reports in `src/pthread-fiber` are silent, they are all driven by the
-   scheduler regaining control and this fiber does not. Look in
-   `fftools/ffmpeg_mux.c`'s `muxer_thread` loop, `mux_packet_filter` least of
-   all, not in the shim.
+   Open: the st core hung on video transcodes (`fate (st)` 19/25, `tests`,
+   `node-tests`). It was the filter task, not the muxer: `filter_thread` can
+   ask for input, be told there is none and come straight back around without
+   reaching a blocking primitive, and a fiber only gives the CPU up where the
+   shim says to. A kernel would hand it to the next runnable thread, so the
+   stall was silent, the shim's reports being reachable only by switching.
+   `pf_maybe_preempt` in `src/pthread-fiber` forces a switch every
+   `PF_PREEMPT_EVERY` wrapped mutex operations, which that loop passes through
+   on every pass. `src/fftools` is now dead code and is removed in a follow-up.
 
 ## Layout
 
