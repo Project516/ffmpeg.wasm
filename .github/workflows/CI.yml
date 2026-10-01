@@ -262,7 +262,7 @@ jobs:
       - name: Build packages
         run: pnpm build
       - name: Cache FFmpeg's tests/ checkout
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .fate-cache/${{ steps.tag.outputs.tag }}/ffmpeg-src
           key: fate-defs-${{ steps.tag.outputs.tag }}
