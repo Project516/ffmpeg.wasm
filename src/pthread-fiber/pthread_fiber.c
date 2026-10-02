@@ -145,6 +145,9 @@ static unsigned long long g_mutex_spins;
  * of the stall thresholds still says whether the scheduler is being entered.
  * See pf_report_if_stalled. */
 static double g_heartbeat_ms;
+/* g_main's stack bounds. Read during reset, because once a fiber has run they
+ * report whichever fiber was last entered. */
+static void *g_main_stack_base, *g_main_stack_limit;
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -463,6 +466,9 @@ static void pfiber_reset(void)
     free(g_main.asyncify_stack);
     memset(&g_main, 0, sizeof(g_main));
     g_main.state = PF_RUNNABLE;
+    /* See g_main_stack_base: this is the one moment they still describe it. */
+    g_main_stack_base = (void *)emscripten_stack_get_base();
+    g_main_stack_limit = (void *)emscripten_stack_get_end();
     g_main.asyncify_stack = malloc(PFIBER_MAIN_ASYNCIFY_STACK_SIZE);
     g_main.asyncify_stack_size = PFIBER_MAIN_ASYNCIFY_STACK_SIZE;
     if (!g_main.asyncify_stack) {
@@ -623,14 +629,18 @@ static void pfiber_reschedule(void)
             g_last_switch_ms = pf_now_ms();
             pfiber_t *prev = g_current;
             g_current = next;
-            /* emscripten_fiber_swap's own finishContextSwitch already points
-             * -sSTACK_OVERFLOW_CHECK at the fiber being entered, so these two
-             * calls only restore the outgoing fiber's bounds on the way back.
-             * Kept explicit because the swap is async and this is the only
-             * place that knows which fiber is which. */
-            emscripten_stack_set_limits(next->ctx.stack_base, next->ctx.stack_limit);
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
-            emscripten_stack_set_limits(prev->ctx.stack_base, prev->ctx.stack_limit);
+            /* Only the way back needs fixing up, and only for g_main: it runs
+             * on the module stack, which
+             * emscripten_fiber_init_from_current_context does not record in
+             * g_main.ctx, so restoring from there leaves a fiber's bounds in
+             * force and bind.js's stackRestore aborts. */
+            if (prev == &g_main)
+                emscripten_stack_set_limits(g_main_stack_base,
+                                            g_main_stack_limit);
+            else
+                emscripten_stack_set_limits(prev->ctx.stack_base,
+                                            prev->ctx.stack_limit);
             /* Control is back on prev, so prev's unwind has just finished and
              * its asyncify stack pointer is where the unwind stopped. */
             pf_check_asyncify_stack(prev);

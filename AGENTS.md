@@ -50,22 +50,21 @@ pthread shim instead.
    So instrument to find it and it hides, and the fix has to be robust
    rather than diagnostic.
 
-   Measured, with the preemption fix in `fix/st-preempt-and-stack-limits`:
-   forcing a switch from `__wrap_pthread_mutex_lock` does reach the spin,
-   but the spin never calls a wrapped mutex, so it never fires: the shim's
-   own 5s heartbeat (`pf_report_if_stalled`) prints zero times during a
-   hang, which means `pfiber_reschedule` is not reached at all. Preemption
-   therefore cannot be the whole answer and the spin is not in
-   `filter_thread`'s loop, which the markers also rule out.
+   Measured: forcing a switch from `__wrap_pthread_mutex_lock`
+   reaches the spin shape, but the spin never calls a wrapped mutex, so it never
+   fires: the shim's own 5s heartbeat prints zero times during the hang, which
+   means `pfiber_reschedule` is not reached at all. Preemption therefore cannot
+   be the whole answer, and the markers rule out `filter_thread`'s loop as
+   well.
 
-   That same work did find a real, separate bug: `g_main`'s stack limits
-   are never restored, because `emscripten_fiber_init_from_current_context`
-   does not record the module stack in `g_main.ctx`. The module stack is
-   5MB at `0xe47650..0x1347650` and the limits left in force are a fiber's
-   8MB range, so the run fails its own `stackRestore` in `bind.js` with
+   That work did find a real, separate bug: `g_main`'s stack limits are never
+   restored, because `emscripten_fiber_init_from_current_context` does not record
+   the module stack in `g_main.ctx`. The module stack is 5MB at
+   `0xe47650..0x1347650` and the limits left in force are a fiber's 8MB
+   range, so the run fails its own `stackRestore` in `bind.js` with
    `Attempt to set SP to 0x01347650, with stack limits
-   [0x02b89b68 - 0x03389b68]`. Fixed in that branch, and worth keeping
-   whichever way the hang goes.
+   [0x02b89b68 - 0x03389b68]`. This branch now restores the module stack bounds
+   captured during reset when control comes back to `g_main`.
 
 ## Layout
 
