@@ -112,6 +112,8 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     -Wl,--wrap=pthread_cond_broadcast
     -Wl,--wrap=usleep
     -Wl,--wrap=nanosleep
+    -Wl,--wrap=avfilter_graph_request_oldest
+    -Wl,--wrap=av_buffersink_get_frame_flags
   )
 fi
 

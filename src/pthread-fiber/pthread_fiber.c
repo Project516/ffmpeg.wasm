@@ -137,6 +137,8 @@ static unsigned long long g_idle_waits;
  * window started. */
 static unsigned long long g_reported_switches;
 static double g_rate_ms;
+/* Forced switches between cooperative filter-graph polls. */
+static unsigned g_preempt_countdown = 1024;
 /* Passes of the contended-mutex wait loop, counted per fiber so the report
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
@@ -486,6 +488,7 @@ static void pfiber_reset(void)
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
     g_heartbeat_ms = g_last_switch_ms;
+    g_preempt_countdown = 1024;
     g_initialized = 1;
 }
 
@@ -627,6 +630,7 @@ static void pfiber_reschedule(void)
         if (next) {
             g_switches++;
             g_last_switch_ms = pf_now_ms();
+            g_preempt_countdown = 1024;
             pfiber_t *prev = g_current;
             g_current = next;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
@@ -1027,6 +1031,30 @@ int __wrap_pthread_cond_broadcast(pthread_cond_t *cond)
 {
     pf_wake_waiters_on((void *)cond);
     return 0;
+}
+
+struct AVFilterGraph;
+struct AVFilterContext;
+struct AVFrame;
+
+int __real_avfilter_graph_request_oldest(struct AVFilterGraph *graph);
+int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
+{
+    pfiber_ensure_main();
+    if (--g_preempt_countdown == 0)
+        pfiber_reschedule();
+    return __real_avfilter_graph_request_oldest(graph);
+}
+
+int __real_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
+                                          struct AVFrame *frame, int flags);
+int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
+                                          struct AVFrame *frame, int flags)
+{
+    pfiber_ensure_main();
+    if (--g_preempt_countdown == 0)
+        pfiber_reschedule();
+    return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
 
 int __wrap_usleep(unsigned usec)
