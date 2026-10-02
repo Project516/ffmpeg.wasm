@@ -1052,8 +1052,7 @@ int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
                                           struct AVFrame *frame, int flags)
 {
     pfiber_ensure_main();
-    if (--g_preempt_countdown == 0)
-        pfiber_reschedule();
+    pfiber_reschedule();
     return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
 
