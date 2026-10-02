@@ -165,9 +165,18 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
 
   const args = test.args.replaceAll("$(TARGET_SAMPLES)", SAMPLES_MOUNT).replaceAll("$(TARGET_PATH)", BUILD_ROOT);
   const outPath = "/fate-out";
-  const argv = [...tokenize(args)];
+  // Match tests/fate-run.sh's ffmpeg()/framecrc() wrappers. Its global options
+  // and per-input decode options are part of the command being tested, not
+  // runner-specific conveniences.
+  const argv = ["-nostdin", "-nostats", "-noauto_conversion_filters", "-cpuflags", "all"];
+  for (const arg of tokenize(args)) {
+    if (arg === "-i") {
+      argv.push("-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice");
+    }
+    argv.push(arg);
+  }
   if (process.env.FATE_LOGLEVEL) argv.push("-loglevel", process.env.FATE_LOGLEVEL);
-  argv.push("-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath);
+  argv.push("-bitexact", "-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath);
 
   let ret;
   const execStart = Date.now();
