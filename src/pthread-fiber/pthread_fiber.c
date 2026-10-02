@@ -754,11 +754,10 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                            asyncify_stack, PFIBER_ASYNCIFY_STACK_SIZE);
     f->state = PF_RUNNABLE;
 
-    /* Run the new task before returning to its creator. A real thread can
-     * start immediately; leaving every task runnable until the creator blocks
-     * lets a task that spins in C starve the ones it needs. */
+    /* Do not swap to it now; the caller (fftools sets up all its threads up
+     * front, then immediately blocks) will hand it a turn on its own next
+     * blocking point. */
     *thread = (pthread_t)(uintptr_t)f;
-    pfiber_reschedule();
     return 0;
 }
 
