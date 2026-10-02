@@ -413,6 +413,14 @@ static void pf_idle_wait(double wake_at_ms)
     }
 }
 
+static int pfiber_any_runnable(void)
+{
+    for (int i = 0; i < PFIBER_MAX; i++)
+        if (g_table[i].state == PF_RUNNABLE)
+            return 1;
+    return 0;
+}
+
 static int pfiber_index_of(pfiber_t *f)
 {
     return (f == &g_main) ? -1 : (int)(f - g_table);
@@ -883,8 +891,11 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
     if (g_startup_pending && g_current == &g_main) {
-        g_startup_pending = 0;
-        pfiber_reschedule();
+        do {
+            g_startup_pending = 0;
+            pfiber_reschedule();
+            g_startup_pending = pfiber_any_runnable();
+        } while (g_startup_pending);
     }
     pf_mutex_t *m = pf_mutex_ensure(mutex);
     if (m->owner == g_current) {
