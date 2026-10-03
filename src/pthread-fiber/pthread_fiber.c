@@ -91,6 +91,7 @@ typedef struct pfiber {
     double deadline_ms;          /* pf_now_ms() value this fiber's wait expires at */
     int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
     double blocked_since_ms;      /* when it last went PF_BLOCKED, 0 when runnable */
+    double running_since_ms;      /* when this fiber last gained control, see pf_maybe_preempt */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -137,8 +138,22 @@ static unsigned long long g_idle_waits;
  * window started. */
 static unsigned long long g_reported_switches;
 static double g_rate_ms;
-/* Forced switches between cooperative filter-graph polls. */
-static unsigned g_preempt_countdown = 1024;
+/* How long one fiber may hold control before a filter-graph poll hands it back.
+ * The filtering thread's poll loop in fftools/ffmpeg_filter.c never blocks: it
+ * drains its queue with THREAD_QUEUE_FLAG_NO_BLOCK, waiter_wait() returns
+ * immediately while it is unchoked, and both av_buffersink_get_frame_flags()
+ * and avfilter_graph_request_oldest() come straight back with EAGAIN. So that
+ * loop has no pthread primitive the shim could block on, and on a single
+ * threaded core it is a spin. The two libavfilter calls at the bottom of this
+ * file are the only points in it the shim sees, and they yield here.
+ *
+ * The budget is wall clock per fiber rather than a count of calls because a
+ * count cannot mean the same thing twice: the same iteration takes microseconds
+ * to reject EAGAIN and hundreds of milliseconds to produce a frame, and a
+ * global count is also reset by every switch, so how long a spinning fiber
+ * actually keeps the core depends on how busy the rest of the pipeline is. A
+ * wall clock budget bounds that at a fixed value instead. */
+#define PF_PREEMPT_MS 5
 /* Passes of the contended-mutex wait loop, counted per fiber so the report
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
@@ -488,7 +503,7 @@ static void pfiber_reset(void)
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
     g_heartbeat_ms = g_last_switch_ms;
-    g_preempt_countdown = 1024;
+    g_main.running_since_ms = g_last_switch_ms;
     g_initialized = 1;
 }
 
@@ -630,9 +645,11 @@ static void pfiber_reschedule(void)
         if (next) {
             g_switches++;
             g_last_switch_ms = pf_now_ms();
-            g_preempt_countdown = 1024;
             pfiber_t *prev = g_current;
             g_current = next;
+            /* Recorded here because this is the moment next gains control, in
+             * both directions of a switch. See pf_maybe_preempt. */
+            g_current->running_since_ms = g_last_switch_ms;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             /* Only the way back needs fixing up, and only for g_main: it runs
              * on the module stack, which
@@ -1037,12 +1054,35 @@ struct AVFilterGraph;
 struct AVFilterContext;
 struct AVFrame;
 
+/* Hand control back if this fiber has held it for longer than PF_PREEMPT_MS.
+ *
+ * Only safe from a fiber that is not blocked: pfiber_reschedule() returns
+ * immediately when the caller is PF_RUNNABLE and nothing else is, which is
+ * exactly a voluntary yield. */
+static void pf_maybe_preempt(void)
+{
+    double now = pf_now_ms();
+    if (now - g_current->running_since_ms < PF_PREEMPT_MS)
+        return;
+    /* Cleared before yielding as well as on the way back, so a fiber that
+     * yields at an idle scheduler and immediately returns does not re-check
+     * against a timestamp it can no longer make progress against. */
+    g_current->running_since_ms = now;
+    pfiber_reschedule();
+}
+
+/* fftools' filtering thread polls for frames rather than blocking for them, so
+ * these two calls are the only points in its poll loop the shim gets to see.
+ * Both happen at least once per pass: fg_output_step() drains every output with
+ * av_buffersink_get_frame_flags(AV_BUFFERSINK_FLAG_NO_REQUEST), and read_frames()
+ * then pulls with avfilter_graph_request_oldest(). The yield goes before the
+ * real call so a fiber that spends a whole budget inside one of them gives the
+ * core back on the following pass, not only once the frame has come out. */
 int __real_avfilter_graph_request_oldest(struct AVFilterGraph *graph);
 int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
 {
     pfiber_ensure_main();
-    if (--g_preempt_countdown == 0)
-        pfiber_reschedule();
+    pf_maybe_preempt();
     return __real_avfilter_graph_request_oldest(graph);
 }
 
@@ -1052,8 +1092,7 @@ int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
                                           struct AVFrame *frame, int flags)
 {
     pfiber_ensure_main();
-    if (--g_preempt_countdown == 0)
-        pfiber_reschedule();
+    pf_maybe_preempt();
     return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
 

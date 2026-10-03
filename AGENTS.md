@@ -30,34 +30,43 @@ pthread shim instead.
    Emscripten fibers, linked in via `-Wl,--wrap`. `src/fftools` (the old
    vendored n5.1.10 sources) is dead code kept until this is confirmed
    green in CI, then removed.
-   Open: the st core hangs on video transcodes (`fate (st)` 19/25, `tests`,
-   `node-tests`). Not the muxer. A failing run starts the encoder task
-   (fiber 0) and the filtergraph task (fiber 1) and then stops: the muxer
-   task is never created, so the stall is in the format negotiation
-   between the filtergraph and the encoder, not in `muxer_thread`. One
-   fiber runs C without ever yielding, which is why the stall reports in
-   `src/pthread-fiber` stay silent: they are only reachable by switching,
-   and switching is what stopped happening. Reproduces locally and
-   100% of the time with `testsrc=r=7:d=10` against a downloaded core.
+   Open: the st core hangs on video transcodes (`fate (st)`, `tests`,
+   `node-tests`). The stall is the filtering thread's poll loop in
+   `fftools/ffmpeg_filter.c`, not the muxer. `filter_thread` calls
+   `sch_filter_receive`, which drains with `THREAD_QUEUE_FLAG_NO_BLOCK`
+   and then calls `waiter_wait`; while the filtergraph is unchoked,
+   `waiter_wait` returns without touching a pthread primitive, and both
+   `av_buffersink_get_frame_flags` and `avfilter_graph_request_oldest`
+   come straight back `EAGAIN`. So one pass of that loop contends no
+   mutex and blocks nowhere, which on a single threaded core is a spin.
+   The muxer fiber is absent as a symptom, not a cause: it is created
+   lazily by `sch_mux_stream_ready` -> `mux_init`, which runs out of
+   `enc_open`, which needs the first frame out of the graph.
 
-   The spin is a narrow race, and that is the hard part of it. Every
-   attempt to observe it makes it go away: preemption, an instrumented
-   `_fd_write`, marker logs in `filter_thread`, and markers inside
-   `configure_filtergraph` all turn the same command green. With markers
-   in place the core transcodes all 70 frames and returns 0, and the
-   markers show the healthy path is one loop iteration to receive a
-   frame, one deferred `configure_filtergraph`, then `read_frames`.
-   So instrument to find it and it hides, and the fix has to be robust
-   rather than diagnostic.
+   This is why every attempt to observe the hang made it go away. The
+   shim's stall reports and its 5s heartbeat are reachable only from
+   `pfiber_reschedule`, and the spin never reaches `pfiber_reschedule`
+   at all, so they print nothing during the hang. Anything that adds work
+   to the loop (markers in `filter_thread`, an argv log line, an
+   instrumented `_fd_write`) perturbs when the loop's yield fires and
+   moves the frame that gets observed. Instrument to find it and it hides,
+   so the fix has to be robust rather than diagnostic.
 
-   Measured: forcing a switch from `__wrap_pthread_mutex_lock`
-   reaches the spin shape, but the spin never calls a wrapped mutex, so it never
-   fires: the shim's own 5s heartbeat prints zero times during the hang, which
-   means `pfiber_reschedule` is not reached at all. Preemption therefore cannot
-   be the whole answer, and the markers rule out `filter_thread`'s loop as
-   well.
+   The yield itself lives in the two `--wrap`ed libavfilter calls, which
+   are the only points in that loop the shim sees: `fg_output_step` calls
+   `av_buffersink_get_frame_flags` once per output and `read_frames`
+   calls `avfilter_graph_request_oldest` once per pass. The budget for
+   it is wall clock per fiber (`PF_PREEMPT_MS`), not a count of calls. A
+   call count cannot mean the same thing twice, since a pass that rejects
+   `EAGAIN` takes microseconds and one that produces a frame takes
+   hundreds of milliseconds; a single global count was worse still,
+   because `pfiber_reschedule` reset it on every switch, so a spinning
+   fiber never reached its threshold at all whenever the rest of the
+   pipeline was busy. Measured in isolation: the old scheme yields zero
+   times across a 1000ms spin with one other fiber switching throughout,
+   where the per-fiber 5ms budget yields 200 times.
 
-   That work did find a real, separate bug: `g_main`'s stack limits are never
+   That work also found a real, separate bug: `g_main`'s stack limits are never
    restored, because `emscripten_fiber_init_from_current_context` does not record
    the module stack in `g_main.ctx`. The module stack is 5MB at
    `0xe47650..0x1347650` and the limits left in force are a fiber's 8MB
