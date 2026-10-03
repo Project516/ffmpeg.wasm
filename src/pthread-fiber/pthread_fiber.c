@@ -1086,19 +1086,6 @@ int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
     return __real_avfilter_graph_request_oldest(graph);
 }
 
-/* Counted for PF_SPIN_CALLS but deliberately not a yield point. A graph whose
- * source changes pixel format partway through reconfigures itself, so a loop
- * that reconfigures without settling shows up here and nowhere else: fftools
- * calls this from configure_filtergraph(), and nothing in that path touches a
- * pthread primitive the shim wraps. */
-int __real_avfilter_graph_config(struct AVFilterGraph *graph, void *log_ctx);
-int __wrap_avfilter_graph_config(struct AVFilterGraph *graph, void *log_ctx)
-{
-    pfiber_ensure_main();
-    pf_count_call("avfilter_graph_config");
-    return __real_avfilter_graph_config(graph, log_ctx);
-}
-
 int __real_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
                                           struct AVFrame *frame, int flags);
 int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
