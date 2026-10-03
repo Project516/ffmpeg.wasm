@@ -18,10 +18,15 @@
 // below), which the parent kills, process group included, if it outlives
 // CHILD_TIMEOUT_MS; see scripts/bench/run.mjs for the same pattern.
 //
+// FATE_LOGLEVEL appends -loglevel to each test, for localising a hang inside
+// FFmpeg's own setup path. FATE_ONLY narrows the run to tests whose name
+// contains one of the comma separated fragments, so iterating on one failure
+// does not pay the per-test watchdog for the ones already known to pass.
+//
 // Usage: node scripts/fate/run.mjs --core packages/core --manifest manifest.json --out results.json
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,7 +118,43 @@ function preflight(test, refDir, samplesDir, generatedDir) {
 async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir) {
   const core = await createFFmpegCore();
   const logLines = [];
-  core.setLogger(({ message }) => logLines.push(message));
+  // Collect and print. A test that hangs never returns, so the collected lines
+  // would die with the child and the collected log would say nothing about how
+  // far it got. Writing each line out as it arrives is what makes a hang
+  // readable: ffmpeg's own progress lines show whether the run was still
+  // advancing, and the fiber shim's reports show where it was parked.
+  // The fiber shim's stall reports (src/pthread-fiber/pthread_fiber.c) go to
+  // console.error and to this logger, and they are the only thing that says
+  // where a hanging run is parked. Two things lose them: the tail below
+  // evicts them along with a trace-level run's millions of lines, and
+  // console.error to a pipe is written asynchronously, so a report written
+  // while the watchdog is SIGKILLing the child can go out unflushed.
+  //
+  // A hang never returns from exec(), so these cannot be attached to a result:
+  // the child is killed and the parent writes the failure, not the child.
+  // Append each one to a sidecar file as it arrives, and have the parent read
+  // that back for any failure, which is where the evidence has to survive.
+  const stallFile = process.env.FATE_STALL_FILE;
+  core.setLogger((event) => {
+    const { message } = event ?? {};
+    if (typeof message !== "string") return;
+    if (message.includes("pthread-fiber:")) {
+      if (stallFile) {
+        try {
+          appendFileSync(stallFile, message.endsWith("\n") ? message : message + "\n");
+        } catch {
+          // best effort; a lost report must not fail the run
+        }
+      }
+      process.stderr.write(message.endsWith("\n") ? message : message + "\n");
+      return;
+    }
+    // Everything else keeps the tail: collected lines are only read back on
+    // failure, and a trace-level run produces millions of them.
+    logLines.push(message);
+    if (logLines.length > 200) logLines.shift();
+    process.stderr.write(message.endsWith("\n") ? message : message + "\n");
+  });
   core.setProgress(() => {});
   core.setTimeout(EXEC_TIMEOUT_MS);
 
@@ -124,7 +165,18 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
 
   const args = test.args.replaceAll("$(TARGET_SAMPLES)", SAMPLES_MOUNT).replaceAll("$(TARGET_PATH)", BUILD_ROOT);
   const outPath = "/fate-out";
-  const argv = [...tokenize(args), "-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath];
+  // Match tests/fate-run.sh's ffmpeg()/framecrc() wrappers. Its global options
+  // and per-input decode options are part of the command being tested, not
+  // runner-specific conveniences.
+  const argv = ["-nostdin", "-nostats", "-noauto_conversion_filters", "-cpuflags", "all"];
+  for (const arg of tokenize(args)) {
+    if (arg === "-i") {
+      argv.push("-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice");
+    }
+    argv.push(arg);
+  }
+  if (process.env.FATE_LOGLEVEL) argv.push("-loglevel", process.env.FATE_LOGLEVEL);
+  argv.push("-bitexact", "-f", test.mode === "framecrc" ? "framecrc" : "framemd5", "-y", outPath);
 
   let ret;
   const execStart = Date.now();
@@ -181,11 +233,25 @@ async function runChild(args) {
 // runUnderTime for the same shape.
 function runIndexWithWatchdog({ corePkg, manifestPath, index, generatedDir }) {
   return new Promise((resolvePromise) => {
-    const resultPath = join(tmpdir(), `fate-result-${process.pid}-${index}-${Math.random().toString(36).slice(2)}.json`);
+    const tag = `${process.pid}-${index}-${Math.random().toString(36).slice(2)}`;
+    const resultPath = join(tmpdir(), `fate-result-${tag}.json`);
+    // Where the child appends the fiber shim's stall reports as they arrive.
+    // A hang is killed rather than returned from, so this is the only channel
+    // that survives one; see the note where runExec writes to it.
+    const stallPath = join(tmpdir(), `fate-stall-${tag}.log`);
+    const readStalls = () => {
+      try {
+        const text = readFileSync(stallPath, "utf8").trim();
+        return text ? text.split("\n") : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
     const child = spawn(
       process.execPath,
       [scriptPath, "--core", corePkg, "--manifest", manifestPath, "--index", String(index), "--result", resultPath, "--generated-dir", generatedDir],
-      { stdio: "inherit", detached: true },
+      { stdio: "inherit", detached: true, env: { ...process.env, FATE_STALL_FILE: stallPath } },
     );
 
     let timedOut = false;
@@ -204,18 +270,21 @@ function runIndexWithWatchdog({ corePkg, manifestPath, index, generatedDir }) {
     });
     child.on("exit", () => {
       clearTimeout(timer);
+      const stall = readStalls();
       if (timedOut) {
         rmSync(resultPath, { force: true });
-        resolvePromise({ status: "fail", reason: "timeout" });
+        resolvePromise({ status: "fail", reason: "timeout", stall });
         return;
       }
       try {
         const result = JSON.parse(readFileSync(resultPath, "utf8"));
+        if (result.status !== "pass" && stall) result.stall = stall;
         resolvePromise(result);
       } catch (err) {
-        resolvePromise({ status: "fail", reason: `child produced no result: ${err.message}` });
+        resolvePromise({ status: "fail", reason: `child produced no result: ${err.message}`, stall });
       } finally {
         rmSync(resultPath, { force: true });
+        rmSync(stallPath, { force: true });
       }
     });
   });
@@ -228,8 +297,30 @@ async function main() {
     return;
   }
 
-  const { core: corePkg, manifest: manifestPath, out } = args;
+  const { core: corePkg, out } = args;
+  let manifestPath = args.manifest;
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+  // Each child re-reads the manifest by path and indexes into it, so a narrowed
+  // run has to be written back out for the indexes to line up.
+  const only = (process.env.FATE_ONLY ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let narrowedDir = null;
+  if (only.length > 0) {
+    manifest.tests = manifest.tests.filter((t) => only.some((frag) => t.name.includes(frag)));
+    // A filter that matches nothing produces an empty run that reports success,
+    // which reads as "FATE_ONLY was right and the core is fine" when in fact
+    // nothing was tested. Refuse instead.
+    if (manifest.tests.length === 0) {
+      throw new Error(`FATE_ONLY matched no tests: ${only.join(", ")}`);
+    }
+    narrowedDir = mkdtempSync(join(tmpdir(), "fate-only-"));
+    manifestPath = join(narrowedDir, "manifest.json");
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log(`FATE_ONLY: narrowed to ${manifest.tests.length} test(s)`);
+  }
 
   const ffmpegSrcTests = join(repoRoot, cacheDirForTag(manifest.tag), "ffmpeg-src", "tests");
   const refDir = join(ffmpegSrcTests, "ref", "fate");
@@ -287,6 +378,7 @@ async function main() {
     if (summary.fail > 0) process.exitCode = 1;
   } finally {
     rmSync(generatedDir, { recursive: true, force: true });
+    if (narrowedDir) rmSync(narrowedDir, { recursive: true, force: true });
   }
 }
 

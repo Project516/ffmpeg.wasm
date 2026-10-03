@@ -21,6 +21,22 @@ Module["timeout"] = -1;
 Module["logger"] = () => {};
 Module["progress"] = () => {};
 
+/*
+ * Emscripten calls Module.onAbort synchronously, before throwing the
+ * exception that unwinds the call. av_log (which feeds Module.logger)
+ * would otherwise be the only way to see why abort() was called (e.g. a
+ * failed av_assert0), but logger is a no-op unless a caller sets one, so a
+ * silent abort deep inside a call is otherwise invisible. This always goes
+ * to console.error, independent of Module.logger.
+ */
+Module["onAbort"] = (what) => {
+  try {
+    console.error("[ffmpeg.wasm] onAbort:", what);
+  } catch {
+    // best effort; never let a diagnostic hook itself throw
+  }
+};
+
 /**
  * Functions
  */
@@ -71,20 +87,33 @@ function freeArgs(argc, argvPtr) {
  * The argv strings and the argv pointer array built by stringsToPtr() are a
  * second, independent leak: nothing ever freed them, so repeated exec()/
  * ffprobe() calls slowly exhaust the heap on top of the stack leak above.
+ *
+ * Everything that can fail is inside the try, so the stack is always put back.
+ * stringsToPtr() allocates and can throw on an out-of-memory heap, and the
+ * st core's pfiber_begin_call() can abort; either one outside the try skips the
+ * stackRestore() and leaves the stack pointer wherever the failure landed, so
+ * every later call starts from a corrupted stack.
  */
 function exec(..._args) {
   const args = [...Module["DEFAULT_ARGS"], ..._args];
   const argc = args.length;
   const sp = stackSave();
-  const argvPtr = stringsToPtr(args);
+  let argvPtr = 0;
   try {
+    argvPtr = stringsToPtr(args);
+    // Only the st core has this: it runs FFmpeg's threaded scheduler on a
+    // cooperative fiber shim, and that shim captures the wasm stack pointer once
+    // per call. The stackSave()/stackRestore() pair above moves that pointer, so
+    // without this the second exec() in a process runs on a fiber context left
+    // over from the first and never returns.
+    Module["_pfiber_begin_call"]?.();
     Module["_ffmpeg"](argc, argvPtr);
   } catch (e) {
     if (!e.message.startsWith("Aborted")) {
       throw e;
     }
   } finally {
-    freeArgs(argc, argvPtr);
+    if (argvPtr) freeArgs(argc, argvPtr);
     stackRestore(sp);
   }
   return Module["ret"];
@@ -94,15 +123,17 @@ function ffprobe(..._args) {
   const args = [...Module["DEFAULT_ARGS_FFPROBE"], ..._args];
   const argc = args.length;
   const sp = stackSave();
-  const argvPtr = stringsToPtr(args);
+  let argvPtr = 0;
   try {
+    argvPtr = stringsToPtr(args);
+    Module["_pfiber_begin_call"]?.();
     Module["_ffprobe"](argc, argvPtr);
   } catch (e) {
     if (!e.message.startsWith("Aborted")) {
       throw e;
     }
   } finally {
-    freeArgs(argc, argvPtr);
+    if (argvPtr) freeArgs(argc, argvPtr);
     stackRestore(sp);
   }
   return Module["ret"];
