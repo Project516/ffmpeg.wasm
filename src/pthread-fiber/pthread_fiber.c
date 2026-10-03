@@ -92,6 +92,8 @@ typedef struct pfiber {
     int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
     double blocked_since_ms;      /* when it last went PF_BLOCKED, 0 when runnable */
     double running_since_ms;      /* when this fiber last gained control, see pf_maybe_preempt */
+    unsigned long long wrapped_calls; /* shim entry points hit since this fiber gained control */
+    const char *wrapped_where;         /* the last one, for pf_report_spin */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -177,6 +179,7 @@ typedef struct {
 } pf_cond_t;
 
 static double pf_now_ms(void);
+static void pf_count_call(const char *where);
 static int pfiber_index_of(pfiber_t *f);
 
 static pfiber_t *pfiber_at(int idx)
@@ -650,6 +653,7 @@ static void pfiber_reschedule(void)
             /* Recorded here because this is the moment next gains control, in
              * both directions of a switch. See pf_maybe_preempt. */
             g_current->running_since_ms = g_last_switch_ms;
+            g_current->wrapped_calls = 0;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             /* Only the way back needs fixing up, and only for g_main: it runs
              * on the module stack, which
@@ -1054,6 +1058,33 @@ struct AVFilterGraph;
 struct AVFilterContext;
 struct AVFrame;
 
+/* Wrapped calls one fiber may make without the scheduler running again before
+ * the run is called a spin. Every blocking point is a wrapped pthread call, so a
+ * fiber that is blocked or yielding normally makes a handful of these between
+ * scheduler entries and never gets near this. Counting is not a yield and does
+ * not hand the core back, so this still fires on a run that a yield would have
+ * rescued. */
+#define PF_SPIN_CALLS 2000000
+
+static void pf_count_call(const char *where)
+{
+    pfiber_t *f = g_current;
+    f->wrapped_where = where;
+    if (++f->wrapped_calls < PF_SPIN_CALLS)
+        return;
+
+    char msg[320];
+    snprintf(msg, sizeof(msg),
+             "pthread-fiber: fiber %d made %d wrapped calls without the "
+             "scheduler running, most recently %s, after %llu switches. It is "
+             "looping on, or stuck below, something this shim cannot preempt.\n",
+             pfiber_index_of(f), PF_SPIN_CALLS, where,
+             (unsigned long long)g_switches);
+    pf_report_js(msg);
+    pf_report_stall(pf_now_ms());
+    abort();
+}
+
 /* Hand control back if this fiber has held it for longer than PF_PREEMPT_MS.
  *
  * Only safe from a fiber that is not blocked: pfiber_reschedule() returns
@@ -1078,10 +1109,95 @@ static void pf_maybe_preempt(void)
  * then pulls with avfilter_graph_request_oldest(). The yield goes before the
  * real call so a fiber that spends a whole budget inside one of them gives the
  * core back on the following pass, not only once the frame has come out. */
+/* Leaf calls the transcoding path runs for every frame. The hang never returns
+ * from one C call and reaches no wrapped pthread primitive, so the only way to
+ * name it is to wrap the leaves it has to pass through and report the last one
+ * entered. All of these just count; none of them yields. */
+struct AVPacket;
+struct AVCodecContext;
+struct SwsContext;
+
+int __real_av_buffersrc_add_frame_flags(struct AVFilterContext *src,
+                                        struct AVFrame *frame, int flags);
+int __wrap_av_buffersrc_add_frame_flags(struct AVFilterContext *src,
+                                        struct AVFrame *frame, int flags)
+{
+    pfiber_ensure_main();
+    pf_count_call("av_buffersrc_add_frame_flags");
+    return __real_av_buffersrc_add_frame_flags(src, frame, flags);
+}
+
+int __real_av_frame_ref(struct AVFrame *dst, const struct AVFrame *src);
+int __wrap_av_frame_ref(struct AVFrame *dst, const struct AVFrame *src)
+{
+    pfiber_ensure_main();
+    pf_count_call("av_frame_ref");
+    return __real_av_frame_ref(dst, src);
+}
+
+struct AVFrame *__real_av_frame_clone(const struct AVFrame *src);
+struct AVFrame *__wrap_av_frame_clone(const struct AVFrame *src)
+{
+    pfiber_ensure_main();
+    pf_count_call("av_frame_clone");
+    return __real_av_frame_clone(src);
+}
+
+void __real_av_frame_unref(struct AVFrame *frame);
+void __wrap_av_frame_unref(struct AVFrame *frame)
+{
+    pfiber_ensure_main();
+    pf_count_call("av_frame_unref");
+    __real_av_frame_unref(frame);
+}
+
+void __real_av_frame_move_ref(struct AVFrame *dst, struct AVFrame *src);
+void __wrap_av_frame_move_ref(struct AVFrame *dst, struct AVFrame *src)
+{
+    pfiber_ensure_main();
+    pf_count_call("av_frame_move_ref");
+    __real_av_frame_move_ref(dst, src);
+}
+
+int __real_avcodec_send_frame(struct AVCodecContext *avctx,
+                              const struct AVFrame *frame);
+int __wrap_avcodec_send_frame(struct AVCodecContext *avctx,
+                              const struct AVFrame *frame)
+{
+    pfiber_ensure_main();
+    pf_count_call("avcodec_send_frame");
+    return __real_avcodec_send_frame(avctx, frame);
+}
+
+int __real_avcodec_receive_packet(struct AVCodecContext *avctx,
+                                  struct AVPacket *avpkt);
+int __wrap_avcodec_receive_packet(struct AVCodecContext *avctx,
+                                  struct AVPacket *avpkt)
+{
+    pfiber_ensure_main();
+    pf_count_call("avcodec_receive_packet");
+    return __real_avcodec_receive_packet(avctx, avpkt);
+}
+
+int __real_sws_scale(struct SwsContext *c, const uint8_t *const srcSlice[],
+                     const int srcStride[], int srcSliceY, int srcSliceH,
+                     uint8_t *const dst[], const int dstStride[]);
+int __wrap_sws_scale(struct SwsContext *c, const uint8_t *const srcSlice[],
+                     const int srcStride[], int srcSliceY, int srcSliceH,
+                     uint8_t *const dst[], const int dstStride[])
+{
+    pfiber_ensure_main();
+    pf_count_call("sws_scale");
+    return __real_sws_scale(c, srcSlice, srcStride, srcSliceY, srcSliceH,
+                           dst, dstStride);
+}
+
 int __real_avfilter_graph_request_oldest(struct AVFilterGraph *graph);
 int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
 {
     pfiber_ensure_main();
+    pf_count_call("avfilter_graph_request_oldest");
+    pf_count_call("av_buffersink_get_frame_flags");
     pf_maybe_preempt();
     return __real_avfilter_graph_request_oldest(graph);
 }
@@ -1092,6 +1208,7 @@ int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
                                           struct AVFrame *frame, int flags)
 {
     pfiber_ensure_main();
+    pf_count_call("av_buffersink_get_frame_flags");
     pf_maybe_preempt();
     return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
