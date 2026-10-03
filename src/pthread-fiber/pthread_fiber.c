@@ -92,8 +92,6 @@ typedef struct pfiber {
     int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
     double blocked_since_ms;      /* when it last went PF_BLOCKED, 0 when runnable */
     double running_since_ms;      /* when this fiber last gained control, see pf_maybe_preempt */
-    unsigned long long wrapped_calls; /* shim entry points hit since this fiber gained control */
-    const char *wrapped_where;         /* the last one, for pf_report_spin */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -156,22 +154,6 @@ static double g_rate_ms;
  * actually keeps the core depends on how busy the rest of the pipeline is. A
  * wall clock budget bounds that at a fixed value instead. */
 #define PF_PREEMPT_MS 5
-/* Wrapped calls one fiber may make without the scheduler running again before
- * the run is called a spin and stopped.
- *
- * This counts what a yield cannot hide. Every blocking point is a wrapped
- * pthread call, so a fiber that is blocked or is yielding normally makes a
- * handful of these between scheduler entries and the counter never gets near
- * this. A fiber that keeps making them without ever blocking is looping on
- * something the shim can see but cannot preempt: the poll loop in fftools'
- * filtering thread is the known shape of that, and there the yield in
- * pf_maybe_preempt is what breaks the loop, which is exactly why nothing else
- * can observe it. Counting is not a yield and does not give the core back, so
- * this still fires on a run that a yield would have rescued.
- *
- * Two million is far above a healthy run and well under what a spin reaches
- * in a second, so the two do not overlap. */
-#define PF_SPIN_CALLS 2000000
 /* Passes of the contended-mutex wait loop, counted per fiber so the report
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
@@ -195,7 +177,6 @@ typedef struct {
 } pf_cond_t;
 
 static double pf_now_ms(void);
-static void pf_count_call(const char *where);
 static int pfiber_index_of(pfiber_t *f);
 
 static pfiber_t *pfiber_at(int idx)
@@ -669,7 +650,6 @@ static void pfiber_reschedule(void)
             /* Recorded here because this is the moment next gains control, in
              * both directions of a switch. See pf_maybe_preempt. */
             g_current->running_since_ms = g_last_switch_ms;
-            g_current->wrapped_calls = 0;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             /* Only the way back needs fixing up, and only for g_main: it runs
              * on the module stack, which
@@ -920,7 +900,6 @@ int __wrap_pthread_mutex_destroy(pthread_mutex_t *mutex)
 int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
-    pf_count_call("pthread_mutex_lock");
     pf_mutex_t *m = pf_mutex_ensure(mutex);
     if (m->owner == g_current) {
         /* A non-recursive lock taken twice by the same fiber can never be
@@ -1039,7 +1018,6 @@ int __wrap_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
                                    const struct timespec *abstime)
 {
     pfiber_ensure_main();
-    pf_count_call("pthread_cond_timedwait");
     pf_cond_ensure(cond);
     void *cond_ptr = (void *)cond;
     double deadline = (double)abstime->tv_sec * 1000.0 + (double)abstime->tv_nsec / 1e6;
@@ -1093,28 +1071,6 @@ static void pf_maybe_preempt(void)
     pfiber_reschedule();
 }
 
-/* Called on entry to every shim entry point a fiber can loop through, counting
- * them against PF_SPIN_CALLS. Deliberately does not yield: the point is to
- * catch the loop that yielding hides. */
-static void pf_count_call(const char *where)
-{
-    pfiber_t *f = g_current;
-    f->wrapped_where = where;
-    if (++f->wrapped_calls < PF_SPIN_CALLS)
-        return;
-
-    char msg[320];
-    snprintf(msg, sizeof(msg),
-             "pthread-fiber: fiber %d made %d wrapped calls without the "
-             "scheduler running, most recently %s, after %llu switches. It is "
-             "looping on something this shim cannot preempt.\n",
-             pfiber_index_of(f), PF_SPIN_CALLS, where,
-             (unsigned long long)g_switches);
-    pf_report_js(msg);
-    pf_report_stall(pf_now_ms());
-    abort();
-}
-
 /* fftools' filtering thread polls for frames rather than blocking for them, so
  * these two calls are the only points in its poll loop the shim gets to see.
  * Both happen at least once per pass: fg_output_step() drains every output with
@@ -1126,7 +1082,6 @@ int __real_avfilter_graph_request_oldest(struct AVFilterGraph *graph);
 int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
 {
     pfiber_ensure_main();
-    pf_count_call("avfilter_graph_request_oldest");
     pf_maybe_preempt();
     return __real_avfilter_graph_request_oldest(graph);
 }
@@ -1150,7 +1105,6 @@ int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
                                           struct AVFrame *frame, int flags)
 {
     pfiber_ensure_main();
-    pf_count_call("av_buffersink_get_frame_flags");
     pf_maybe_preempt();
     return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
@@ -1158,7 +1112,6 @@ int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
 int __wrap_usleep(unsigned usec)
 {
     pfiber_ensure_main();
-    pf_count_call("usleep");
     double deadline = emscripten_get_now() + (double)usec / 1000.0;
     while (emscripten_get_now() < deadline) {
         pfiber_reschedule();
