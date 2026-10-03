@@ -31,20 +31,14 @@ pthread shim instead.
    vendored n5.1.10 sources) is dead code kept until this is confirmed
    green in CI, then removed.
    Open: the st core hangs on video transcodes (`fate (st)`, `tests`,
-   `node-tests`). Minimal reproducer, deterministic, sub-second when it
-   works:
+   `node-tests`). Minimal, deterministic, and it needs no sample file and
+   no FATE reference:
 
        ffmpeg -f lavfi -i pal100bars=rate=5:duration=1 -f null -
 
    The st core never returns from it. The mt core, which uses real
    threads and none of `src/pthread-fiber`, returns 0 in 0.1s, so this is
-   the shim and not FFmpeg's scheduler. `pal100bars` hangs for every
-   muxer, every `-pix_fmt`, every rate and every frame count tried;
-   `pal75bars` with a byte-identical command passes, and so do
-   `testsrc`, `testsrc2`, `rgbtestsrc`, `smptebars`, `nullsrc` and
-   `allrgb` into `-f null`. `fate-filter-allrgb` and `fate-filter-allyuv`
-   fail against `framecrc` but pass against `null`, which is why only
-   some of the FATE filter tests fail.
+   the shim and not FFmpeg's scheduler. It reproduces every time.
 
    What it is not: a spin, and a deadlock. During a hang the shim prints
    nothing at all, which is the strongest evidence available, because its
@@ -53,19 +47,41 @@ pthread shim instead.
    scheduler is never re-entered and no fiber is blocked: one fiber runs
    C for the whole run. Counting entries to every shim entry point
    (`pthread_mutex_lock`, `pthread_cond_timedwait`, `usleep`,
-   `av_buffersink_get_frame_flags`, `avfilter_graph_request_oldest`,
-   `avfilter_graph_config`) finds no loop through any of them either, so
-   it is one long call and not a cycle.
+   `av_buffersink_get_frame_flags`, `avfilter_graph_request_oldest`)
+   finds no loop through any of them. A passing run has a fixed fiber
+   timeline, `s0 s1 s2 s3 r3 s4 r2 r1 r0 r4`; a hang stops after `r3`,
+   with the lazily created muxer fiber (4) never appearing, because
+   `mux_init` runs out of `enc_open`, which needs a frame. That absence
+   is a symptom, not the cause.
 
    That also explains the whole history of this bug, wrongly read as a
-   Heisenbug. Nothing about the hang is timing-sensitive: it reproduces
-   every time. What changes with the code is the heap layout, because
-   each fiber `malloc`s an 8MB C stack and an 8MB asyncify stack
-   (`PFIBER_STACK_SIZE`, `PFIBER_ASYNCIFY_STACK_SIZE`, 80MB for the five
-   fibers a transcode uses). Markers, an argv log line, an instrumented
-   `_fd_write` and preemption all move those allocations, so each one
-   changed the outcome without changing any logic. Read as a race, every
-   attempt to observe it made it go away.
+   Heisenbug. Nothing about the hang is timing-sensitive. What changes
+   with the code is the heap layout, because each fiber `malloc`s an 8MB
+   C stack and an 8MB asyncify stack (`PFIBER_STACK_SIZE`,
+   `PFIBER_ASYNCIFY_STACK_SIZE`, 80MB for the five fibers a transcode
+   uses). Markers, an argv log line, an instrumented `_fd_write` and
+   preemption all move those allocations, so each one changed the
+   outcome without changing any logic. Read as a race, every attempt to
+   observe it made it go away.
+
+   Ruled out by running the CI core locally, one case per process so that
+   a hang costs only its cap rather than stalling the run. `pal100bars`
+   hangs for every muxer, every `-pix_fmt`, every rate and every frame
+   count, while `pal75bars` with a byte-identical command passes, and so
+   do `testsrc`, `testsrc2`, `rgbtestsrc`, `smptebars` and `nullsrc`.
+   That is why only some FATE filter tests fail: `allrgb` and `allyuv`
+   pass against `null` and fail against `framecrc`. Not the pixel format
+   conversion, the source's size, or the frame count: `testsrc` at
+   1920x1080 and at 65x65 both convert and both pass. Not swscale: every
+   conversion tested passes, and a wrapped `sws_scale` never loops. Not a
+   loop at all: wrapping the per-frame leaves as well,
+   `av_buffersrc_add_frame_flags`, the four `av_frame` refcount calls,
+   `avcodec_send_frame` and `avcodec_receive_packet`, finds no loop
+   through any of them either. So it is one call, somewhere below all of
+   those, inside libavfilter or libavcodec. Naming it needs a stack
+   sample, which means changing the core's build rather than adding
+   another wrapper.
+
 
    Ruled out, so the search does not go here again: asyncify stack
    exhaustion. `emscripten_fiber_swap` unwinds the outgoing fiber onto that
