@@ -137,7 +137,8 @@ static unsigned long long g_idle_waits;
  * window started. */
 static unsigned long long g_reported_switches;
 static double g_rate_ms;
-static int g_startup_pending;
+/* Forced switches between cooperative filter-graph polls. */
+static unsigned g_preempt_countdown = 1024;
 /* Passes of the contended-mutex wait loop, counted per fiber so the report
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
@@ -413,14 +414,6 @@ static void pf_idle_wait(double wake_at_ms)
     }
 }
 
-static int pfiber_any_runnable(void)
-{
-    for (int i = 0; i < PFIBER_MAX; i++)
-        if (g_table[i].state == PF_RUNNABLE)
-            return 1;
-    return 0;
-}
-
 static int pfiber_index_of(pfiber_t *f)
 {
     return (f == &g_main) ? -1 : (int)(f - g_table);
@@ -495,7 +488,7 @@ static void pfiber_reset(void)
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
     g_heartbeat_ms = g_last_switch_ms;
-    g_startup_pending = 0;
+    g_preempt_countdown = 1024;
     g_initialized = 1;
 }
 
@@ -637,6 +630,7 @@ static void pfiber_reschedule(void)
         if (next) {
             g_switches++;
             g_last_switch_ms = pf_now_ms();
+            g_preempt_countdown = 1024;
             pfiber_t *prev = g_current;
             g_current = next;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
@@ -764,7 +758,6 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
      * front, then immediately blocks) will hand it a turn on its own next
      * blocking point. */
     *thread = (pthread_t)(uintptr_t)f;
-    g_startup_pending = 1;
     return 0;
 }
 
@@ -890,13 +883,6 @@ int __wrap_pthread_mutex_destroy(pthread_mutex_t *mutex)
 int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
 {
     pfiber_ensure_main();
-    if (g_startup_pending && g_current == &g_main) {
-        do {
-            g_startup_pending = 0;
-            pfiber_reschedule();
-            g_startup_pending = pfiber_any_runnable();
-        } while (g_startup_pending);
-    }
     pf_mutex_t *m = pf_mutex_ensure(mutex);
     if (m->owner == g_current) {
         /* A non-recursive lock taken twice by the same fiber can never be
@@ -1045,6 +1031,30 @@ int __wrap_pthread_cond_broadcast(pthread_cond_t *cond)
 {
     pf_wake_waiters_on((void *)cond);
     return 0;
+}
+
+struct AVFilterGraph;
+struct AVFilterContext;
+struct AVFrame;
+
+int __real_avfilter_graph_request_oldest(struct AVFilterGraph *graph);
+int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
+{
+    pfiber_ensure_main();
+    if (--g_preempt_countdown == 0)
+        pfiber_reschedule();
+    return __real_avfilter_graph_request_oldest(graph);
+}
+
+int __real_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
+                                          struct AVFrame *frame, int flags);
+int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
+                                          struct AVFrame *frame, int flags)
+{
+    pfiber_ensure_main();
+    if (--g_preempt_countdown == 0)
+        pfiber_reschedule();
+    return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
 
 int __wrap_usleep(unsigned usec)
