@@ -31,49 +31,48 @@ pthread shim instead.
    vendored n5.1.10 sources) is dead code kept until this is confirmed
    green in CI, then removed.
    Open: the st core hangs on video transcodes (`fate (st)`, `tests`,
-   `node-tests`). The stall is the filtering thread's poll loop in
-   `fftools/ffmpeg_filter.c`, not the muxer. `filter_thread` calls
-   `sch_filter_receive`, which drains with `THREAD_QUEUE_FLAG_NO_BLOCK`
-   and then calls `waiter_wait`; while the filtergraph is unchoked,
-   `waiter_wait` returns without touching a pthread primitive, and both
-   `av_buffersink_get_frame_flags` and `avfilter_graph_request_oldest`
-   come straight back `EAGAIN`. So one pass of that loop contends no
-   mutex and blocks nowhere, which on a single threaded core is a spin.
-   The muxer fiber is absent as a symptom, not a cause: it is created
-   lazily by `sch_mux_stream_ready` -> `mux_init`, which runs out of
-   `enc_open`, which needs the first frame out of the graph.
+   `node-tests`). Minimal reproducer, deterministic, sub-second when it
+   works:
 
-   This is why every attempt to observe the hang made it go away. The
-   shim's stall reports and its 5s heartbeat are reachable only from
-   `pfiber_reschedule`, and the spin never reaches `pfiber_reschedule`
-   at all, so they print nothing during the hang. Anything that adds work
-   to the loop (markers in `filter_thread`, an argv log line, an
-   instrumented `_fd_write`) perturbs when the loop's yield fires and
-   moves the frame that gets observed. Instrument to find it and it hides,
-   so the fix has to be robust rather than diagnostic.
+       ffmpeg -f lavfi -i pal100bars=rate=5:duration=1 -f null -
 
-   The yield itself lives in the two `--wrap`ed libavfilter calls, which
-   are the only points in that loop the shim sees: `fg_output_step` calls
-   `av_buffersink_get_frame_flags` once per output and `read_frames`
-   calls `avfilter_graph_request_oldest` once per pass. The budget for
-   it is wall clock per fiber (`PF_PREEMPT_MS`), not a count of calls. A
-   call count cannot mean the same thing twice, since a pass that rejects
-   `EAGAIN` takes microseconds and one that produces a frame takes
-   hundreds of milliseconds; a single global count was worse still,
-   because `pfiber_reschedule` reset it on every switch, so a spinning
-   fiber never reached its threshold at all whenever the rest of the
-   pipeline was busy. Measured in isolation: the old scheme yields zero
-   times across a 1000ms spin with one other fiber switching throughout,
-   where the per-fiber 5ms budget yields 200 times.
+   The st core never returns from it. The mt core, which uses real
+   threads and none of `src/pthread-fiber`, returns 0 in 0.1s, so this is
+   the shim and not FFmpeg's scheduler. `pal100bars` hangs for every
+   muxer, every `-pix_fmt`, every rate and every frame count tried;
+   `pal75bars` with a byte-identical command passes, and so do
+   `testsrc`, `testsrc2`, `rgbtestsrc`, `smptebars`, `nullsrc` and
+   `allrgb` into `-f null`. `fate-filter-allrgb` and `fate-filter-allyuv`
+   fail against `framecrc` but pass against `null`, which is why only
+   some of the FATE filter tests fail.
 
-   That work also found a real, separate bug: `g_main`'s stack limits are never
-   restored, because `emscripten_fiber_init_from_current_context` does not record
-   the module stack in `g_main.ctx`. The module stack is 5MB at
-   `0xe47650..0x1347650` and the limits left in force are a fiber's 8MB
-   range, so the run fails its own `stackRestore` in `bind.js` with
-   `Attempt to set SP to 0x01347650, with stack limits
-   [0x02b89b68 - 0x03389b68]`. This branch now restores the module stack bounds
-   captured during reset when control comes back to `g_main`.
+   What it is not: a spin, and a deadlock. During a hang the shim prints
+   nothing at all, which is the strongest evidence available, because its
+   5s heartbeat is only reachable from `pfiber_reschedule` and its stall
+   report fires on any fiber blocked past 10s. Neither fires. So the
+   scheduler is never re-entered and no fiber is blocked: one fiber runs
+   C for the whole run. Counting entries to every shim entry point
+   (`pthread_mutex_lock`, `pthread_cond_timedwait`, `usleep`,
+   `av_buffersink_get_frame_flags`, `avfilter_graph_request_oldest`,
+   `avfilter_graph_config`) finds no loop through any of them either, so
+   it is one long call and not a cycle.
+
+   That also explains the whole history of this bug, wrongly read as a
+   Heisenbug. Nothing about the hang is timing-sensitive: it reproduces
+   every time. What changes with the code is the heap layout, because
+   each fiber `malloc`s an 8MB C stack and an 8MB asyncify stack
+   (`PFIBER_STACK_SIZE`, `PFIBER_ASYNCIFY_STACK_SIZE`, 80MB for the five
+   fibers a transcode uses). Markers, an argv log line, an instrumented
+   `_fd_write` and preemption all move those allocations, so each one
+   changed the outcome without changing any logic. Read as a race, every
+   attempt to observe it made it go away.
+
+   So the next thing to look at is memory, not scheduling: whether a
+   fiber's asyncify stack can be overflowed during an unwind. Emscripten's
+   `emscripten_fiber_swap` unwinds the outgoing fiber onto that buffer and
+   never checks it, and `pf_check_asyncify_stack` only runs after a switch
+   has completed, so by the time it could report one the damage is done.
+
 
 ## Layout
 
