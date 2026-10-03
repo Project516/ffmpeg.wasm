@@ -67,11 +67,17 @@ pthread shim instead.
    changed the outcome without changing any logic. Read as a race, every
    attempt to observe it made it go away.
 
-   So the next thing to look at is memory, not scheduling: whether a
-   fiber's asyncify stack can be overflowed during an unwind. Emscripten's
-   `emscripten_fiber_swap` unwinds the outgoing fiber onto that buffer and
-   never checks it, and `pf_check_asyncify_stack` only runs after a switch
-   has completed, so by the time it could report one the damage is done.
+   Ruled out, so the search does not go here again: asyncify stack
+   exhaustion. `emscripten_fiber_swap` unwinds the outgoing fiber onto that
+   buffer and never checks it, and `pf_check_asyncify_stack` only runs after a
+   switch completes, so an overflow would only ever be reported after the
+   damage. Measuring the headroom at every switch instead shows every fiber
+   still has all 8MB free at every switch, so the unwinds are shallow and the
+   buffer is nowhere near its limit. Note the direction before trusting any
+   such a measurement: emscripten's `setDataHeader` sets `stack_ptr` to the
+   bottom of the buffer and `stack_limit` to the top, so the stack grows
+   upward and `stack_limit - stack_ptr` is headroom left, not bytes used.
+   `pf_check_asyncify_stack` compares against that correctly.
 
 
 ## Layout
