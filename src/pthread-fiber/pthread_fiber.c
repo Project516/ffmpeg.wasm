@@ -92,7 +92,6 @@ typedef struct pfiber {
     int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
     double blocked_since_ms;      /* when it last went PF_BLOCKED, 0 when runnable */
     double running_since_ms;      /* when this fiber last gained control, see pf_maybe_preempt */
-    size_t asyncify_reported;      /* deepest asyncify use already reported, see pf_check_asyncify_stack */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -561,32 +560,8 @@ static void pf_check_asyncify_stack(pfiber_t *f)
     char *high = low + f->asyncify_stack_size;
     char *sp = (char *)f->ctx.asyncify_data.stack_ptr;
 
-    if (sp >= low && sp <= high) {
-        /* How close the deepest unwind has come to running off the end.
-         * The bounds check only says whether it already has; this says whether
-         * it is about to, which is the difference between a buffer that is
-         * sized right and one that only happens to be big enough today.
-         * Reported at halves and eighths so a normal run stays silent and a
-         * deep one says how deep it got, without yielding or aborting: both of
-         * those change the heap layout, and the layout is what this whole
-         * investigation turns on. */
-        size_t used = high - sp;
-        for (unsigned step = 2; step <= 8; step <<= 1) {
-            if (used < f->asyncify_stack_size * step / 8)
-                break;
-            size_t mark = f->asyncify_stack_size * step / 8;
-            if (f->asyncify_reported >= mark)
-                continue;
-            f->asyncify_reported = mark;
-            char deep[224];
-            snprintf(deep, sizeof(deep),
-                     "pthread-fiber: fiber %d unwound %zu of its %zu byte "
-                     "asyncify stack.\n",
-                     pfiber_index_of(f), used, f->asyncify_stack_size);
-            pf_report_js(deep);
-        }
+    if (sp >= low && sp <= high)
         return;
-    }
 
     char msg[256];
     snprintf(msg, sizeof(msg),
