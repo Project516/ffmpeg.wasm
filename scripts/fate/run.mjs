@@ -273,6 +273,7 @@ function runIndexWithWatchdog({ corePkg, manifestPath, index, generatedDir }) {
       const stall = readStalls();
       if (timedOut) {
         rmSync(resultPath, { force: true });
+        rmSync(stallPath, { force: true });
         resolvePromise({ status: "fail", reason: "timeout", stall });
         return;
       }
