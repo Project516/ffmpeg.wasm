@@ -11,7 +11,7 @@ It is recommended to read [Overview](/docs/overview) first.
 :::caution
 If you are a [vite](https://vitejs.dev/) user, use `esm` in **baseURL** instead of `umd`:
 
-~~https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd~~ => https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/esm
+~~https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd~~ => https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/esm
 :::
 
 ```jsx live
@@ -24,7 +24,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -85,7 +85,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -137,7 +137,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -195,7 +195,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         // Listen to progress event instead of log.
         ffmpeg.on('progress', ({ progress, time }) => {
@@ -246,7 +246,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -316,7 +316,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -375,7 +375,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.14.0/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;

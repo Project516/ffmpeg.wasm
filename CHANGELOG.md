@@ -3,16 +3,25 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## 0.14.0
 
 ### Changed
 
-- The multithread core now builds FFmpeg 9.0.2 instead of 5.1.10. The
-  single-thread core is unaffected and stays on FFmpeg 5.1.10.
+- Both cores now build FFmpeg 9.0.2 (the single-thread core was on 5.1.10).
+  The single-thread core runs FFmpeg's threaded scheduler on a cooperative
+  pthread shim built on Emscripten fibers, so it still does not need
+  `SharedArrayBuffer`. Remuxing and merging with `-c copy`, audio extraction
+  to mp3, m4a and opus, and `ffprobe` JSON output are covered by tests on both
+  cores.
+- The `FFmpeg` class runs the core in a worker thread under Node.js.
 - License: the project is now AGPL-3.0-or-later (previously MIT for the JS
   packages and GPL-2.0-or-later for the cores). See NOTICE at the repository
   root for how this fits with the MIT code inherited from upstream and the
   third-party libraries built into the core packages.
+
+### Added
+
+- FFmpeg's own FATE suite and benchmarks run in CI against both cores.
 
 ## 0.13.1
 
