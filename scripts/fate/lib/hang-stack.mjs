@@ -72,6 +72,23 @@ async function pause() {
       out(expression + " failed: " + e.message);
     }
   }
+  for (const frame of frames.slice(1, 4)) {
+    for (const scope of frame.scopeChain) {
+      if (scope.type === "global" || scope.type === "module") continue;
+      try {
+        const { result } = await post("Runtime.getProperties", { objectId: scope.object.objectId, ownProperties: true });
+        out(frame.functionName + " " + scope.type + ": " + result.map((p) => p.name + "=" + (p.value && (p.value.value ?? p.value.description))).join(" "));
+      } catch (e) {
+        out(frame.functionName + " " + scope.type + " failed: " + e.message);
+      }
+    }
+  }
+  const dump = await post("Debugger.evaluateOnCallFrame", {
+    callFrameId: frames[0].callFrameId,
+    expression: "Array.from(HEAPU32.slice((iov >> 2) - 8, (iov >> 2) + 16)).join(',')",
+    returnByValue: true,
+  });
+  out("words from iov-32: " + dump.result.value);
 }
 
 (async () => {
