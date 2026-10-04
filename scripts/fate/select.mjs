@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Reads the FATE .mak files fetched by fetch-defs.mjs, extracts framecrc /
-// framemd5 tests from the allowlisted files in config.mjs, and writes a
-// manifest of the chosen subset as JSON.
+// Reads the FATE .mak files fetched by fetch-defs.mjs, extracts the framecrc,
+// framemd5, crc, md5 and md5pipe tests from the allowlisted files in
+// config.mjs, and writes a manifest of the chosen subset as JSON.
 //
 // Usage: node scripts/fate/select.mjs --tag n9.0.2 --subset fast --out manifest.json
 import { existsSync, readFileSync, writeFileSync } from "node:fs";

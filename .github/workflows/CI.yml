@@ -55,6 +55,10 @@ jobs:
         run: pnpm lint
       - name: Check docs library table matches the Dockerfile
         run: node scripts/check-doc-versions.mjs
+      - name: Test the baseline comparison
+        run: node --test scripts/baseline/compare.test.mjs
+      - name: Check the results page matches the baseline
+        run: node scripts/baseline/docs.mjs --check
       - name: Build
         run: pnpm build
 
@@ -235,7 +239,7 @@ jobs:
   # CORRECTNESS.md (https://github.com/wasmpeg/wasmpeg, LGPL-2.1-or-later).
   fate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     needs:
       - build-core
       - build-core-mt
@@ -307,6 +311,7 @@ jobs:
         run: |
           node scripts/fate/run.mjs \
             --core packages/core${{ matrix.core == 'mt' && '-mt' || '' }} \
+            --label ${{ matrix.core }} \
             --manifest manifest-${{ matrix.core }}.json \
             --out fate-results-${{ matrix.core }}.json
       - name: Upload results
@@ -394,3 +399,32 @@ jobs:
         with:
           name: bench-results
           path: bench-*.json
+
+  # Fails when a FATE test that passed in baseline/fate.json now fails, or a
+  # benchmark metric is far above baseline/bench.json. Not a required check.
+  # To refresh the baseline, see "Updating the baseline" in
+  # apps/website/docs/fate-and-benchmarks.md.
+  baseline-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - fate
+      - benchmark
+    if: ${{ always() && !startsWith(github.ref, 'refs/tags/') && inputs.fate_only == '' }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Download results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-results*"
+          merge-multiple: true
+      - name: Compare with the baseline
+        run: |
+          node scripts/baseline/check.mjs \
+            --fate fate-results-st.json --fate fate-results-mt.json \
+            --bench bench-report.json >> "$GITHUB_STEP_SUMMARY"

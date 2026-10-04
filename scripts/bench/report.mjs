@@ -24,12 +24,12 @@ function toMarkdown(report) {
   const lines = ["| case | native (ms) |" + report.cores.map((c) => ` ${c.label} (ms) | ${c.label} ratio |`).join("")];
   lines.push("| --- | --- |" + report.cores.map(() => " --- | --- |").join(""));
   for (const caseName of report.caseNames) {
-    const nativeMs = report.native.cases.find((c) => c.name === caseName)?.avgWallMs;
+    const nativeMs = report.native.cases.find((c) => c.name === caseName)?.medianWallMs;
     const row = [`| ${caseName} | ${nativeMs?.toFixed(1) ?? "?"} |`];
     for (const core of report.cores) {
       const c = core.cases.find((c) => c.name === caseName);
-      const ratio = c?.avgWallMs != null && nativeMs != null ? (c.avgWallMs / nativeMs).toFixed(1) : "?";
-      row.push(` ${c?.avgWallMs?.toFixed(1) ?? "?"} | ${ratio}x |`);
+      const ratio = c?.medianWallMs != null && nativeMs != null ? (c.medianWallMs / nativeMs).toFixed(1) : "?";
+      row.push(` ${c?.medianWallMs?.toFixed(1) ?? "?"} | ${ratio}x |`);
     }
     lines.push(row.join(""));
   }

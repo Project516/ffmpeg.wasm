@@ -7,15 +7,16 @@
 // inlined in CMD, e.g.:
 //   fate-filter-adelay: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
 //   fate-filter-adelay: CMD = framecrc -i $(SRC) -af ...
-// This parser only understands the framecrc/framemd5 forms (the ones this
-// first subset runs); anything else is left out rather than guessed at.
+// This parser only understands the framecrc, framemd5, crc, md5 and md5pipe
+// forms that name one test per line; anything else is left out rather than
+// guessed at.
 //
 // This is a small, from-scratch reader of that convention, not a port of
 // FFmpeg's tests/fate-run.sh. run.mjs reimplements just enough of
-// fate-run.sh's framecrc/framemd5 behavior to compare output against the
-// same tests/ref/fate/<name> reference files.
+// fate-run.sh's helpers to compare output against the same
+// tests/ref/fate/<name> reference files.
 
-const CMD_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*CMD\s*=\s*(framecrc|framemd5)\s+(.*)$/;
+const CMD_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*CMD\s*=\s*(framecrc|framemd5|crc|md5pipe|md5)\s+(.*)$/;
 const VAR_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*(?!CMD\s*=)([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/;
 
 function joinContinuations(text) {
@@ -24,7 +25,7 @@ function joinContinuations(text) {
 
 /**
  * @param {string} text contents of one .mak file
- * @returns {{name: string, mode: "framecrc"|"framemd5", args: string, vars: Record<string,string>}[]}
+ * @returns {{name: string, mode: "framecrc"|"framemd5"|"crc"|"md5pipe"|"md5", args: string, vars: Record<string,string>}[]}
  */
 export function parseMakFile(text) {
   const joined = joinContinuations(text);
