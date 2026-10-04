@@ -34,6 +34,7 @@ import { cacheDirForTag } from "./config.mjs";
 import { tokenize } from "./lib/argv.mjs";
 import { compareOutput } from "./lib/compare.mjs";
 import { generateInputs } from "./lib/gen.mjs";
+import { startHangSampler } from "./lib/hang-stack.mjs";
 
 const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
@@ -157,6 +158,7 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
   });
   core.setProgress(() => {});
   core.setTimeout(EXEC_TIMEOUT_MS);
+  if (process.env.FATE_HANG_STACK_MS) startHangSampler(Number(process.env.FATE_HANG_STACK_MS));
 
   if (test.kind === "sample") {
     for (const relpath of test.samples) writeHostFile(core.FS, SAMPLES_MOUNT, samplesDir, relpath);

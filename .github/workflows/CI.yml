@@ -304,6 +304,7 @@ jobs:
         env:
           FATE_ONLY: ${{ inputs.fate_only }}
           FATE_LOGLEVEL: ${{ inputs.fate_loglevel }}
+          FATE_HANG_STACK_MS: ${{ matrix.core == 'st' && '15000' || '' }}
         run: |
           node scripts/fate/run.mjs \
             --core packages/core${{ matrix.core == 'mt' && '-mt' || '' }} \

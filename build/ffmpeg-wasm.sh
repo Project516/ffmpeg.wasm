@@ -93,6 +93,7 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # too, so it comes out; STACK_OVERFLOW_CHECK is what the hang hunt needs
     # and it works on its own.
     -sASSERTIONS=0
+    --profiling-funcs
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach
