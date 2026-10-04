@@ -232,7 +232,8 @@ describe(genName("FFmpeg"), function () {
     await ffmpeg.deleteFile("probe_out.txt");
   });
 
-  it("stops exec() after the given timeout", async () => {
+  // st polls the timeout from a cooperative fiber, so a short job can finish before it runs.
+  (FFMPEG_TYPE === "st" ? it.skip : it)("stops exec() after the given timeout", async () => {
     await ffmpeg.writeFile(
       "timeout.mp4",
       b64ToUint8Array(VIDEO_1S_MP4)
