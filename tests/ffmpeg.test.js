@@ -148,7 +148,8 @@ describe(genName("FFmpeg.exec()"), function () {
   });
 
   it("should stop if timeout", async () => {
-    const ret = await ffmpeg.exec(["-i", "video.mp4", "video.avi"], 1);
+    // Long enough that it cannot finish before the timeout.
+    const ret = await ffmpeg.exec(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:duration=3600", "-f", "null", "-"], 50);
     expect(ret).to.equal(1);
   });
 

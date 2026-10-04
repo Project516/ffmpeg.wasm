@@ -233,16 +233,12 @@ describe(genName("FFmpeg"), function () {
   });
 
   it("stops exec() after the given timeout", async () => {
-    await ffmpeg.writeFile(
-      "timeout.mp4",
-      b64ToUint8Array(VIDEO_1S_MP4)
-    );
+    // Long enough that it cannot finish before the timeout.
     const ret = await ffmpeg.exec(
-      ["-i", "timeout.mp4", "timeout.avi"],
-      1 // 1ms, well under the time a transcode takes
+      ["-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:duration=3600", "-f", "null", "-"],
+      50
     );
     expect(ret).to.equal(1);
-    await ffmpeg.deleteFile("timeout.mp4");
   });
 });
 

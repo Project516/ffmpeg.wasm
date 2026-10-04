@@ -149,8 +149,9 @@ describe(genName("setTimeout()"), () => {
   });
 
   it("should timeout", () => {
-    core.setTimeout(1); // timeout after 1ms
-    expect(core.exec("-i", "video.mp4", "video.avi")).to.equal(1);
+    core.setTimeout(50);
+    // Long enough that it cannot finish first, however fast the machine is.
+    expect(core.exec("-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:duration=3600", "-f", "null", "-")).to.equal(1);
   });
 });
 
