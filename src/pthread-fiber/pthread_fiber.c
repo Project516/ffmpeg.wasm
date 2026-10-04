@@ -66,6 +66,29 @@
 #define PFIBER_STACK_SIZE (8 * 1024 * 1024)
 #define PFIBER_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
 
+/* Both stacks come out of one allocation, asyncify stack last, with this much
+ * slack after it.
+ *
+ * The asyncify stack is the one that can be overrun, because nothing checks it
+ * while it is being written (see pf_check_asyncify_stack), and it is written
+ * from the bottom of its region upward, so an overrun runs off the top. As a
+ * separate malloc that top end is whatever the heap put next, which for a fiber
+ * created in the middle of a transcode is FFmpeg's own buffers. An overrun
+ * there is then silent: it corrupts a frame or a queue and the run dies later
+ * somewhere unrelated, which is exactly the shape of this core's bug.
+ *
+ * Making it the last thing in the fiber's own allocation means an overrun has
+ * to cross this much dead space first, and once it does, the stack pointer is
+ * past the end of the asyncify region that pf_check_asyncify_stack compares
+ * against, so the run reports an overrun and stops instead of carrying the
+ * damage onward. The slack is a megabyte because that is more unwinding than
+ * any call in FFmpeg does; reaching the far end of it means something is
+ * recursing without bound, which is worth knowing. */
+#define PFIBER_GUARD_SIZE (1 * 1024 * 1024)
+/* C stack first, then the asyncify stack, then the slack. */
+#define PFIBER_REGION_SIZE \
+    (PFIBER_STACK_SIZE + PFIBER_ASYNCIFY_STACK_SIZE + PFIBER_GUARD_SIZE)
+
 /* g_main is the odd one out: it runs the whole of main() on the module's own
  * stack (-sSTACK_SIZE=5MB in build/ffmpeg-wasm.sh) rather than on a stack
  * allocated here, so its asyncify stack has to cover that. Same rule, and the
@@ -468,8 +491,7 @@ static double pf_now_ms(void)
 static void pfiber_reset(void)
 {
     for (int i = 0; i < PFIBER_MAX; i++) {
-        free(g_table[i].c_stack);
-        free(g_table[i].asyncify_stack);
+        free(g_table[i].c_stack); /* one region, see PFIBER_REGION_SIZE */
     }
     memset(g_table, 0, sizeof(g_table));
     /* Epoch 0 is never handed out, so a wrapped counter cannot make a mutex
@@ -486,7 +508,12 @@ static void pfiber_reset(void)
     /* See g_main_stack_base: this is the one moment they still describe it. */
     g_main_stack_base = (void *)emscripten_stack_get_base();
     g_main_stack_limit = (void *)emscripten_stack_get_end();
-    g_main.asyncify_stack = malloc(PFIBER_MAIN_ASYNCIFY_STACK_SIZE);
+    /* Slack for the same reason a fiber's region has it, see
+     * PFIBER_GUARD_SIZE: this stack is written without a check while it is
+     * being unwound onto, and g_main carries the deepest chain in the program.
+     * asyncify_stack_size stays the usable size, which is what
+     * pf_check_asyncify_stack compares against. */
+    g_main.asyncify_stack = malloc(PFIBER_MAIN_ASYNCIFY_STACK_SIZE + PFIBER_GUARD_SIZE);
     g_main.asyncify_stack_size = PFIBER_MAIN_ASYNCIFY_STACK_SIZE;
     if (!g_main.asyncify_stack) {
         pf_report_js("pthread-fiber: out of memory for the main fiber's "
@@ -596,8 +623,7 @@ static void pfiber_reschedule(void)
             pfiber_t *f = &g_table[i];
             if (f->state == PF_DONE && f->detached &&
                 (f->c_stack || f->asyncify_stack)) {
-                free(f->c_stack);
-                free(f->asyncify_stack);
+                free(f->c_stack); /* one region, see PFIBER_REGION_SIZE */
                 f->c_stack = NULL;
                 f->asyncify_stack = NULL;
                 f->state = PF_FREE;
@@ -746,18 +772,17 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
         return EAGAIN;
     }
 
-    char *c_stack = malloc(PFIBER_STACK_SIZE);
-    char *asyncify_stack = malloc(PFIBER_ASYNCIFY_STACK_SIZE);
-    if (!c_stack || !asyncify_stack) {
+    char *region = malloc(PFIBER_REGION_SIZE);
+    if (!region) {
         char msg[160];
         snprintf(msg, sizeof(msg),
-                 "pthread-fiber: out of memory for a fiber's %d byte stack.\n",
-                 PFIBER_STACK_SIZE);
+                 "pthread-fiber: out of memory for a fiber's %d byte region.\n",
+                 PFIBER_REGION_SIZE);
         pf_report_js(msg);
-        free(c_stack);
-        free(asyncify_stack);
         return EAGAIN;
     }
+    char *c_stack = region;
+    char *asyncify_stack = region + PFIBER_STACK_SIZE;
 
     memset(f, 0, sizeof(*f));
     f->c_stack = c_stack;
@@ -793,8 +818,7 @@ int __wrap_pthread_join(pthread_t thread, void **retval)
         *retval = f->retval;
 
     /* Safe here: we are not running on f's stack, we are the joiner. */
-    free(f->c_stack);
-    free(f->asyncify_stack);
+    free(f->c_stack); /* one region, see PFIBER_REGION_SIZE */
     f->c_stack = NULL;
     f->asyncify_stack = NULL;
     f->state = PF_FREE;
@@ -806,8 +830,7 @@ int __wrap_pthread_detach(pthread_t thread)
     pfiber_t *f = (pfiber_t *)(uintptr_t)thread;
     f->detached = 1;
     if (f->state == PF_DONE) {
-        free(f->c_stack);
-        free(f->asyncify_stack);
+        free(f->c_stack); /* one region, see PFIBER_REGION_SIZE */
         f->c_stack = NULL;
         f->asyncify_stack = NULL;
         f->state = PF_FREE;
