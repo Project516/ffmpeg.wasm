@@ -20,6 +20,14 @@ on:
           - fast
           - full
         default: full
+      fate_only:
+        description: "Comma separated test name fragments, to rerun only those"
+        type: string
+        default: ""
+      fate_loglevel:
+        description: "Value for -loglevel, to localise a hang"
+        type: string
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
@@ -157,6 +165,26 @@ jobs:
           done
           if [ -n "$failed" ]; then
             echo "::error::failed test pages:$failed"
+            # mocha-headless-chrome reports only pass/fail, so a page that
+            # wedges or fails inside a Web Worker is otherwise a black box.
+            # Re-open each one and dump its console for the log. One at a time
+            # would add a minute per failed page to a job that is already
+            # red, so they all run at once and each writes to its own file,
+            # replayed in a fixed order below for the same reason as above.
+            dump_pids=""
+            for page in $failed; do
+              timeout 100 node scripts/dump-test-page.mjs \
+                "http://localhost:3000/tests/$page.test.html" \
+                > "$page.dump.log" 2>&1 &
+              dump_pids="$dump_pids $!:$page"
+            done
+            for entry in $dump_pids; do
+              page="${entry#*:}"
+              wait "${entry%%:*}" || true
+              echo "::group::page output: $page"
+              cat "$page.dump.log"
+              echo "::endgroup::"
+            done
             exit 1
           fi
 
@@ -273,6 +301,9 @@ jobs:
       - name: Fetch samples
         run: node scripts/fate/fetch-samples.mjs --manifest manifest-${{ matrix.core }}.json --tag ${{ steps.tag.outputs.tag }}
       - name: Run FATE subset against the ${{ matrix.core }} core
+        env:
+          FATE_ONLY: ${{ inputs.fate_only }}
+          FATE_LOGLEVEL: ${{ inputs.fate_loglevel }}
         run: |
           node scripts/fate/run.mjs \
             --core packages/core${{ matrix.core == 'mt' && '-mt' || '' }} \

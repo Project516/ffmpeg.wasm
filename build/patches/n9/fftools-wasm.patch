@@ -584,3 +584,50 @@ diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
 +void opt_common_reset(void);
 +
  #endif /* FFTOOLS_OPT_COMMON_H */
+diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
+--- a/libavutil/cpu.c	2026-09-24 09:59:45.053923228 -0500
++++ b/libavutil/cpu.c	2026-09-24 11:44:10.274825873 -0500
+@@ -227,6 +227,15 @@
+
+ int av_cpu_count(void)
+ {
++#ifdef FFMPEG_WASM_ST
++    /* The st core has no SharedArrayBuffer, so FFmpeg's own codec threading
++     * stays off at runtime regardless of what auto-detection would say.
++     * Slice/frame-threaded codecs compute their "auto" thread count as
++     * FFMIN(av_cpu_count() + 1, MAX_AUTO_THREADS) (libavcodec/pthread_slice.c),
++     * so even a correctly-detected single core would still try to spin up 2
++     * threads; forcing this to 1 is what actually keeps it at 1. */
++    return 1;
++#else
+     static atomic_int printed = 0;
+
+     int nb_cpus = 1;
+@@ -277,6 +286,7 @@
+     }
+
+     return nb_cpus;
++#endif
+ }
+
+ void av_cpu_force_count(int count)
+diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
+--- a/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
++++ b/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
+@@ -2097,7 +2110,17 @@
+         }
+     } else {
+         fgt->graph->nb_threads = filter_complex_nbthreads;
++#ifdef FFMPEG_WASM_ST
++        /* filter_complex_nbthreads defaults to 0 ("auto"), which overwrites
++         * the filtergraph's own default of 1 and reopens the
++         * avpriv_slicethread_create() auto-resolution path in
++         * libavutil/slicethread.c instead of ff_graph_thread_init()'s clean
++         * "nb_threads == 1, do nothing" return. Keep it forced to 1 so the
++         * st core never spins up filter slice threads. */
++        if (!fgt->graph->nb_threads)
++            fgt->graph->nb_threads = 1;
++#endif
+     }
+ 
+     if (filter_buffered_frames) {
