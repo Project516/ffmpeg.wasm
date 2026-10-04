@@ -93,7 +93,6 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # too, so it comes out; STACK_OVERFLOW_CHECK is what the hang hunt needs
     # and it works on its own.
     -sASSERTIONS=0
-    --profiling-funcs
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
     -Wl,--wrap=pthread_detach
@@ -113,8 +112,6 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     -Wl,--wrap=pthread_cond_broadcast
     -Wl,--wrap=usleep
     -Wl,--wrap=nanosleep
-    -Wl,--wrap=avfilter_graph_request_oldest
-    -Wl,--wrap=av_buffersink_get_frame_flags
   )
 fi
 

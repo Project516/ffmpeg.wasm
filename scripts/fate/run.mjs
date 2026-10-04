@@ -11,7 +11,7 @@
 // credit and background.
 //
 // core.exec() is synchronous, and the wasm side's own timeout check
-// (core.setTimeout(), src/fftools/ffmpeg.c's is_timeout()) is only polled
+// (core.setTimeout(), fftools/ffmpeg.c's is_timeout()) is only polled
 // inside transcode()'s main loop. A hang before that loop, or stuck inside
 // one decode/filter call, never reaches that check, so it alone cannot stop
 // a hung test. Each test therefore runs in its own child process (`--index`,
@@ -34,7 +34,6 @@ import { cacheDirForTag } from "./config.mjs";
 import { tokenize } from "./lib/argv.mjs";
 import { compareOutput } from "./lib/compare.mjs";
 import { generateInputs } from "./lib/gen.mjs";
-import { startHangSampler } from "./lib/hang-stack.mjs";
 
 const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
@@ -46,7 +45,7 @@ const SAMPLES_MOUNT = "/fate-samples";
 const BUILD_ROOT = "/fate-build";
 // core.setTimeout(ms) makes the wasm side's own is_timeout() check call
 // exit_program(1) once transcode() has run this long; see
-// src/fftools/ffmpeg.c and build/patches/n9/fftools-wasm.patch. That exit
+// fftools/ffmpeg.c and build/patches/n9/fftools-wasm.patch. That exit
 // code (1) is indistinguishable from an ordinary ffmpeg failure, so runExec
 // also checks wall time to tell a real timeout apart from a fast failure.
 const EXEC_TIMEOUT_MS = 60_000;
@@ -158,7 +157,6 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
   });
   core.setProgress(() => {});
   core.setTimeout(EXEC_TIMEOUT_MS);
-  if (process.env.FATE_HANG_STACK_MS) startHangSampler(Number(process.env.FATE_HANG_STACK_MS));
 
   if (test.kind === "sample") {
     for (const relpath of test.samples) writeHostFile(core.FS, SAMPLES_MOUNT, samplesDir, relpath);

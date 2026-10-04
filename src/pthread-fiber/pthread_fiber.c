@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -121,7 +122,6 @@ typedef struct pfiber {
     double deadline_ms;          /* pf_now_ms() value this fiber's wait expires at */
     int woke_by_timeout;         /* set by the scheduler when it expires a deadline */
     double blocked_since_ms;      /* when it last went PF_BLOCKED, 0 when runnable */
-    double running_since_ms;      /* when this fiber last gained control, see pf_maybe_preempt */
 } pfiber_t;
 
 static pfiber_t g_table[PFIBER_MAX];
@@ -168,30 +168,10 @@ static unsigned long long g_idle_waits;
  * window started. */
 static unsigned long long g_reported_switches;
 static double g_rate_ms;
-/* How long one fiber may hold control before a filter-graph poll hands it back.
- * The filtering thread's poll loop in fftools/ffmpeg_filter.c never blocks: it
- * drains its queue with THREAD_QUEUE_FLAG_NO_BLOCK, waiter_wait() returns
- * immediately while it is unchoked, and both av_buffersink_get_frame_flags()
- * and avfilter_graph_request_oldest() come straight back with EAGAIN. So that
- * loop has no pthread primitive the shim could block on, and on a single
- * threaded core it is a spin. The two libavfilter calls at the bottom of this
- * file are the only points in it the shim sees, and they yield here.
- *
- * The budget is wall clock per fiber rather than a count of calls because a
- * count cannot mean the same thing twice: the same iteration takes microseconds
- * to reject EAGAIN and hundreds of milliseconds to produce a frame, and a
- * global count is also reset by every switch, so how long a spinning fiber
- * actually keeps the core depends on how busy the rest of the pipeline is. A
- * wall clock budget bounds that at a fixed value instead. */
-#define PF_PREEMPT_MS 5
 /* Passes of the contended-mutex wait loop, counted per fiber so the report
  * below can name which one is stuck and on what. See __wrap_pthread_mutex_lock
  * for why the stall reports cannot see this case on their own. */
 static unsigned long long g_mutex_spins;
-/* Wall clock of the last unconditional heartbeat, so a run that satisfies none
- * of the stall thresholds still says whether the scheduler is being entered.
- * See pf_report_if_stalled. */
-static double g_heartbeat_ms;
 /* g_main's stack bounds. Read during reset, because once a fiber has run they
  * report whichever fiber was last entered. */
 static void *g_main_stack_base, *g_main_stack_limit;
@@ -321,24 +301,6 @@ static void pf_report_stall(double now_ms)
  * otherwise keep the whole diagnostic quiet. */
 static void pf_report_if_stalled(double now)
 {
-    /* Unconditional heartbeat, on a wall clock rather than on any of the
-     * thresholds below. Every other report in this file needs something to line
-     * up first: a gap between switches, a switch rate over a threshold, a fiber
-     * blocked past a limit. A run that never satisfies any of those prints
-     * nothing at all, which is indistinguishable from a run that never reached
-     * this code. That is exactly the ambiguity the six hanging fate tests are
-     * in, so this one just asks, every 5s, whether the scheduler is still
-     * being entered at all and who is in it. */
-    if (now - g_heartbeat_ms >= 5000) {
-        g_heartbeat_ms = now;
-        char msg[160];
-        snprintf(msg, sizeof(msg),
-                 "pthread-fiber: alive at %.0fms, %llu switches, %llu waits, "
-                 "current fiber %d.\n",
-                 now, g_switches, g_idle_waits, pfiber_index_of(g_current));
-        pf_report_js(msg);
-    }
-
     /* Nothing has run at all: nothing is runnable, which pf_idle_wait's abort
      * catches unless a poll is still pending. ffmpeg_sched's main fiber keeps
      * one, polling stats_period apart for the muxers to report in. */
@@ -536,8 +498,6 @@ static void pfiber_reset(void)
     g_reported_switches = 0;
     g_rate_ms = g_last_switch_ms;
     g_mutex_spins = 0;
-    g_heartbeat_ms = g_last_switch_ms;
-    g_main.running_since_ms = g_last_switch_ms;
     g_initialized = 1;
 }
 
@@ -681,9 +641,6 @@ static void pfiber_reschedule(void)
             g_last_switch_ms = pf_now_ms();
             pfiber_t *prev = g_current;
             g_current = next;
-            /* Recorded here because this is the moment next gains control, in
-             * both directions of a switch. See pf_maybe_preempt. */
-            g_current->running_since_ms = g_last_switch_ms;
             emscripten_fiber_swap(&prev->ctx, &next->ctx);
             /* Only the way back needs fixing up, and only for g_main: it runs
              * on the module stack, which
@@ -718,28 +675,8 @@ static void pfiber_trampoline(void *arg)
 {
     pfiber_t *f = (pfiber_t *)arg;
 
-    /* Say which fiber started and which returned, so a task that never gets
-     * picked up is distinguishable from one that starts and never comes back.
-     * pthread_create in this shim does not swap to the new fiber, it only
-     * marks it PF_RUNNABLE, so a fiber's first line runs some time after the
-     * pthread_create that made it, and the fate logs alone cannot show whether
-     * that ever happened. pf_report_js is the same console.error plus logger
-     * route, and run.mjs keeps anything matching "pthread-fiber:". */
-    {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "pthread-fiber: fiber %d started.\n",
-                 pfiber_index_of(f));
-        pf_report_js(msg);
-    }
-
     f->retval = f->start_routine(f->arg);
     f->state = PF_DONE;
-    {
-        char msg[128];
-        snprintf(msg, sizeof(msg), "pthread-fiber: fiber %d returned %p.\n",
-                 pfiber_index_of(f), f->retval);
-        pf_report_js(msg);
-    }
     if (f->join_waiter) {
         pf_unblock(f->join_waiter);
         f->join_waiter = NULL;
@@ -951,7 +888,6 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
         pf_report_js(msg);
         abort();
     }
-    if (m->owner != NULL)
     while (m->owner != NULL) {
         g_current->wait_on = (void *)mutex;
         pf_block(g_current);
@@ -1083,52 +1019,6 @@ int __wrap_pthread_cond_broadcast(pthread_cond_t *cond)
 {
     pf_wake_waiters_on((void *)cond);
     return 0;
-}
-
-struct AVFilterGraph;
-struct AVFilterContext;
-struct AVFrame;
-
-/* Hand control back if this fiber has held it for longer than PF_PREEMPT_MS.
- *
- * Only safe from a fiber that is not blocked: pfiber_reschedule() returns
- * immediately when the caller is PF_RUNNABLE and nothing else is, which is
- * exactly a voluntary yield. */
-static void pf_maybe_preempt(void)
-{
-    double now = pf_now_ms();
-    if (now - g_current->running_since_ms < PF_PREEMPT_MS)
-        return;
-    /* Cleared before yielding as well as on the way back, so a fiber that
-     * yields at an idle scheduler and immediately returns does not re-check
-     * against a timestamp it can no longer make progress against. */
-    g_current->running_since_ms = now;
-    pfiber_reschedule();
-}
-
-/* fftools' filtering thread polls for frames rather than blocking for them, so
- * these two calls are the only points in its poll loop the shim gets to see.
- * Both happen at least once per pass: fg_output_step() drains every output with
- * av_buffersink_get_frame_flags(AV_BUFFERSINK_FLAG_NO_REQUEST), and read_frames()
- * then pulls with avfilter_graph_request_oldest(). The yield goes before the
- * real call so a fiber that spends a whole budget inside one of them gives the
- * core back on the following pass, not only once the frame has come out. */
-int __real_avfilter_graph_request_oldest(struct AVFilterGraph *graph);
-int __wrap_avfilter_graph_request_oldest(struct AVFilterGraph *graph)
-{
-    pfiber_ensure_main();
-    pf_maybe_preempt();
-    return __real_avfilter_graph_request_oldest(graph);
-}
-
-int __real_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
-                                          struct AVFrame *frame, int flags);
-int __wrap_av_buffersink_get_frame_flags(struct AVFilterContext *filter,
-                                          struct AVFrame *frame, int flags)
-{
-    pfiber_ensure_main();
-    pf_maybe_preempt();
-    return __real_av_buffersink_get_frame_flags(filter, frame, flags);
 }
 
 int __wrap_usleep(unsigned usec)

@@ -50,7 +50,7 @@ emconfigure ./configure "${CONF_FLAGS[@]}" $@ || { cat ffbuild/config.log; exit 
 emmake make -j
 
 # Both cores now link FFmpeg n9's own fftools sources (patched, see
-# build/patches/n9) instead of the vendored copies under src/fftools.
+# build/patches/n9) instead of vendored copies.
 # --disable-programs above skips linking the ffmpeg/ffprobe binaries (we
 # don't want or need them), but fftools/Makefile's object rules are
 # unconditional, so the objects can be built directly and linked by
