@@ -43,14 +43,35 @@ async function profile() {
   }
 }
 
+const probe = [
+  "fd", "iov", "iovcnt", "pnum", "num",
+  "HEAP8.length", "HEAPU32.length", "HEAP8.buffer === wasmMemory.buffer",
+  "wasmMemory.buffer.byteLength", "Array.from(HEAPU32.slice(iov >> 2, (iov >> 2) + 4))",
+  "HEAPU32[pnum >> 2]", "typeof Asyncify !== 'undefined' && Asyncify.state",
+];
+
 async function pause() {
-  const paused = new Promise((res) => s.on("Debugger.paused", (m) => res(m.params)));
+  let frames = null;
+  s.on("Debugger.paused", (m) => { frames = m.params.callFrames; });
   await post("Debugger.enable");
-  await post("Debugger.pause");
-  const p = await Promise.race([paused, sleep(15000).then(() => null)]);
-  if (!p) return out("pause: not paused");
-  out("pause: " + p.callFrames.length + " frames");
-  out(p.callFrames.slice(0, 60).map((f) => name(f)).join(" < "));
+  for (let attempt = 0; attempt < 30; attempt++) {
+    frames = null;
+    await post("Debugger.pause");
+    for (let i = 0; i < 100 && !frames; i++) await sleep(50);
+    if (!frames) return out("pause: not paused");
+    if (frames[0].functionName === "_fd_write") break;
+    await post("Debugger.resume");
+    await sleep(7);
+  }
+  out("pause: " + frames.length + " frames, top " + frames[0].functionName);
+  for (const expression of probe) {
+    try {
+      const r = await post("Debugger.evaluateOnCallFrame", { callFrameId: frames[0].callFrameId, expression, returnByValue: true });
+      out(expression + " = " + JSON.stringify(r.result.value ?? r.result.description));
+    } catch (e) {
+      out(expression + " failed: " + e.message);
+    }
+  }
 }
 
 (async () => {
