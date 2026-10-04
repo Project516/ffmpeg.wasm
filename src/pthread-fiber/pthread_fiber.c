@@ -85,6 +85,12 @@
  * any call in FFmpeg does; reaching the far end of it means something is
  * recursing without bound, which is worth knowing. */
 #define PFIBER_GUARD_SIZE (1 * 1024 * 1024)
+/* The wasm C ABI requires a 16-byte aligned stack and the compiler relies on
+ * it: musl's __stdio_write forms iov+1 as `iov | 8`, which is iov when the
+ * stack is only 8-byte aligned, so it passes a zero-length iovec and loops
+ * forever. malloc only guarantees 8, so the region is over-allocated and
+ * aligned by hand. */
+#define PFIBER_STACK_ALIGN 16
 /* C stack first, then the asyncify stack, then the slack. */
 #define PFIBER_REGION_SIZE \
     (PFIBER_STACK_SIZE + PFIBER_ASYNCIFY_STACK_SIZE + PFIBER_GUARD_SIZE)
@@ -99,6 +105,7 @@
 
 typedef struct pfiber {
     emscripten_fiber_t ctx;
+    char *region;               /* the malloc block holding both stacks */
     char *c_stack;
     char *asyncify_stack;
     size_t c_stack_size;
@@ -491,7 +498,7 @@ static double pf_now_ms(void)
 static void pfiber_reset(void)
 {
     for (int i = 0; i < PFIBER_MAX; i++) {
-        free(g_table[i].c_stack); /* one region, see PFIBER_REGION_SIZE */
+        free(g_table[i].region);
     }
     memset(g_table, 0, sizeof(g_table));
     /* Epoch 0 is never handed out, so a wrapped counter cannot make a mutex
@@ -622,8 +629,9 @@ static void pfiber_reschedule(void)
         for (int i = 0; i < PFIBER_MAX; i++) {
             pfiber_t *f = &g_table[i];
             if (f->state == PF_DONE && f->detached &&
-                (f->c_stack || f->asyncify_stack)) {
-                free(f->c_stack); /* one region, see PFIBER_REGION_SIZE */
+                f->region) {
+                free(f->region);
+                f->region = NULL;
                 f->c_stack = NULL;
                 f->asyncify_stack = NULL;
                 f->state = PF_FREE;
@@ -772,7 +780,7 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
         return EAGAIN;
     }
 
-    char *region = malloc(PFIBER_REGION_SIZE);
+    char *region = malloc(PFIBER_REGION_SIZE + PFIBER_STACK_ALIGN - 1);
     if (!region) {
         char msg[160];
         snprintf(msg, sizeof(msg),
@@ -781,10 +789,12 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
         pf_report_js(msg);
         return EAGAIN;
     }
-    char *c_stack = region;
-    char *asyncify_stack = region + PFIBER_STACK_SIZE;
+    char *c_stack = (char *)(((uintptr_t)region + PFIBER_STACK_ALIGN - 1) &
+                              ~(uintptr_t)(PFIBER_STACK_ALIGN - 1));
+    char *asyncify_stack = c_stack + PFIBER_STACK_SIZE;
 
     memset(f, 0, sizeof(*f));
+    f->region = region;
     f->c_stack = c_stack;
     f->asyncify_stack = asyncify_stack;
     f->c_stack_size = PFIBER_STACK_SIZE;
@@ -818,7 +828,8 @@ int __wrap_pthread_join(pthread_t thread, void **retval)
         *retval = f->retval;
 
     /* Safe here: we are not running on f's stack, we are the joiner. */
-    free(f->c_stack); /* one region, see PFIBER_REGION_SIZE */
+    free(f->region);
+    f->region = NULL;
     f->c_stack = NULL;
     f->asyncify_stack = NULL;
     f->state = PF_FREE;
@@ -830,7 +841,8 @@ int __wrap_pthread_detach(pthread_t thread)
     pfiber_t *f = (pfiber_t *)(uintptr_t)thread;
     f->detached = 1;
     if (f->state == PF_DONE) {
-        free(f->c_stack); /* one region, see PFIBER_REGION_SIZE */
+        free(f->region);
+        f->region = NULL;
         f->c_stack = NULL;
         f->asyncify_stack = NULL;
         f->state = PF_FREE;
