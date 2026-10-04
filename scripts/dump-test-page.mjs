@@ -5,9 +5,9 @@
 // before mocha starts, or fails inside a Web Worker is otherwise a black box.
 // This is the difference between "ffmpeg-st failed" and the line that failed.
 //
-// Uses puppeteer-core, which mocha-headless-chrome already depends on, so it
-// adds nothing to the lockfile. Worker output has to come over CDP: Puppeteer's
-// own Worker API does not surface a worker's console.
+// Uses puppeteer-core, the same version mocha-headless-chrome runs on. Worker
+// output has to come over CDP: Puppeteer's own Worker API does not surface a
+// worker's console.
 //
 // Usage: node scripts/dump-test-page.mjs <url> [watchMs] [hardMs]
 import puppeteer from "puppeteer-core";

@@ -131,6 +131,16 @@ describe(genName("remux, merge and audio extraction"), () => {
   });
 });
 
+describe(genName("exec() after a failure"), () => {
+  beforeEach(reset);
+
+  it("should transcode after an exec that fails", () => {
+    expect(core.exec("-i", "missing.mp4", "missing.avi")).to.not.equal(0);
+    expect(core.exec("-i", "video.mp4", "video.avi")).to.equal(0);
+    core.FS.unlink("video.avi");
+  });
+});
+
 describe(genName("setTimeout()"), () => {
   beforeEach(reset);
 

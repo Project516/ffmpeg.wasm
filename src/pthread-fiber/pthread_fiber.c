@@ -232,15 +232,6 @@ static void pf_unblock(pfiber_t *f)
  * deadline pending at all is a real deadlock and aborts.
  */
 #define PF_STALL_REPORT_MS 5000
-/* How long one fiber can sit blocked before the run is called stalled, and how
- * long before it is given up on. A pipeline that is working has some fiber
- * running or about to be woken every few milliseconds, so a fiber blocked
- * across a whole frame of work is waiting on a wakeup that is not coming. The
- * second threshold is what turns that from a frozen tab into an exec() that
- * returns -1, which is the same choice already made for a run with nothing
- * runnable and no deadline pending. */
-#define PF_BLOCK_REPORT_MS 10000
-#define PF_BLOCK_ABORT_MS 30000
 /* Switches in one second that mean a livelock rather than a working pipeline.
  * Every blocking point is a switch, and a transcode of any length does tens of
  * thousands of them spread over seconds; thousands inside one second is the
@@ -328,30 +319,6 @@ static void pf_report_if_stalled(double now)
             pf_report_stall(now);
             return;
         }
-    }
-
-    /* One fiber blocked for longer than any single piece of work takes means
-     * something is waiting on a wakeup that is not coming, and the run is over
-     * even though the polling around it looks healthy. */
-    for (int i = -1; i < PFIBER_MAX; i++) {
-        pfiber_t *f = pfiber_at(i);
-        if (f->state != PF_BLOCKED)
-            continue;
-        double blocked_ms = now - f->blocked_since_ms;
-        if (blocked_ms <= PF_BLOCK_REPORT_MS)
-            continue;
-        g_last_switch_ms = now;
-        pf_report_stall(now);
-        if (blocked_ms > PF_BLOCK_ABORT_MS) {
-            char msg[160];
-            snprintf(msg, sizeof(msg),
-                     "pthread-fiber: fiber %d has been blocked for %.0fms, so "
-                     "this run is not going to finish.\n",
-                     pfiber_index_of(f), blocked_ms);
-            pf_report_js(msg);
-            abort();
-        }
-        return;
     }
 }
 
@@ -588,7 +555,7 @@ static void pfiber_reschedule(void)
 
         for (int i = 0; i < PFIBER_MAX; i++) {
             pfiber_t *f = &g_table[i];
-            if (f->state == PF_DONE && f->detached &&
+            if (f != g_current && f->state == PF_DONE && f->detached &&
                 f->region) {
                 free(f->region);
                 f->region = NULL;
@@ -854,7 +821,6 @@ int __wrap_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t 
      * it is not by default here. */
     (void)attr;
     pf_mutex_t **slot = (pf_mutex_t **)(void *)mutex;
-    free(*slot);
     *slot = calloc(1, sizeof(pf_mutex_t));
     if (*slot)
         (*slot)->epoch = g_epoch;
@@ -894,11 +860,9 @@ int __wrap_pthread_mutex_lock(pthread_mutex_t *mutex)
         pfiber_reschedule();
         g_current->wait_on = NULL;
         pf_unblock(g_current);
-        /* This loop hides a hang from the stall reports. Each pass goes through
-         * pf_block, which restarts blocked_since_ms, so a fiber that comes back
-         * here over and over looks like it is making progress: it is never
-         * blocked for PF_BLOCK_REPORT_MS, and every pass counts as a switch, so
-         * neither the long-block nor the switch-rate report fires either. A
+        /* This loop hides a hang from the stall reports: a fiber that comes back
+         * here over and over looks like it is making progress, and every pass
+         * counts as a switch, so the switch-rate report does not fire. A
          * mutex held by a fiber that will never release it looks exactly like a
          * busy pipeline from inside the scheduler. Count the passes so that
          * case is visible. */
@@ -954,7 +918,6 @@ int __wrap_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *att
 {
     (void)attr;
     pf_cond_t **slot = (pf_cond_t **)(void *)cond;
-    free(*slot);
     *slot = calloc(1, sizeof(pf_cond_t));
     if (*slot)
         (*slot)->epoch = g_epoch;
@@ -1024,10 +987,10 @@ int __wrap_pthread_cond_broadcast(pthread_cond_t *cond)
 int __wrap_usleep(unsigned usec)
 {
     pfiber_ensure_main();
-    double deadline = emscripten_get_now() + (double)usec / 1000.0;
-    while (emscripten_get_now() < deadline) {
+    double deadline = pf_now_ms() + (double)usec / 1000.0;
+    while (pf_now_ms() < deadline) {
         pfiber_reschedule();
-        if (emscripten_get_now() < deadline)
+        if (pf_now_ms() < deadline)
             pf_idle_wait(deadline);
     }
     return 0;
@@ -1036,11 +999,11 @@ int __wrap_usleep(unsigned usec)
 int __wrap_nanosleep(const struct timespec *req, struct timespec *rem)
 {
     pfiber_ensure_main();
-    double deadline = emscripten_get_now() + (double)req->tv_sec * 1000.0 +
+    double deadline = pf_now_ms() + (double)req->tv_sec * 1000.0 +
                        (double)req->tv_nsec / 1e6;
-    while (emscripten_get_now() < deadline) {
+    while (pf_now_ms() < deadline) {
         pfiber_reschedule();
-        if (emscripten_get_now() < deadline)
+        if (pf_now_ms() < deadline)
             pf_idle_wait(deadline);
     }
     if (rem) {
