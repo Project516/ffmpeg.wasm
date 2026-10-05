@@ -1,5 +1,5 @@
 {
-  "native": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+  "native": "ffmpeg version 6.1.1-3ubuntu5",
   "cores": {
     "st": {
       "h264-to-vp9": {

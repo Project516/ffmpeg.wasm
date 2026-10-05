@@ -74,7 +74,7 @@ function benchSection(bench) {
   const cases = Object.keys(bench.cores[cores[0]]);
   const lines = ["## Performance", ""];
   lines.push(
-    `Median of five runs on one GitHub Actions runner, against ${bench.native.replace(/[{}<>]/g, " ")}. Each case transcodes a 1 second H.264 clip, so startup is a large part of the native time.`,
+    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Each case transcodes a 1 second H.264 clip, so startup is a large part of the native time.`,
     "",
   );
   lines.push(`| case | native (ms) | ${cores.map((c) => `${c} (ms) | ${c} ratio | ${c} peak RSS (MB)`).join(" | ")} |`);

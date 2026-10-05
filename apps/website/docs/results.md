@@ -89,7 +89,7 @@ FFmpeg n9.0.2. The pass rate is pass divided by pass plus fail. A skipped test i
 
 ## Performance
 
-Median of five runs on one GitHub Actions runner, against ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers. Each case transcodes a 1 second H.264 clip, so startup is a large part of the native time.
+Median of five runs on one GitHub Actions runner, against native ffmpeg version 6.1.1-3ubuntu5 from the runner image, not the pinned tag. Each case transcodes a 1 second H.264 clip, so startup is a large part of the native time.
 
 | case | native (ms) | st (ms) | st ratio | st peak RSS (MB) | mt (ms) | mt ratio | mt peak RSS (MB) |
 | --- | --- | --- | --- | --- | --- | --- | --- |

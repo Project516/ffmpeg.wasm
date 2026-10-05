@@ -214,7 +214,7 @@ async function main() {
     const report = {
       label,
       native,
-      ...(native ? { version: execFileSync("ffmpeg", ["-version"], { encoding: "utf8" }).split("\n")[0] } : {}),
+      ...(native ? { version: execFileSync("ffmpeg", ["-version"], { encoding: "utf8" }).split("\n")[0].replace(/ Copyright.*/, "") } : {}),
       generatedAt: new Date().toISOString(),
       runs,
       cases,
