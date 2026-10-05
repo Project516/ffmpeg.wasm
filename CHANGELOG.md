@@ -19,10 +19,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `decode` builds one with every decoder and no encoder libraries. The
   published packages keep the `full` preset, so they are unchanged. See
   `apps/website/docs/presets.md`.
-- The FATE allowlist grows from 11 to 38 test files (1061 tests on the full
-  subset, all passing on both cores except four known skips). CI compares each
-  run against a committed baseline of FATE results and benchmark ratios and
-  fails on a regression.
+- The FATE allowlist grows from 11 to 37 test files. The full subset is 1059
+  tests per core, with 1055 passing and four known skips. The CI
+  `baseline-check` job compares each run against a committed baseline of FATE
+  results and benchmark ratios and fails on a regression. It is not a required
+  check.
 
 ### Changed
 
