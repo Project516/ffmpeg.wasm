@@ -232,14 +232,14 @@ describe(genName("FFmpeg"), function () {
     await ffmpeg.deleteFile("probe_out.txt");
   });
 
-  // st polls the timeout from a cooperative fiber, so a short job can finish before it runs.
-  (FFMPEG_TYPE === "st" ? it.skip : it)("stops exec() after the given timeout", async () => {
+  // -re paces input at its native rate, so the job outlasts the timeout.
+  it("stops exec() after the given timeout", async () => {
     await ffmpeg.writeFile(
       "timeout.mp4",
       b64ToUint8Array(VIDEO_1S_MP4)
     );
     const ret = await ffmpeg.exec(
-      ["-i", "timeout.mp4", "timeout.avi"],
+      ["-re", "-i", "timeout.mp4", "timeout.avi"],
       1 // 1ms, well under the time a transcode takes
     );
     expect(ret).to.equal(1);
