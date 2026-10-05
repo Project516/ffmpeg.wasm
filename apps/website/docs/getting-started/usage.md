@@ -446,6 +446,47 @@ Required:
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
 
+## Helpers: probe, transcode and extract frames
+
+`probe()`, `transcode()` and `extractFrames()` cover common jobs without the
+`writeFile()`, `exec()` and `readFile()` steps. Each takes a loaded `FFmpeg`
+and a `File`, `Blob`, `URL` or `Uint8Array`. It writes the input into a
+private directory of the virtual file system, runs ffmpeg, and removes
+everything it wrote, including when ffmpeg fails. They work with both cores
+and under Node.js. The existing `exec()` and file system calls are unchanged.
+
+```js
+import { FFmpeg, probe, transcode, extractFrames } from '@project516/ffmpeg-wasm';
+
+const ffmpeg = new FFmpeg();
+await ffmpeg.load();
+
+// ffprobe's -show_format -show_streams JSON.
+const info = await probe(ffmpeg, file);
+const video = info.streams.find((s) => s.codec_type === 'video');
+console.log(info.format.duration, video.width, video.height);
+
+// The converted file's bytes. `format` is the output file extension.
+const webm = await transcode(ffmpeg, file, {
+  format: 'webm',
+  videoCodec: 'libvpx-vp9',
+  width: 640, // height follows the aspect ratio
+  onProgress: ({ progress }) => console.log(progress),
+});
+
+// Encoded images, in order. They are held in memory, so limit long videos.
+const frames = await extractFrames(ffmpeg, file, { fps: 1, width: 320 });
+const url = URL.createObjectURL(new Blob([frames[0]], { type: 'image/png' }));
+```
+
+A helper rejects with ffmpeg's last log lines when the command fails.
+Options beyond the ones shown go in `args` for `transcode()`, and every
+helper accepts `timeout` and `signal` like `exec()`. A `Uint8Array` input is
+copied, because `writeFile()` hands its buffer to the worker.
+
+`extractFrames()` writes `png`, `jpg` or `webp` images. `webp` needs a core
+built with libwebp, which the default core has.
+
 ## Node.js
 
 `@project516/ffmpeg-wasm` runs the same code in Node.js, using a

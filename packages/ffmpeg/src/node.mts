@@ -130,3 +130,4 @@ export class FFmpeg extends FFmpegBase {
 
 export * from "./types.js";
 export * from "./const.js";
+export * from "./helpers.js";

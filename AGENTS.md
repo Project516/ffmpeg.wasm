@@ -51,7 +51,10 @@ Lessons from the shim, so they are not rediscovered:
 
 - `packages/core`, `packages/core-mt`: built wasm artifacts (single-thread,
   multi-thread). Not source, produced by the Docker build.
-- `packages/ffmpeg`: the worker-based API that loads a core and runs it.
+- `packages/ffmpeg`: the worker-based API that loads a core and runs it, and
+  the helpers in `src/helpers.ts` (`probe`, `transcode`, `extractFrames`) built
+  on its exec and file system calls. Their option and result types live in
+  `packages/types`.
 - `packages/util`: browser helper functions (fetchFile, etc).
 - `packages/types`: shared TypeScript types.
 - `src/pthread-fiber`: cooperative pthread shim (Emscripten fibers) the st
@@ -64,7 +67,9 @@ Lessons from the shim, so they are not rediscovered:
   configure flags and linked libraries; `make prd PRESET=<name>`. The
   published packages always use `full`. See `apps/website/docs/presets.md`.
 - `apps/`: standalone examples, not part of the pnpm workspace.
-- `tests/`: browser tests run against built cores.
+- `tests/`: browser and Node tests run against built cores. The helper tests
+  that need no core (`ffmpeg-helpers-args.test.mjs`) run anywhere with `pnpm
+  run test:node:helpers:args`.
 - `scripts/fate`, `scripts/bench`: run FFmpeg's FATE tests and benchmarks against
   the cores in CI. `baseline/` holds the committed results that
   `scripts/baseline/check.mjs` compares each run with, and

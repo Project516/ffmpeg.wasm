@@ -273,6 +273,9 @@ jobs:
           pnpm run test:node:core:mt
           pnpm run test:node:ffmpeg:st
           pnpm run test:node:ffmpeg:mt
+          pnpm run test:node:helpers:args
+          pnpm run test:node:helpers:st
+          pnpm run test:node:helpers:mt
 
   # FATE and benchmark jobs test both cores against FFmpeg's own FATE suite
   # and native FFmpeg. They are not required checks and never block a PR;
