@@ -2,7 +2,11 @@
 // Node.js. Select the core with a --mt argument (defaults to st), like
 // tests/ffmpeg-node.test.mjs. tests/ffmpeg-helpers-args.test.mjs covers the
 // argument building without a core.
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { expect } from "chai";
 import { FFmpeg, extractFrames, probe, transcode } from "@project516/ffmpeg-wasm";
 
@@ -61,6 +65,18 @@ describe(genName("helpers"), function () {
       ];
       for (const info of [fromBlob, fromFile, fromURL]) {
         expect(info.format.format_name).to.include("mp4");
+      }
+    });
+
+    it("reads a file: URL", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "ffmpeg-wasm-helpers-"));
+      try {
+        const path = join(dir, "clip.mp4");
+        await writeFile(path, video);
+        const info = await probe(ffmpeg, pathToFileURL(path));
+        expect(info.format.format_name).to.include("mp4");
+      } finally {
+        await rm(dir, { recursive: true, force: true });
       }
     });
 
