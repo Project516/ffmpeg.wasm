@@ -4,7 +4,7 @@ import { RouterOutlet } from '@angular/router';
 import { FFmpeg } from '@project516/ffmpeg-wasm';
 import { fetchFile, toBlobURL } from '@project516/ffmpeg-wasm-util';
 
-const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.13.1/dist/esm';
+const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.13.1/dist/esm';
 
 @Component({
   selector: 'app-root',
@@ -23,14 +23,13 @@ export class AppComponent {
       this.message = message;
     });
     await this.ffmpeg.load({
+      // Angular does not bundle workers from node_modules; angular.json copies
+      // the library's to /ffmpeg.
+      classWorkerURL: new URL('ffmpeg/worker.js', document.baseURI).href,
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(
         `${baseURL}/ffmpeg-core.wasm`,
         'application/wasm',
-      ),
-      workerURL: await toBlobURL(
-        `${baseURL}/ffmpeg-core.worker.js`,
-        'text/javascript',
       ),
     });
     this.loaded = true;

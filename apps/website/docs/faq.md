@@ -12,19 +12,32 @@ releases; if you are pinned to one of those, use
 [fluent-ffmpeg](https://www.npmjs.com/package/fluent-ffmpeg) instead, or
 upgrade.
 
-### Why ffmpeg.wasm is so slow comparing to ffmpeg?
+### Why is ffmpeg.wasm so slow compared to native ffmpeg?
 
-As of now, WebAssembly is still a lot slower than native, it is possible to further speed up using
-WebAssembly intrinsic, which is basically writing assembly code. It is something we are investigating
-and hope to introduce in the future.
+The core is built with `--disable-asm`, so FFmpeg and its libraries run
+plain C code instead of the hand-written assembly and SIMD that native builds
+use. Encoding is several times slower than native. Decoding
+and remuxing are closer. See [Performance](/docs/performance) and
+[FATE and benchmarks](/docs/fate-and-benchmarks) for measurements.
 
-If you are OK with more unstable version of ffmpeg.wasm, using ffmpeg.wasm multithread (mt) version
-can have around 2x speed comparing to single thread (but consume a lot more memory and cpu)
+Ways to speed things up:
+
+- Use `@project516/ffmpeg-wasm-core-mt` on a cross-origin isolated page.
+  Threads run FFmpeg's pipeline and the encoders in parallel, at the cost of
+  more memory and CPU.
+- Pick a faster preset: `-preset ultrafast` for x264, `-deadline realtime`
+  for VP9.
+- Remux with `-c copy` when you do not need to re-encode.
+- Mount large inputs with `WORKERFS` instead of copying them in with
+  `writeFile()`.
+- Build a smaller core with a [preset](/docs/presets) if you only need a few
+  codecs, which also shortens load time.
 
 ### Is RTSP supported by ffmpeg.wasm?
 
-We are trying to support, but so far WebAssembly itself lack of features like sockets which makes
-it hard to implement RTSP protocol. Possible workarounds are still under investigation.
+No. Browsers do not give WebAssembly raw TCP or UDP sockets, so network
+protocols such as RTSP and RTMP cannot work. Fetch the input in JavaScript and
+write it to the file system, or use WebRTC or MediaRecorder for live streams.
 
 ### What is the license of ffmpeg.wasm?
 
@@ -37,7 +50,42 @@ The whole project, including both packages, is licensed under AGPL-3.0-or-later.
 
 ### What is the maximum size of input file?
 
-2 GB, which is a hard limit in WebAssembly. Might become 4 GB in the future.
+It depends on how the file gets in. FFmpeg's own memory is capped at 2 GB in
+both cores: the single-thread core starts at 48 MB and grows on demand, the
+multi-thread core starts at 1 GB. A file copied in with `writeFile()` also
+needs room in the browser's memory, so large files fail well before 2 GB on
+low-memory devices.
+
+For big inputs, mount the `File` with `WORKERFS` instead, which reads it
+lazily without copying:
+
+```js
+await ffmpeg.mount('WORKERFS', { files: [file] }, '/input');
+await ffmpeg.exec(['-i', `/input/${file.name}`, 'output.mp4']);
+await ffmpeg.unmount('/input');
+```
+
+`WORKERFS` mounts are read-only, so write outputs outside the mount point.
+
+### Why are all log messages of type `stderr`?
+
+FFmpeg writes its log, including the banner, progress and warnings, to
+stderr, the same as native `ffmpeg`. Listen with `ffmpeg.on('log', ...)` to
+read it. Only a few outputs, such as `ffprobe` results printed without
+`-o`, go to stdout.
+
+### Why do raw frames differ slightly from native FFmpeg?
+
+Native FFmpeg uses assembly paths in swscale whose rounding differs a little
+from the C code this build uses, so pixel values can be off by one. For
+output closer to native, add `-sws_flags accurate_rnd+bitexact`.
+
+### How do I decode a WebM video with transparency?
+
+FFmpeg's built-in VP8 and VP9 decoders drop the alpha channel. Ask for the
+libvpx decoder before the input:
+`['-c:v', 'libvpx-vp9', '-i', 'input.webm', ...]`. The `full` preset, which
+the published packages use, includes it.
 
 ### How can I build my own ffmpeg.wasm?
 

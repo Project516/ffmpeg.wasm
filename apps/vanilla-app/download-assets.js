@@ -1,3 +1,4 @@
+// Downloads the @project516 packages from npm into public/assets.
 const tar = require("tar");
 const fs = require("fs");
 
