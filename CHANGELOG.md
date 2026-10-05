@@ -3,6 +3,31 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Added
+
+- `writeFile(path, data, { transfer: false })` copies a `Uint8Array` to the
+  worker instead of transferring it, so the caller's array is not emptied.
+  The default is unchanged.
+- Under Node.js, `coreURL` and `wasmURL` accept filesystem paths, including
+  Windows paths, as well as `file:` URLs.
+
+### Fixed
+
+- A second `load()` on a loaded `FFmpeg` no longer creates a second core and
+  leaks the first. It keeps the loaded core and resolves `false`.
+- `load()` names the `wasmURL` in its error when the response is not a
+  WebAssembly file.
+- `mount()` returns `false` for names such as `__proto__` or `constructor`
+  instead of treating them as filesystems.
+- `on()` and `off()` work when the `FFmpeg` instance is wrapped in a Proxy,
+  such as Vue's `reactive()`.
+- `fetchFile()` reads a `Blob` or `File` in Node.js, where `FileReader` does
+  not exist.
+- The dynamic core import carries `turbopackIgnore`, so Turbopack leaves it
+  to run at load time.
+
 ## 0.15.0
 
 ### Added

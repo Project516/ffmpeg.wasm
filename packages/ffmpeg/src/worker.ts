@@ -28,6 +28,7 @@ import {
   ERROR_UNKNOWN_MESSAGE_TYPE,
   ERROR_NOT_LOADED,
   ERROR_IMPORT_FAILURE,
+  wasmLoadError,
 } from "./errors.js";
 
 // Set by importScripts() of the UMD core, or assigned from the ESM core's
@@ -41,8 +42,8 @@ interface ImportedFFmpegCoreModuleFactory {
 }
 
 let ffmpeg: FFmpegCoreModule;
-// True once a load() has succeeded; see load().
-let loaded = false;
+// Set while a load() is in flight or done; see load().
+let loading: Promise<void> | null = null;
 
 const doLoad = async ({
   coreURL: _coreURL,
@@ -63,7 +64,7 @@ const doLoad = async ({
       // when web worker type is `module`.
       self.createFFmpegCore = (
         (await import(
-          /* @vite-ignore */ _coreURL
+          /* @vite-ignore */ /* turbopackIgnore: true */ _coreURL
         )) as ImportedFFmpegCoreModuleFactory
       ).default;
 
@@ -88,11 +89,15 @@ const doLoad = async ({
 
   const createFFmpegCore = self.createFFmpegCore;
   if (!createFFmpegCore) throw ERROR_IMPORT_FAILURE;
-  ffmpeg = await createFFmpegCore({
-    // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
-    // Encoded wasmURL in the URL as a hack to fix locateFile issue.
-    mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
-  });
+  try {
+    ffmpeg = await createFFmpegCore({
+      // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
+      // Encoded wasmURL in the URL as a hack to fix locateFile issue.
+      mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
+    });
+  } catch (e) {
+    throw wasmLoadError(wasmURL, e);
+  }
   ffmpeg.setLogger((data) =>
     self.postMessage({ type: FFMessageType.LOG, data })
   );
@@ -104,13 +109,22 @@ const doLoad = async ({
   );
 };
 
-// first is decided after doLoad() succeeds, so a failed load never claims
-// it and exactly one of several concurrent successful loads reports true.
+// Only the call that starts the load reports true. Later calls wait for it
+// and report false, so a second load() never creates a second core. A failed
+// load clears the slot so the next call can retry.
 const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
-  await doLoad(config);
-  const first = !loaded;
-  loaded = true;
-  return first;
+  if (loading) {
+    await loading;
+    return false;
+  }
+  loading = doLoad(config);
+  try {
+    await loading;
+  } catch (e) {
+    loading = null;
+    throw e;
+  }
+  return true;
 };
 
 const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
@@ -173,8 +187,8 @@ const deleteDir = ({ path }: FFMessageDeleteDirData): OK => {
 
 const mount = ({ fsType, options, mountPoint }: FFMessageMountData): OK => {
   const str = fsType as keyof typeof ffmpeg.FS.filesystems;
+  if (!Object.hasOwn(ffmpeg.FS.filesystems, str)) return false;
   const fs = ffmpeg.FS.filesystems[str];
-  if (!fs) return false;
   ffmpeg.FS.mount(fs, options, mountPoint);
   return true;
 };
