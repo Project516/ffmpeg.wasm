@@ -202,62 +202,35 @@ COPY --from=libass-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=zimg-builder $INSTALL_DIR $INSTALL_DIR
 
 # Build ffmpeg
+# PRESET picks build/presets/<PRESET>.env, which sets the FFmpeg configure
+# flags (FFMPEG_FLAGS), the libraries to link (FFMPEG_LIBS) and, optionally,
+# extra emcc link flags (FFMPEG_LINK_FLAGS). The ARG is declared in this stage
+# so changing it only invalidates the layers from here on. The library stages
+# above build for every preset; a preset only changes what FFmpeg enables and
+# what the core links.
 FROM ffmpeg-base AS ffmpeg-builder
+ARG PRESET=full
+COPY build/presets/${PRESET}.env /src/preset.env
 COPY build/ffmpeg.sh /src/build.sh
-RUN bash -x /src/build.sh \
-      --enable-gpl \
-      --enable-libx264 \
-      --enable-libx265 \
-      --enable-libvpx \
-      --enable-libmp3lame \
-      --enable-libtheora \
-      --enable-libvorbis \
-      --enable-libopus \
-      --enable-zlib \
-      --enable-libwebp \
-      --enable-libfreetype \
-      --enable-libfribidi \
-      --enable-libass \
-      --enable-libzimg 
+RUN . /src/preset.env && bash -x /src/build.sh $FFMPEG_FLAGS
 
 # Build ffmpeg.wasm
 FROM ffmpeg-builder AS ffmpeg-wasm-builder
 COPY src/bind /src/src/bind
 COPY src/pthread-fiber /src/src/pthread-fiber
 COPY build/ffmpeg-wasm.sh build.sh
-# libraries to link
-ENV FFMPEG_LIBS \
-      -lx264 \
-      -lx265 \
-      -lvpx \
-      -lmp3lame \
-      -logg \
-      -ltheora \
-      -lvorbis \
-      -lvorbisenc \
-      -lvorbisfile \
-      -lopus \
-      -lz \
-      -lwebpmux \
-      -lwebp \
-      -lsharpyuv \
-      -lfreetype \
-      -lfribidi \
-      -lharfbuzz \
-      -lass \
-      -lzimg
 # A classic worker that loads the UMD core with importScripts() has the
 # wrapper worker as self.location, and pthreads would spawn that script. Point
 # them at the core instead, via the mainScriptUrlOrBlob that
 # @project516/ffmpeg-wasm passes. The grep fails the build if emsdk changes the
 # line this relies on.
-RUN mkdir -p /src/dist/umd && bash -x /src/build.sh \
-      ${FFMPEG_LIBS} \
+RUN . /src/preset.env && mkdir -p /src/dist/umd && bash -x /src/build.sh \
+      ${FFMPEG_LIBS} ${FFMPEG_LINK_FLAGS:-} \
       -o dist/umd/ffmpeg-core.js && \
     sed -i 's/_scriptName=self.location.href/_scriptName=Module["mainScriptUrlOrBlob"]||self.location.href/' dist/umd/ffmpeg-core.js && \
     grep -q 'mainScriptUrlOrBlob"\]||self.location.href' dist/umd/ffmpeg-core.js
-RUN mkdir -p /src/dist/esm && bash -x /src/build.sh \
-      ${FFMPEG_LIBS} \
+RUN . /src/preset.env && mkdir -p /src/dist/esm && bash -x /src/build.sh \
+      ${FFMPEG_LIBS} ${FFMPEG_LINK_FLAGS:-} \
       -sEXPORT_ES6 \
       -o dist/esm/ffmpeg-core.js
 

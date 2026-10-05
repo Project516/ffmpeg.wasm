@@ -1,5 +1,8 @@
 all: dev
 
+# One of build/presets/*.env; see apps/website/docs/presets.md.
+PRESET ?= full
+
 MT_FLAGS := -sUSE_PTHREADS -pthread
 
 DEV_ARGS := --progress=plain
@@ -19,11 +22,13 @@ build:
 	EXTRA_LDFLAGS="$(EXTRA_LDFLAGS)" \
 	FFMPEG_ST="$(FFMPEG_ST)" \
 	FFMPEG_MT="$(FFMPEG_MT)" \
+	PRESET="$(PRESET)" \
 		docker buildx build \
 			--build-arg EXTRA_CFLAGS \
 			--build-arg EXTRA_LDFLAGS \
 			--build-arg FFMPEG_MT \
 			--build-arg FFMPEG_ST \
+			--build-arg PRESET \
 			-o ./packages/core$(PKG_SUFFIX) \
 			$(EXTRA_ARGS) \
 			.
