@@ -3,6 +3,32 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.15.0
+
+### Added
+
+- `@project516/ffmpeg-wasm` has three helpers that wrap `writeFile()`,
+  `exec()` and `readFile()`: `probe()` returns ffprobe's format and stream
+  JSON, `transcode()` returns the converted file's bytes, and `extractFrames()`
+  returns encoded png, jpg or webp frames in order. They take a `File`, `Blob`,
+  `URL` or `Uint8Array`, remove every file they wrote, including on failure,
+  and reject with ffmpeg's last log lines. The types are in
+  `@project516/ffmpeg-wasm-types`.
+- Codec presets for building smaller cores yourself: `make prd PRESET=web`
+  builds a single-thread core that is 4.87 MB gzipped instead of 13.48 MB, and
+  `decode` builds one with every decoder and no encoder libraries. The
+  published packages keep the `full` preset, so they are unchanged. See
+  `apps/website/docs/presets.md`.
+- The FATE allowlist grows from 11 to 38 test files (1061 tests on the full
+  subset, all passing on both cores except four known skips). CI compares each
+  run against a committed baseline of FATE results and benchmark ratios and
+  fails on a regression.
+
+### Changed
+
+- The timeout tests pass `-re` so the clip cannot finish before the timeout on
+  the single-thread core.
+
 ## 0.14.0
 
 ### Changed
