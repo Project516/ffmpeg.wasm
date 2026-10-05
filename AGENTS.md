@@ -60,6 +60,9 @@ Lessons from the shim, so they are not rediscovered:
   for both cores; see the comment in the Dockerfile's `ffmpeg-base` stage.
 - `src/bind`: JS glue passed to emcc when building the core.
 - `build/`: per-library build scripts used by the Dockerfile.
+- `build/presets`: codec presets (`full`, `web`, `decode`) that set the FFmpeg
+  configure flags and linked libraries; `make prd PRESET=<name>`. The
+  published packages always use `full`. See `apps/website/docs/presets.md`.
 - `apps/`: standalone examples, not part of the pnpm workspace.
 - `tests/`: browser tests run against built cores.
 - `scripts/fate`, `scripts/bench`: run FFmpeg's FATE tests and benchmarks against
@@ -75,7 +78,7 @@ Lessons from the shim, so they are not rediscovered:
 - `pnpm build`
 - `pnpm lint`
 - Core builds need Docker and are CI-only on low-memory dev machines: `make
-  prd` (single-thread), `make prd-mt` (multi-thread).
+  prd` (single-thread), `make prd-mt` (multi-thread), each with `PRESET=<name>`.
 
 ## Glossary
 
@@ -83,6 +86,8 @@ Lessons from the shim, so they are not rediscovered:
 - **st / mt**: single-thread vs multithread core.
 - **fftools**: FFmpeg's own CLI sources, patched at build time by
   `build/patches/n9` (see "FFmpeg upgrade plan").
+- **preset**: a file in `build/presets` that picks which FFmpeg components and
+  libraries a core build includes.
 - **bind**: the pre-js glue in `src/bind` linked into the core build.
 
 ## Review

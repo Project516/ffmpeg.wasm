@@ -33,74 +33,31 @@ The output file locates at **/packages/core** or **/packages/core-mt**.
 
 ## Custom Build / Reduce Build Size
 
-You can customize your build to include only the libraries you need, which can significantly reduce the final build size. This is done by modifying the `Dockerfile`.
-
----
-
-### Step-by-Step Example: Removing WebP Support
-
-Here's how to remove `libwebp` (WebP image support) from the build. The same principle applies to other libraries.
-
-You need to make changes in **4 places** in the `Dockerfile`:
-
-#### 1. Remove the library builder stage
-
-Find the stage that builds the library you want to remove and delete the entire block:
-
-```dockerfile
-# Remove this entire block
-FROM emsdk-base AS libwebp-builder
-COPY --from=zlib-builder $INSTALL_DIR $INSTALL_DIR
-ENV LIBWEBP_BRANCH=v1.6.0
-ADD https://github.com/webmproject/libwebp.git#$LIBWEBP_BRANCH /src
-COPY build/libwebp.sh /src/build.sh
-RUN bash -x /src/build.sh
-```
-
-#### 2. Remove the COPY instruction
-
-In the `ffmpeg-base` stage, remove the line that copies the built library:
-
-```dockerfile
-# Remove this line
-COPY --from=libwebp-builder $INSTALL_DIR $INSTALL_DIR
-```
-
-#### 3. Remove the configure flag
-
-In the `ffmpeg-builder` stage, remove the corresponding `--enable-lib...` flag:
-
-```dockerfile
-# Remove this line from the ffmpeg-builder stage
---enable-libwebp \
-```
-
-#### 4. Remove the linker flags
-
-In the `ffmpeg-wasm-builder` stage, remove the library from `FFMPEG_LIBS`:
-
-```dockerfile
-# Remove these lines from FFMPEG_LIBS
--lwebpmux \
--lwebp \
--lsharpyuv \
-```
-
-> **💡 Pro Tip:** Start by removing just the main library flag (e.g., `-lwebp`). If the build fails with "undefined reference" errors, those errors will tell you exactly which additional libraries to remove.
-
-#### 5. Build and test
+Pick a [preset](/docs/presets) to build a smaller core:
 
 ```bash
-# Run the build command
-make prd
-
-# Output will be in packages/core/dist/
+make prd PRESET=web
 ```
----
 
-**Additional Build Size Optimization:**
+`full` is the default, `web` covers the common web codecs, and `decode` keeps
+every decoder with only a few encoders. The presets are the files in
+`build/presets/`. To include only the libraries and components you need,
+copy one, edit its `FFMPEG_FLAGS` and `FFMPEG_LIBS`, and build with
+`PRESET=<your file name without .env>`.
 
-You can sometimes play around with `build/ffmpeg-wasm.sh` and `build/ffmpeg.sh` to disable things you are not using to make the size smaller.
+For a custom preset:
+
+1. Start from `--disable-everything` and enable only what you use, for example
+   `--enable-decoder=h264`, `--enable-encoder=libx264`, `--enable-muxer=mp4`.
+   An external library needs both its `--enable-lib...` flag and the encoder
+   or decoder that uses it.
+2. Add the `-l...` flag of every enabled library to `FFMPEG_LIBS`. An
+   `undefined reference` error at link time names a library you dropped from
+   the list while a component still needs it.
+3. Run `make prd PRESET=<name>` and check `packages/core/dist/`.
+
+The library stages in the `Dockerfile` build for every preset. To skip one,
+remove its builder stage and its `COPY --from=...` line in `ffmpeg-base`.
 
 ### More Advance Customization Example: Creating a Minimal Build
 
