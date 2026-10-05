@@ -22,6 +22,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The core reads the `wasmURL` hash only when locating the `.wasm` file, and
   loads when `mainScriptUrlOrBlob` has no hash.
+- `-loglevel quiet` and `-report` in one `exec()` no longer silence logging in
+  the next one, and `-hide_banner` no longer carries over.
+- A later `ffprobe()` no longer inherits `-show_entries` from an earlier one,
+  and ffprobe returns an error instead of aborting when it cannot open a
+  stream's decoder.
+- Progress is reported with `-nostats`, stays within 0 and 1, and is 0 for
+  inputs with no known duration until the run ends.
 
 ## 0.16.0
 

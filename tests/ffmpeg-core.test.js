@@ -243,3 +243,61 @@ describe(genName("setProgress()"), () => {
     core.FS.unlink("video.avi");
   });
 });
+
+describe(genName("state between calls"), () => {
+  beforeEach(reset);
+
+  const probeFormat = (...args) => {
+    expect(core.ffprobe("-v", "error", "-print_format", "json", ...args, "video.mp4", "-o", "probe.json")).to.equal(0);
+    const json = JSON.parse(new TextDecoder().decode(core.FS.readFile("probe.json")));
+    core.FS.unlink("probe.json");
+    return json;
+  };
+
+  it("should log after an exec with -loglevel quiet", () => {
+    expect(core.exec("-loglevel", "quiet", "-i", "video.mp4", "quiet.avi")).to.equal(0);
+    core.FS.unlink("quiet.avi");
+    const logs = [];
+    core.setLogger(({ message }) => logs.push(message));
+    expect(core.exec("-i", "video.mp4", "loud.avi")).to.equal(0);
+    core.FS.unlink("loud.avi");
+    expect(logs.length).to.not.equal(0);
+  });
+
+  it("should log after an exec with -report", () => {
+    expect(core.exec("-report", "-i", "video.mp4", "report.avi")).to.equal(0);
+    core.FS.unlink("report.avi");
+    for (const name of core.FS.readdir(".").filter((n) => /^ffmpeg-.*\.log$/.test(n))) {
+      core.FS.unlink(name);
+    }
+    const logs = [];
+    core.setLogger(({ message }) => logs.push(message));
+    expect(core.exec("-i", "video.mp4", "loud.avi")).to.equal(0);
+    core.FS.unlink("loud.avi");
+    expect(logs.length).to.not.equal(0);
+  });
+
+  it("should not keep -show_entries in a later ffprobe", () => {
+    const first = probeFormat("-show_entries", "format=duration");
+    expect(first.format.duration).to.be.ok;
+    expect(first.format.format_name).to.be.undefined;
+    const second = probeFormat("-show_format");
+    expect(second.format.format_name).to.be.ok;
+  });
+
+  it("should keep progress within 0 and 1 with -nostats", () => {
+    const values = [];
+    core.setProgress(({ progress }) => values.push(progress));
+    expect(core.exec("-nostats", "-i", "video.mp4", "video.avi")).to.equal(0);
+    core.FS.unlink("video.avi");
+    expect(values.length).to.not.equal(0);
+    for (const v of values) expect(v).to.be.within(0, 1);
+    expect(values[values.length - 1]).to.equal(1);
+  });
+
+  it("should fail ffprobe on a missing file and probe again after", () => {
+    expect(core.ffprobe("-v", "error", "missing.mp4")).to.not.equal(0);
+    expect(core.ffprobe("-v", "error", "-show_format", "video.mp4", "-o", "probe.json")).to.equal(0);
+    core.FS.unlink("probe.json");
+  });
+});

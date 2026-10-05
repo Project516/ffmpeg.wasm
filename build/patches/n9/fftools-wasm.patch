@@ -1,6 +1,6 @@
 diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
---- a/fftools/cmdutils.c	2026-09-24 09:59:45.053923228 -0500
-+++ b/fftools/cmdutils.c	2026-09-24 11:13:01.074661179 -0500
+--- a/fftools/cmdutils.c	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/cmdutils.c	2026-10-05 18:57:00.119047436 -0500
 @@ -29,6 +29,8 @@
     Studio) will not omit unused inline functions and create undefined
     references to libraries that are not being built. */
@@ -10,7 +10,7 @@ diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
  #include "config.h"
  #include "compat/va_copy.h"
  #include "libavformat/avformat.h"
-@@ -59,6 +61,17 @@
+@@ -59,6 +61,20 @@
  
  int hide_banner = 0;
  
@@ -23,14 +23,17 @@ diff -ruN a/fftools/cmdutils.c b/fftools/cmdutils.c
 +void cmdutils_reset(void)
 +{
 +    hide_banner = 0;
++    av_log_set_level(AV_LOG_INFO);
++    av_log_set_flags(0);
++    av_log_set_callback(av_log_default_callback);
 +}
 +
  void uninit_opts(void)
  {
      av_dict_free(&swr_opts);
 diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
---- a/fftools/cmdutils.h	2026-09-24 09:59:45.054651101 -0500
-+++ b/fftools/cmdutils.h	2026-09-24 11:13:01.075396180 -0500
+--- a/fftools/cmdutils.h	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/cmdutils.h	2026-10-05 18:57:00.120433352 -0500
 @@ -557,4 +557,20 @@
                       const char *name, const char *indent,
                       int log_level);
@@ -45,16 +48,16 @@ diff -ruN a/fftools/cmdutils.h b/fftools/cmdutils.h
 +void wasm_exit(int code);
 +
 +/*
-+ * Reset cmdutils.c's cross-program state (hide_banner) so a later
-+ * ffmpeg()/ffprobe() call in the same module does not inherit it from an
-+ * earlier call that passed -hide_banner.
++ * Reset cmdutils.c's cross-program state (hide_banner and the log level,
++ * flags and callback) so a later ffmpeg()/ffprobe() call in the same module
++ * does not inherit it from an earlier one.
 + */
 +void cmdutils_reset(void);
 +
  #endif /* FFTOOLS_CMDUTILS_H */
 diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
---- a/fftools/ffmpeg.c	2026-09-24 09:59:45.053969654 -0500
-+++ b/fftools/ffmpeg.c	2026-09-24 11:13:01.074704772 -0500
+--- a/fftools/ffmpeg.c	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/ffmpeg.c	2026-10-05 18:57:00.112761840 -0500
 @@ -32,6 +32,7 @@
  #include <stdlib.h>
  #include <string.h>
@@ -80,7 +83,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      }
  }
  
-@@ -569,6 +571,34 @@
+@@ -569,6 +571,53 @@
      }
  }
  
@@ -112,38 +115,54 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 +    return Module.timeout !== -1;
 +});
 +
++/* Progress is pts over the longest input duration, and always ends at 1.
++ * Inputs without a duration (lavfi, live streams) report 0 until the end. */
++static void report_progress(int is_last_report, int64_t pts)
++{
++    int64_t duration = -1;
++    double progress = 1;
++
++    if (pts == AV_NOPTS_VALUE)
++        pts = 0;
++    pts = FFABS64U(pts);
++
++    if (!is_last_report) {
++        for (int i = 0; i < nb_input_files; i++)
++            duration = FFMAX(duration, input_files[i]->ctx->duration);
++        progress = duration > 0 ? av_clipd((double)pts / duration, 0, 1) : 0;
++    }
++    send_progress(progress, (double)pts);
++}
++
  static void print_report(int is_last_report, int64_t timer_start, int64_t cur_time, int64_t pts)
  {
      AVBPrint buf, buf_script;
-@@ -642,6 +672,27 @@
-             pts -= copy_ts_first_pts;
+@@ -585,9 +634,6 @@
+     int ret;
+     float t;
+ 
+-    if (!print_stats && !is_last_report && !progress_avio)
+-        return;
+-
+     if (!is_last_report) {
+         if (last_time == -1) {
+             last_time = cur_time;
+@@ -596,8 +642,14 @@
+             (first_report && atomic_load(&nb_output_dumped) < nb_output_files))
+             return;
+         last_time = cur_time;
++        first_report = 0;
      }
  
-+    /*
-+     * Report progress against the longest input file's duration. This only
-+     * lines up when input and output durations match (e.g. not a trim);
-+     * good enough for a 0..1 progress bar in the common case.
-+     */
-+    {
-+        int64_t duration = -1;
-+        int64_t pts_abs = FFABS64U(pts);
++    report_progress(is_last_report, pts);
 +
-+        for (int i = 0; i < nb_input_files; i++) {
-+            int64_t file_duration = input_files[i]->ctx->duration;
-+            if (file_duration > duration)
-+                duration = file_duration;
-+        }
++    if (!print_stats && !is_last_report && !progress_avio)
++        return;
 +
-+        send_progress((double)pts_abs / (double)duration, (double)pts_abs);
-+        /* Make sure progress always ends at 1. */
-+        if (is_last_report && pts_abs != duration)
-+            send_progress(1, (double)pts_abs);
-+    }
-+
-     us    = FFABS64U(pts) % AV_TIME_BASE;
-     secs  = FFABS64U(pts) / AV_TIME_BASE % 60;
-     mins  = FFABS64U(pts) / AV_TIME_BASE / 60 % 60;
-@@ -704,7 +755,9 @@
+     t = (cur_time-timer_start) / 1000000.0;
+ 
+     vid = 0;
+@@ -704,7 +756,9 @@
      av_bprintf(&buf, " elapsed=%"PRId64":%02d:%02d.%02d", hours, mins, secs, ms / 10);
  
      if (print_stats || is_last_report) {
@@ -154,7 +173,16 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
          if (print_stats==1 && AV_LOG_INFO > av_log_get_level()) {
              fprintf(stderr, "%s    %c", buf.str, end);
          } else
-@@ -903,9 +956,27 @@
+@@ -727,8 +781,6 @@
+                        "Error closing progress log, loss of information possible: %s\n", av_err2str(ret));
+         }
+     }
+-
+-    first_report = 0;
+ }
+ 
+ static void print_stream_maps(void)
+@@ -903,9 +955,27 @@
  
      timer_start = av_gettime_relative();
  
@@ -183,7 +211,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
          if (received_nb_signals)
              break;
  
-@@ -931,6 +1002,12 @@
+@@ -931,6 +1001,12 @@
      /* dump report by using the first video and audio streams */
      print_report(1, timer_start, av_gettime_relative(), transcode_ts);
  
@@ -196,7 +224,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      return ret;
  }
  
-@@ -978,13 +1055,55 @@
+@@ -978,13 +1054,55 @@
  #endif
  }
  
@@ -253,7 +281,7 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      init_dynload();
  
      setvbuf(stderr,NULL,_IONBF,0); /* win32 runtime needs this */
-@@ -1054,5 +1173,10 @@
+@@ -1054,5 +1172,10 @@
      av_log(NULL, AV_LOG_VERBOSE, "\n");
      av_log(NULL, AV_LOG_VERBOSE, "Exiting with exit code %d\n", ret);
  
@@ -265,8 +293,8 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      return ret;
  }
 diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
---- a/fftools/ffmpeg.h	2026-09-24 09:59:45.054675120 -0500
-+++ b/fftools/ffmpeg.h	2026-09-24 11:13:01.075424810 -0500
+--- a/fftools/ffmpeg.h	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/ffmpeg.h	2026-10-05 18:56:18.654883973 -0500
 @@ -824,6 +824,12 @@
  
  int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch);
@@ -281,8 +309,8 @@ diff -ruN a/fftools/ffmpeg.h b/fftools/ffmpeg.h
                       const AVFrame *frame, const AVPacket *pkt,
                       uint64_t frame_num);
 diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
---- a/fftools/ffmpeg_opt.c	2026-09-24 09:59:45.054269711 -0500
-+++ b/fftools/ffmpeg_opt.c	2026-09-24 11:13:01.075007198 -0500
+--- a/fftools/ffmpeg_opt.c	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/ffmpeg_opt.c	2026-10-05 18:56:18.655076696 -0500
 @@ -87,6 +87,45 @@
  int copy_unknown_streams = 0;
  int recast_media = 0;
@@ -330,8 +358,8 @@ diff -ruN a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
  // to func_arg() for global options
  typedef struct GlobalOptionsContext {
 diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
---- a/fftools/ffprobe.c	2026-09-24 09:59:45.054459971 -0500
-+++ b/fftools/ffprobe.c	2026-09-24 11:13:01.075214087 -0500
+--- a/fftools/ffprobe.c	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/ffprobe.c	2026-10-05 18:57:00.115810341 -0500
 @@ -70,6 +70,7 @@
  #include "opt_common.h"
  
@@ -356,7 +384,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      ifile->streams = av_calloc(fmt_ctx->nb_streams, sizeof(*ifile->streams));
      if (!ifile->streams)
 -        exit(1);
-+        wasm_exit(1);
++        return AVERROR(ENOMEM);
      ifile->nb_streams = fmt_ctx->nb_streams;
  
      /* bind a decoder to each input stream */
@@ -365,17 +393,17 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
                                      fmt_ctx, stream, codec, &opts, NULL);
              if (err < 0)
 -                exit(1);
-+                wasm_exit(1);
++                return err;
  
              ist->dec_ctx = avcodec_alloc_context3(codec);
              if (!ist->dec_ctx)
 -                exit(1);
-+                wasm_exit(1);
++                return AVERROR(ENOMEM);
  
              err = avcodec_parameters_to_context(ist->dec_ctx, stream->codecpar);
              if (err < 0)
 -                exit(1);
-+                wasm_exit(1);
++                return err;
  
              if (do_show_log) {
                  // For logging it is needed to disable at least frame threads as otherwise
@@ -384,7 +412,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
                  av_log(NULL, AV_LOG_WARNING, "Could not open codec for input stream %d\n",
                         stream->index);
 -                exit(1);
-+                wasm_exit(1);
++                return AVERROR(EINVAL);
              }
  
              if ((t = av_dict_iterate(opts, NULL))) {
@@ -423,7 +451,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  {
      av_log_set_callback(log_callback_help);
      show_usage();
-@@ -3363,7 +3372,93 @@
+@@ -3363,7 +3372,100 @@
              do_show_##varname = 1;                                      \
      } while (0)
  
@@ -508,7 +536,14 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
 +
 +    clear_log(1);
 +    av_freep(&log_buffer);
-+    av_log_set_callback(av_log_default_callback);
++
++    for (size_t i = 0; i < FF_ARRAY_ELEMS(selected_entries); i++) {
++        selected_entries[i].show_all_entries = 0;
++        av_dict_free(&selected_entries[i].entries_to_show);
++    }
++
++    opt_common_reset();
++    cmdutils_reset();
 +}
 +
 +/* Prototype only to satisfy -Wmissing-prototypes; see the comment on
@@ -518,7 +553,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  {
      const AVTextFormatter *f;
      AVTextFormatContext *tctx;
-@@ -3373,6 +3468,8 @@
+@@ -3373,6 +3475,8 @@
      int ret, input_ret;
      AVTextFormatDataDump data_dump_format_id = AV_TEXTFORMAT_DATADUMP_XXD;
  
@@ -527,7 +562,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      init_dynload();
  
      setvbuf(stderr, NULL, _IONBF, 0); /* win32 runtime needs this */
-@@ -3504,7 +3601,7 @@
+@@ -3504,7 +3608,7 @@
               (!do_show_program_version && !do_show_library_versions && !do_show_pixel_formats))) {
              show_usage();
              av_log(NULL, AV_LOG_ERROR, "You have to specify one input file.\n");
@@ -536,7 +571,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
              ret = AVERROR(EINVAL);
          } else if (input_filename) {
              ret = probe_file(tctx, input_filename, print_input_filename);
-@@ -3540,5 +3637,10 @@
+@@ -3540,5 +3644,10 @@
  
      avformat_network_deinit();
  
@@ -549,8 +584,8 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
 +    return ret;
  }
 diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
---- a/fftools/opt_common.c	2026-09-24 09:59:45.054534508 -0500
-+++ b/fftools/opt_common.c	2026-09-24 11:13:01.075303291 -0500
+--- a/fftools/opt_common.c	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/opt_common.c	2026-10-05 18:57:00.120211017 -0500
 @@ -152,6 +152,17 @@
  
  static int warned_cfg = 0;
@@ -560,7 +595,7 @@ diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
 +    if (report_file) {
 +        fclose(report_file);
 +        report_file = NULL;
-+        av_log_set_callback(NULL);
++        av_log_set_callback(av_log_default_callback);
 +    }
 +    report_file_level = AV_LOG_DEBUG;
 +    warned_cfg = 0;
@@ -570,8 +605,8 @@ diff -ruN a/fftools/opt_common.c b/fftools/opt_common.c
  #define SHOW_VERSION  2
  #define SHOW_CONFIG   4
 diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
---- a/fftools/opt_common.h	2026-09-24 09:59:45.054806658 -0500
-+++ b/fftools/opt_common.h	2026-09-24 11:13:01.075575662 -0500
+--- a/fftools/opt_common.h	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/opt_common.h	2026-10-05 18:56:18.655843257 -0500
 @@ -229,4 +229,11 @@
      { "hide_banner",  OPT_TYPE_BOOL, OPT_EXPERT,            {&hide_banner},                   "do not show program banner", "hide_banner" }, \
      CMDUTILS_COMMON_OPTIONS_AVDEVICE                                                                                    \
@@ -585,10 +620,10 @@ diff -ruN a/fftools/opt_common.h b/fftools/opt_common.h
 +
  #endif /* FFTOOLS_OPT_COMMON_H */
 diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
---- a/libavutil/cpu.c	2026-09-24 09:59:45.053923228 -0500
-+++ b/libavutil/cpu.c	2026-09-24 11:44:10.274825873 -0500
+--- a/libavutil/cpu.c	2026-09-17 18:19:50.000000000 -0500
++++ b/libavutil/cpu.c	2026-10-05 18:56:18.655911276 -0500
 @@ -227,6 +227,15 @@
-
+ 
  int av_cpu_count(void)
  {
 +#ifdef FFMPEG_WASM_ST
@@ -601,20 +636,20 @@ diff -ruN a/libavutil/cpu.c b/libavutil/cpu.c
 +    return 1;
 +#else
      static atomic_int printed = 0;
-
+ 
      int nb_cpus = 1;
 @@ -277,6 +286,7 @@
      }
-
+ 
      return nb_cpus;
 +#endif
  }
-
+ 
  void av_cpu_force_count(int count)
 diff -ruN a/fftools/ffmpeg_filter.c b/fftools/ffmpeg_filter.c
---- a/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
-+++ b/fftools/ffmpeg_filter.c	2026-09-24 09:59:45.000000000 -0500
-@@ -2097,7 +2110,17 @@
+--- a/fftools/ffmpeg_filter.c	2026-09-17 18:19:50.000000000 -0500
++++ b/fftools/ffmpeg_filter.c	2026-10-05 18:56:18.656191055 -0500
+@@ -2097,6 +2097,16 @@
          }
      } else {
          fgt->graph->nb_threads = filter_complex_nbthreads;
