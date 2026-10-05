@@ -144,7 +144,8 @@ export type FFmpegCoreModuleFactory = (
 /**
  * Media accepted by the helpers in `@project516/ffmpeg-wasm` (`probe()`,
  * `transcode()`, `extractFrames()`). A `Uint8Array` is copied, so the
- * caller's buffer stays usable.
+ * caller's buffer stays usable. A `File`'s extension is passed on as a format
+ * hint, which only matters for streams without a recognizable header.
  *
  * @category Helpers
  */
@@ -156,9 +157,9 @@ export type MediaInput = File | Blob | URL | Uint8Array;
  * @category Helpers
  */
 export interface HelperOptions {
-  /** Rejects the helper's promise when aborted. The running ffmpeg command is not interrupted, use `timeout` for that. */
+  /** Rejects the helper's promise when aborted, and cancels fetching a `URL` input. The running ffmpeg command is not interrupted, use `timeout` for that. */
   signal?: AbortSignal;
-  /** Milliseconds before ffmpeg stops the command. Defaults to no limit. */
+  /** Milliseconds before ffmpeg stops the command. It does not cover fetching a `URL` input. Defaults to no limit. */
   timeout?: number;
 }
 

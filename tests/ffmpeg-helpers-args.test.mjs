@@ -344,6 +344,19 @@ describe("[helpers] extractFrames()", () => {
     expect(args[args.indexOf("-q:v") + 1]).to.equal("2");
   });
 
+  it("orders frames numerically past the padded width", async () => {
+    const ffmpeg = new FakeFFmpeg();
+    ffmpeg.onRun = (args) => {
+      const pattern = outputOf(args);
+      for (const n of [999999, 1000000, 2]) {
+        ffmpeg.files.set(pattern.replace("%06d", String(n).padStart(6, "0")), bytes(n % 256));
+      }
+      return 0;
+    };
+    const out = await extractFrames(ffmpeg, bytes(1));
+    expect(out.map((f) => f[0])).to.deep.equal([2, 999999 % 256, 1000000 % 256]);
+  });
+
   it("returns an empty list when ffmpeg wrote no frames", async () => {
     const { out } = await run({}, 0);
     expect(out).to.deep.equal([]);

@@ -61,7 +61,8 @@ const extensionOf = (name: string | undefined): string => {
 };
 
 const readInput = async (
-  input: MediaInput
+  input: MediaInput,
+  signal?: AbortSignal
 ): Promise<{ data: Uint8Array; ext: string }> => {
   if (input instanceof Uint8Array) {
     // writeFile() transfers the buffer to the worker, so hand it a copy.
@@ -71,7 +72,7 @@ const readInput = async (
     if (input.protocol === "file:" && isNode()) {
       return { data: await readLocalFile(input), ext: extensionOf(input.pathname) };
     }
-    const response = await fetch(input);
+    const response = await fetch(input, { signal });
     if (!response.ok) {
       throw new Error(`could not fetch ${input.href}: HTTP ${response.status}`);
     }
@@ -133,7 +134,7 @@ const withJob = async <T>(
   positive("timeout", timeout);
   // The worker calls do not notice a signal that is already aborted.
   signal?.throwIfAborted();
-  const { data, ext } = await readInput(input);
+  const { data, ext } = await readInput(input, signal);
   const dir = `/ffmpeg-wasm-job-${nextJob++}`;
   const job: Job = { dir, inputPath: `${dir}/input${ext}`, signal, timeout };
   try {
@@ -174,6 +175,8 @@ const withLogTail = async <T>(
     ffmpeg.off("log", onLog);
   }
 };
+
+const frameNumber = (name: string): number => parseInt(name.slice("frame-".length), 10);
 
 const failure = (what: string, code: number, tail: string[]): Error =>
   new Error(
@@ -336,7 +339,7 @@ export const extractFrames = async (
       const names = (await ffmpeg.listDir(dir, { signal }))
         .map(({ name }) => name)
         .filter((name) => name.startsWith("frame-"))
-        .sort();
+        .sort((a, b) => frameNumber(a) - frameNumber(b));
       const frames: Uint8Array[] = [];
       for (const name of names) {
         frames.push((await ffmpeg.readFile(`${dir}/${name}`, "binary", { signal })) as Uint8Array);
