@@ -31,6 +31,11 @@ type FFMessageOptions = {
   signal?: AbortSignal;
 };
 
+type EventListenerMethod = {
+  (event: "log", callback: LogEventCallback): void;
+  (event: "progress", callback: ProgressEventCallback): void;
+};
+
 /**
  * Provides APIs to interact with ffmpeg web worker.
  *
@@ -176,30 +181,22 @@ export class FFmpeg {
    *
    * @category FFmpeg
    */
-  public on(event: "log", callback: LogEventCallback): void;
-  public on(event: "progress", callback: ProgressEventCallback): void;
-  public on(
-    event: "log" | "progress",
-    callback: LogEventCallback | ProgressEventCallback
-  ) {
+  // Arrow fields reach the #private fields when called through a Proxy such
+  // as Vue's reactive(); prototype methods would throw a TypeError.
+  public on: EventListenerMethod = (event, callback) => {
     if (event === "log") {
       this.#logEventCallbacks.push(callback as LogEventCallback);
     } else if (event === "progress") {
       this.#progressEventCallbacks.push(callback as ProgressEventCallback);
     }
-  }
+  };
 
   /**
    * Unlisten to log or progress events from `ffmpeg.exec()`.
    *
    * @category FFmpeg
    */
-  public off(event: "log", callback: LogEventCallback): void;
-  public off(event: "progress", callback: ProgressEventCallback): void;
-  public off(
-    event: "log" | "progress",
-    callback: LogEventCallback | ProgressEventCallback
-  ) {
+  public off: EventListenerMethod = (event, callback) => {
     if (event === "log") {
       this.#logEventCallbacks = this.#logEventCallbacks.filter(
         (f) => f !== callback
@@ -209,11 +206,14 @@ export class FFmpeg {
         (f) => f !== callback
       );
     }
-  }
+  };
 
   /**
    * Loads ffmpeg-core inside web worker. It is required to call this method first
    * as it initializes WebAssembly and other essential variables.
+   *
+   * Calling it again on a loaded instance keeps the loaded core and resolves
+   * `false`. Call `terminate()` first to load a different core.
    *
    * @category FFmpeg
    * @returns `true` if ffmpeg core is loaded for the first time.
@@ -353,15 +353,19 @@ export class FFmpeg {
    * await ffmpeg.writeFile("text.txt", "hello world");
    * ```
    *
+   * @remarks
+   * A `Uint8Array` is transferred to the worker without a copy, which leaves
+   * it empty in the caller. Pass `{ transfer: false }` to copy it instead.
+   *
    * @category File System
    */
   public writeFile = (
     path: string,
     data: FileData,
-    { signal }: FFMessageOptions = {}
+    { signal, transfer = true }: FFMessageOptions & { transfer?: boolean } = {}
   ): Promise<OK> => {
     const trans: Transferable[] = [];
-    if (data instanceof Uint8Array) {
+    if (transfer && data instanceof Uint8Array) {
       trans.push(data.buffer);
     }
     return this.#send(

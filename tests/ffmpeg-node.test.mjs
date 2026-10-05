@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 import { mkdtemp, writeFile as writeFileFs, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect } from "chai";
 import { FFmpeg } from "@project516/ffmpeg-wasm";
 import { fetchFile } from "@project516/ffmpeg-wasm-util";
@@ -33,6 +33,13 @@ const coreURL =
     new URL("../packages/core-mt/dist/esm/ffmpeg-core.js", import.meta.url)
       .href :
     undefined;
+
+const corePath = fileURLToPath(
+  new URL(
+    `../packages/core${FFMPEG_TYPE === "mt" ? "-mt" : ""}/dist/esm/ffmpeg-core.js`,
+    import.meta.url
+  )
+);
 
 const load = (ffmpeg) => ffmpeg.load(coreURL ? { coreURL } : {});
 
@@ -67,6 +74,25 @@ describe(genName("fetchFile() local files"), function () {
   });
 });
 
+describe(genName("fetchFile() Blob"), function () {
+  it("reads a Blob without FileReader", async () => {
+    expect(globalThis.FileReader).to.be.undefined;
+    const data = await fetchFile(new Blob([new Uint8Array([1, 2, 3])]));
+    expect(Array.from(data)).to.deep.equal([1, 2, 3]);
+  });
+});
+
+describe(genName("FFmpeg through a Proxy"), function () {
+  it("on() and off() work like Vue's reactive()", () => {
+    const ffmpeg = new Proxy(new FFmpeg(), {});
+    const cb = () => {};
+    ffmpeg.on("log", cb);
+    ffmpeg.off("log", cb);
+    ffmpeg.on("progress", cb);
+    ffmpeg.off("progress", cb);
+  });
+});
+
 describe(genName("global Worker leakage"), function () {
   this.timeout(60000);
 
@@ -98,6 +124,18 @@ describe(genName("concurrent load()"), function () {
     }
   });
 
+  it("keeps the loaded core when load() is called again", async () => {
+    const ffmpeg = new FFmpeg();
+    try {
+      expect(await load(ffmpeg)).to.be.true;
+      await ffmpeg.writeFile("/kept.txt", "hello");
+      expect(await load(ffmpeg)).to.be.false;
+      expect(await ffmpeg.readFile("/kept.txt", "utf8")).to.equal("hello");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+
   it("still resolves first=true on the first successful load() after an earlier one failed", async () => {
     const ffmpeg = new FFmpeg();
     try {
@@ -111,6 +149,38 @@ describe(genName("concurrent load()"), function () {
 
       const first = await load(ffmpeg);
       expect(first).to.be.true;
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
+describe(genName("load() inputs"), function () {
+  this.timeout(60000);
+
+  it("accepts filesystem paths for coreURL and wasmURL", async () => {
+    const ffmpeg = new FFmpeg();
+    try {
+      await ffmpeg.load({
+        coreURL: corePath,
+        wasmURL: corePath.replace(/\.js$/, ".wasm"),
+      });
+      expect(ffmpeg.loaded).to.be.true;
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+
+  it("names the wasmURL when it is not a WebAssembly file", async () => {
+    const ffmpeg = new FFmpeg();
+    try {
+      let message = "";
+      try {
+        await ffmpeg.load({ coreURL: corePath, wasmURL: corePath });
+      } catch (e) {
+        message = String(e);
+      }
+      expect(message).to.include("not a WebAssembly file");
     } finally {
       ffmpeg.terminate();
     }
@@ -184,6 +254,24 @@ describe(genName("FFmpeg"), function () {
     await ffmpeg.mount("MEMFS", {}, "/work");
     await ffmpeg.unmount("/work");
     await ffmpeg.deleteDir("/work");
+  });
+
+  it("does not mount a name that only exists on the prototype", async () => {
+    expect(await ffmpeg.mount("__proto__", {}, "/proto")).to.be.false;
+    expect(await ffmpeg.mount("constructor", {}, "/proto")).to.be.false;
+  });
+
+  it("writeFile() transfers the buffer unless transfer is false", async () => {
+    const kept = new Uint8Array([1, 2, 3]);
+    await ffmpeg.writeFile("/kept.bin", kept, { transfer: false });
+    expect(Array.from(kept)).to.deep.equal([1, 2, 3]);
+    const moved = new Uint8Array([1, 2, 3]);
+    await ffmpeg.writeFile("/moved.bin", moved);
+    expect(moved.length).to.equal(0);
+    const read = await ffmpeg.readFile("/kept.bin");
+    expect(Array.from(read)).to.deep.equal([1, 2, 3]);
+    await ffmpeg.deleteFile("/kept.bin");
+    await ffmpeg.deleteFile("/moved.bin");
   });
 
   it("transcodes a small video and reports progress", async () => {

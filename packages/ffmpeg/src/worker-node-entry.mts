@@ -4,6 +4,7 @@
 // on why that chunk is fragile to touch), so the message dispatch below
 // is kept as its own copy instead of importing from worker.ts.
 import { parentPort } from "node:worker_threads";
+import { pathToFileURL } from "node:url";
 import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
 import type {
   FFMessage,
@@ -26,7 +27,11 @@ import type {
   FileData,
 } from "./types.js";
 import { FFMessageType } from "./const.js";
-import { ERROR_UNKNOWN_MESSAGE_TYPE, ERROR_NOT_LOADED } from "./errors.js";
+import {
+  ERROR_UNKNOWN_MESSAGE_TYPE,
+  ERROR_NOT_LOADED,
+  wasmLoadError,
+} from "./errors.js";
 
 if (!parentPort) {
   throw new Error(
@@ -35,8 +40,8 @@ if (!parentPort) {
 }
 
 let ffmpeg: FFmpegCoreModule;
-// True once a load() has succeeded; see load().
-let loaded = false;
+// Set while a load() is in flight or done; see load().
+let loading: Promise<void> | null = null;
 
 // `@project516/ffmpeg-wasm-core` resolves relative to the consuming
 // project's own node_modules, not this package, so a bare specifier is
@@ -59,12 +64,21 @@ const defaultCoreURL = (): string => {
   }
 };
 
+// Two or more scheme characters, so a Windows drive path like C:\x is a path
+// and not a "c:" URL.
+const toURL = (location: string): string =>
+  /^[a-z][a-z0-9+.-]+:/i.test(location)
+    ? location
+    : pathToFileURL(location).href;
+
 const doLoad = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
 }: FFMessageLoadConfig): Promise<void> => {
-  const coreURL = _coreURL || defaultCoreURL();
-  const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/\.js$/, ".wasm");
+  const coreURL = _coreURL ? toURL(_coreURL) : defaultCoreURL();
+  const wasmURL = _wasmURL
+    ? toURL(_wasmURL)
+    : coreURL.replace(/\.js$/, ".wasm");
 
   if (coreURL.startsWith("blob:")) {
     // Node's ESM loader cannot import() a blob: URL (unlike fetch(), which
@@ -90,11 +104,15 @@ const doLoad = async ({
     throw new Error(`failed to import ffmpeg-core from ${coreURL}`);
   }
 
-  ffmpeg = await createFFmpegCore({
-    // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
-    // Encoded wasmURL in the URL as a hack to fix locateFile issue.
-    mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
-  });
+  try {
+    ffmpeg = await createFFmpegCore({
+      // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
+      // Encoded wasmURL in the URL as a hack to fix locateFile issue.
+      mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
+    });
+  } catch (e) {
+    throw wasmLoadError(wasmURL, e);
+  }
   ffmpeg.setLogger((data) =>
     parentPort!.postMessage({ type: FFMessageType.LOG, data })
   );
@@ -103,13 +121,22 @@ const doLoad = async ({
   );
 };
 
-// first is decided after doLoad() succeeds, so a failed load never claims
-// it and exactly one of several concurrent successful loads reports true.
+// Only the call that starts the load reports true. Later calls wait for it
+// and report false, so a second load() never creates a second core. A failed
+// load clears the slot so the next call can retry.
 const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
-  await doLoad(config);
-  const first = !loaded;
-  loaded = true;
-  return first;
+  if (loading) {
+    await loading;
+    return false;
+  }
+  loading = doLoad(config);
+  try {
+    await loading;
+  } catch (e) {
+    loading = null;
+    throw e;
+  }
+  return true;
 };
 
 const exec = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
@@ -169,8 +196,8 @@ const deleteDir = ({ path }: FFMessageDeleteDirData): OK => {
 
 const mount = ({ fsType, options, mountPoint }: FFMessageMountData): OK => {
   const str = fsType as keyof typeof ffmpeg.FS.filesystems;
+  if (!Object.hasOwn(ffmpeg.FS.filesystems, str)) return false;
   const fs = ffmpeg.FS.filesystems[str];
-  if (!fs) return false;
   ffmpeg.FS.mount(fs, options, mountPoint);
   return true;
 };

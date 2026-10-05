@@ -53,26 +53,8 @@ const readLocalFile = async (path: string | URL): Promise<Uint8Array> => {
 const isRemoteURL = (file: string): boolean =>
   /^(https?|data|blob):/i.test(file);
 
-const readFromBlobOrFile = (blob: Blob | File): Promise<Uint8Array> =>
-  new Promise((resolve, reject) => {
-    const fileReader = new FileReader();
-    fileReader.onload = () => {
-      const { result } = fileReader;
-      if (result instanceof ArrayBuffer) {
-        resolve(new Uint8Array(result));
-      } else {
-        resolve(new Uint8Array(0));
-      }
-    };
-    fileReader.onerror = (event) => {
-      reject(
-        Error(
-          `File could not be read! Code=${event?.target?.error?.code || -1}`
-        )
-      );
-    };
-    fileReader.readAsArrayBuffer(blob);
-  });
+const readFromBlobOrFile = async (blob: Blob | File): Promise<Uint8Array> =>
+  new Uint8Array(await blob.arrayBuffer());
 
 /**
  * An util function to fetch data from url string, base64, URL, File or Blob format.

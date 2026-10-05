@@ -9,3 +9,12 @@ export const ERROR_IMPORT_FAILURE = new Error(
 export const ERROR_WORKER = new Error(
   "worker encountered an error, this is most likely caused by the worker script failing to load (CORP, network error, 404, etc.)"
 );
+
+// The core does not say which URL it fetched. Matches the bad-header error
+// of V8 ("magic word"), SpiderMonkey ("magic number") and JSC ("\0asm").
+export const wasmLoadError = (wasmURL: string, e: unknown): unknown =>
+  /magic (word|number)|\\0asm/i.test(String(e))
+    ? new Error(`${wasmURL} is not a WebAssembly file (${String(e)})`, {
+        cause: e,
+      })
+    : e;

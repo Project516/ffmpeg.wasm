@@ -482,7 +482,12 @@ const url = URL.createObjectURL(new Blob([frames[0]], { type: 'image/png' }));
 A helper rejects with ffmpeg's last log lines when the command fails.
 Options beyond the ones shown go in `args` for `transcode()`, and every
 helper accepts `timeout` and `signal` like `exec()`. A `Uint8Array` input is
-copied, because `writeFile()` hands its buffer to the worker.
+copied, because `writeFile()` hands its buffer to the worker. To keep your own
+`Uint8Array` intact, call `writeFile(path, data, { transfer: false })`, which
+copies it instead.
+
+Calling `load()` on an already loaded `FFmpeg` keeps the loaded core and
+resolves `false`. Call `terminate()` first to load a different core.
 
 `extractFrames()` writes `png`, `jpg` or `webp` images. `webp` needs a core
 built with libwebp, which the default core has.
@@ -516,7 +521,8 @@ await ffmpeg.terminate();
 ```
 
 `fetchFile` reads a local path or a `file:` URL directly in Node.js instead
-of going through `fetch()`.
+of going through `fetch()`. Under Node.js, `coreURL` and `wasmURL` also accept
+a filesystem path, including a Windows path, or a `file:` URL.
 
 ### Multithread core
 
