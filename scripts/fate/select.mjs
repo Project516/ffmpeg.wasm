@@ -64,7 +64,9 @@ function main() {
     // $(TARGET_PATH) and $(TARGET_SAMPLES).
     const { test, kind, samples, generate } = entry.eligible[entry.taken++];
     const args = resolveVars(test.args, test.vars);
-    tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile: entry.makFile });
+    // CMP = oneline tests carry their expected output inline in REF.
+    const refLiteral = test.vars.CMP === "oneline" && test.vars.REF ? test.vars.REF : undefined;
+    tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile: entry.makFile, refLiteral });
   }
 
   const tests = [];

@@ -112,7 +112,7 @@ function preflight(test, label, refDir, samplesDir, generatedDir) {
   for (const spec of test.generate ?? []) {
     if (!existsSync(join(generatedDir, spec.path))) return { status: "skip", reason: `${spec.path} not generated` };
   }
-  if (!existsSync(join(refDir, test.name))) return { status: "skip", reason: "no reference file" };
+  if (test.refLiteral === undefined && !existsSync(join(refDir, test.name))) return { status: "skip", reason: "no reference file" };
   return null;
 }
 
@@ -219,8 +219,7 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
     }
   }
 
-  const refPath = join(refDir, test.name);
-  const expected = readFileSync(refPath, "utf8");
+  const expected = test.refLiteral ?? readFileSync(join(refDir, test.name), "utf8");
   const { ok, diff } = compareOutput(actual, expected);
   return ok ? { status: "pass" } : { status: "fail", reason: "checksum mismatch", diff };
 }

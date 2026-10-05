@@ -60,7 +60,12 @@ export const MAK_FILES = [
 // per-test timeout. Remove an entry once the underlying bug is fixed.
 // Keys are test names without the "fate-" prefix; "cores" defaults to both.
 //   "h264-conformance-foo": { reason: "why it fails", cores: ["st"] }
-export const KNOWN_FAILURES = {};
+export const KNOWN_FAILURES = {
+  "matroska-prores-header-insertion-bz2": { reason: "needs bzip2, which the cores are built without" },
+  "filter-frei0r-filter": { reason: "frei0r is not built into the cores" },
+  "filter-frei0r-filter-unaligned": { reason: "frei0r is not built into the cores" },
+  "filter-frei0r-source": { reason: "frei0r is not built into the cores" },
+};
 
 export const SUBSETS = {
   // Runs on every pull request: synthetic tests only (lavfi sources etc.),
