@@ -44,6 +44,27 @@ export interface FFMessageExecData {
   timeout?: number;
 }
 
+export interface FFMessageOpenData {
+  path: FFFSPath;
+  flags: string;
+}
+
+export interface FFMessageReadData {
+  fd: number;
+  length: number;
+  position?: number;
+}
+
+export interface FFMessageWriteData {
+  fd: number;
+  data: Uint8Array;
+  position?: number;
+}
+
+export interface FFMessageCloseData {
+  fd: number;
+}
+
 export interface FFMessageWriteFileData {
   path: FFFSPath;
   data: FileData;
@@ -117,6 +138,10 @@ export interface FFMessageUnmountData {
 export type FFMessageData =
   | FFMessageLoadConfig
   | FFMessageExecData
+  | FFMessageOpenData
+  | FFMessageReadData
+  | FFMessageWriteData
+  | FFMessageCloseData
   | FFMessageWriteFileData
   | FFMessageReadFileData
   | FFMessageDeleteFileData

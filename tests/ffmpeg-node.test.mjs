@@ -274,6 +274,56 @@ describe(genName("FFmpeg"), function () {
     await ffmpeg.deleteFile("/moved.bin");
   });
 
+  it("writes in chunks and reads back with open/read/write/close", async () => {
+    const fd = await ffmpeg.open("/chunked.bin", "w");
+    expect(await ffmpeg.write(fd, Uint8Array.from([1, 2, 3]))).to.equal(3);
+    expect(await ffmpeg.write(fd, Uint8Array.from([4, 5]))).to.equal(2);
+    await ffmpeg.close(fd);
+    expect(Array.from(await ffmpeg.readFile("/chunked.bin"))).to.deep.equal([
+      1, 2, 3, 4, 5,
+    ]);
+
+    const rfd = await ffmpeg.open("/chunked.bin", "r");
+    expect(Array.from(await ffmpeg.read(rfd, 2))).to.deep.equal([1, 2]);
+    expect(Array.from(await ffmpeg.read(rfd, 4, 1))).to.deep.equal([
+      2, 3, 4, 5,
+    ]);
+    expect(await ffmpeg.read(rfd, 4, 5)).to.have.length(0);
+    await ffmpeg.close(rfd);
+    await ffmpeg.deleteFile("/chunked.bin");
+  });
+
+  it("rejects use of a closed file descriptor", async () => {
+    const fd = await ffmpeg.open("/closed.bin", "w");
+    await ffmpeg.close(fd);
+    for (const use of [
+      () => ffmpeg.write(fd, Uint8Array.from([1])),
+      () => ffmpeg.read(fd, 1),
+      () => ffmpeg.close(fd),
+    ]) {
+      let error;
+      try {
+        await use();
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.equal(undefined);
+    }
+    await ffmpeg.deleteFile("/closed.bin");
+  });
+
+  it("write() transfers the buffer unless transfer is false", async () => {
+    const fd = await ffmpeg.open("/wt.bin", "w");
+    const kept = Uint8Array.from([1, 2]);
+    await ffmpeg.write(fd, kept, undefined, { transfer: false });
+    expect(kept.length).to.equal(2);
+    const moved = Uint8Array.from([3, 4]);
+    await ffmpeg.write(fd, moved);
+    expect(moved.length).to.equal(0);
+    await ffmpeg.close(fd);
+    await ffmpeg.deleteFile("/wt.bin");
+  });
+
   it("transcodes a small video and reports progress", async () => {
     let progress = 0;
     const onProgress = (event) => (progress = event.progress);

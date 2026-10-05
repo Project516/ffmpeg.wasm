@@ -34,6 +34,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `open()`, `read()`, `write()` and `close()` read and write a file in chunks
+  through a file descriptor (backport of upstream ffmpegwasm/ffmpeg.wasm#984).
+  `write()` transfers its `Uint8Array` unless `{ transfer: false }`.
 - `writeFile(path, data, { transfer: false })` copies a `Uint8Array` to the
   worker instead of transferring it, so the caller's array is not emptied.
   The default is unchanged.
