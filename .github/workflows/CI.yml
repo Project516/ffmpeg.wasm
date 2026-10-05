@@ -410,7 +410,7 @@ jobs:
     needs:
       - fate
       - benchmark
-    if: ${{ always() && !startsWith(github.ref, 'refs/tags/') && inputs.fate_only == '' }}
+    if: ${{ always() && !startsWith(github.ref, 'refs/tags/') && inputs.fate_only == '' && needs.fate.result != 'skipped' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v7
