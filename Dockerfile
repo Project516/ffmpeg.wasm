@@ -203,7 +203,8 @@ COPY --from=zimg-builder $INSTALL_DIR $INSTALL_DIR
 
 # Build ffmpeg
 # PRESET picks build/presets/<PRESET>.env, which sets the FFmpeg configure
-# flags (FFMPEG_FLAGS) and the libraries to link (FFMPEG_LIBS). Declared here
+# flags (FFMPEG_FLAGS), the libraries to link (FFMPEG_LIBS) and, optionally,
+# extra emcc link flags (FFMPEG_LINK_FLAGS). Declared here
 # so changing it only invalidates the layers from this stage on. The library
 # stages above build for every preset; a preset only changes what FFmpeg
 # enables and what the core links.
@@ -224,12 +225,12 @@ COPY build/ffmpeg-wasm.sh build.sh
 # @project516/ffmpeg-wasm passes. The grep fails the build if emsdk changes the
 # line this relies on.
 RUN . /src/preset.env && mkdir -p /src/dist/umd && bash -x /src/build.sh \
-      ${FFMPEG_LIBS} \
+      ${FFMPEG_LIBS} ${FFMPEG_LINK_FLAGS:-} \
       -o dist/umd/ffmpeg-core.js && \
     sed -i 's/_scriptName=self.location.href/_scriptName=Module["mainScriptUrlOrBlob"]||self.location.href/' dist/umd/ffmpeg-core.js && \
     grep -q 'mainScriptUrlOrBlob"\]||self.location.href' dist/umd/ffmpeg-core.js
 RUN . /src/preset.env && mkdir -p /src/dist/esm && bash -x /src/build.sh \
-      ${FFMPEG_LIBS} \
+      ${FFMPEG_LIBS} ${FFMPEG_LINK_FLAGS:-} \
       -sEXPORT_ES6 \
       -o dist/esm/ffmpeg-core.js
 
