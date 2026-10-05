@@ -200,8 +200,9 @@ node scripts/baseline/check.mjs --fate results.json --bench bench-report.json
 
 ## Where the results are
 
-- Each workflow run: the `fate` and `benchmark` jobs' step summaries, and
-  the `fate-results-*` / `bench-results` artifacts.
-- Nightly runs use the full subset; pull request runs use the fast subset,
+- [FATE and benchmark results](./results.md): the committed baseline, as a page.
+- Each workflow run: the `fate`, `benchmark` and `baseline-check` step
+  summaries, and the `fate-results-*` and `bench-results` artifacts.
+- Nightly runs use the full subset. Pull request runs use the fast subset,
   which needs no FATE samples mirror access but still fetches FFmpeg's test
   definitions from GitHub.
