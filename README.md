@@ -13,6 +13,7 @@ ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video 
 
 [![CI](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml/badge.svg)](https://github.com/Project516/ffmpeg.wasm/actions/workflows/CI.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![npm](https://img.shields.io/npm/v/@project516/ffmpeg-wasm.svg)](https://www.npmjs.com/package/@project516/ffmpeg-wasm)
 
 ## Install
 
@@ -20,7 +21,15 @@ ffmpeg.wasm is a pure Webassembly / Javascript port of FFmpeg. It enables video 
 pnpm add @project516/ffmpeg-wasm @project516/ffmpeg-wasm-util
 ```
 
-The fork publishes under the `@project516` npm scope. The packages are drop-in replacements for `@ffmpeg/ffmpeg`, `@ffmpeg/util`, `@ffmpeg/core`, and `@ffmpeg/core-mt`: change the import paths and keep the same API.
+The fork publishes these packages on npm under the `@project516` scope:
+
+- [`@project516/ffmpeg-wasm`](https://www.npmjs.com/package/@project516/ffmpeg-wasm): the `FFmpeg` class and the helpers.
+- [`@project516/ffmpeg-wasm-util`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-util): functions for fetching files and loading the core.
+- [`@project516/ffmpeg-wasm-core`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-core): the single-thread core.
+- [`@project516/ffmpeg-wasm-core-mt`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-core-mt): the multi-thread core.
+- [`@project516/ffmpeg-wasm-types`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-types): the TypeScript types.
+
+The packages are drop-in replacements for `@ffmpeg/ffmpeg`, `@ffmpeg/util`, `@ffmpeg/core`, and `@ffmpeg/core-mt`: change the import paths and keep the same API.
 
 ## Documentation
 
