@@ -155,6 +155,42 @@ describe(genName("setTimeout()"), () => {
   });
 });
 
+describe(genName("exec() argv"), () => {
+  beforeEach(reset);
+
+  // ffmpeg reads argv[argc] when the last argument is an option, so it must be
+  // NULL. Fill every allocation exec() makes with a bad pointer to catch a
+  // missing terminator, which otherwise depends on what the heap held before.
+  it("should end argv with NULL", () => {
+    const malloc = core._malloc;
+    core._malloc = (size) => {
+      const ptr = malloc(size + 16);
+      for (let i = 0; i < size + 16; i += 4) core.setValue(ptr + i, 0x7ffffff0, "i32");
+      return ptr;
+    };
+    try {
+      expect(core.exec("-h")).to.equal(0);
+    } finally {
+      core._malloc = malloc;
+    }
+  });
+});
+
+describe(genName("exec() after a timeout"), () => {
+  beforeEach(reset);
+
+  it("should run again after repeated timeouts", () => {
+    for (let i = 0; i < 5; i++) {
+      core.setTimeout(1);
+      expect(core.exec("-re", "-i", "video.mp4", "video.avi")).to.equal(1);
+      core.reset();
+      expect(core.exec("-h")).to.equal(0);
+      expect(core.exec("-i", "video.mp4", "video.avi")).to.equal(0);
+      core.FS.unlink("video.avi");
+    }
+  });
+});
+
 describe(genName("setLogger()"), () => {
   beforeEach(reset);
 

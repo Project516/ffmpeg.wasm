@@ -51,10 +51,12 @@ function stringToPtr(str) {
 
 function stringsToPtr(strs) {
   const len = strs.length;
-  const ptr = Module["_malloc"](len * SIZE_I32);
+  // argv[argc] must be NULL: fftools reads it after a trailing option.
+  const ptr = Module["_malloc"]((len + 1) * SIZE_I32);
   for (let i = 0; i < len; i++) {
     Module["setValue"](ptr + SIZE_I32 * i, stringToPtr(strs[i]), "i32");
   }
+  Module["setValue"](ptr + SIZE_I32 * len, NULL, "i32");
 
   return ptr;
 }
