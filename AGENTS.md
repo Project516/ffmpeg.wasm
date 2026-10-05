@@ -62,6 +62,12 @@ Lessons from the shim, so they are not rediscovered:
 - `build/`: per-library build scripts used by the Dockerfile.
 - `apps/`: standalone examples, not part of the pnpm workspace.
 - `tests/`: browser tests run against built cores.
+- `scripts/fate`, `scripts/bench`: run FFmpeg's FATE tests and benchmarks against
+  the cores in CI. `baseline/` holds the committed results that
+  `scripts/baseline/check.mjs` compares each run with, and
+  `apps/website/docs/results.md` is generated from it. Refresh both with
+  `node scripts/baseline/update.mjs <run-id>...` (see
+  `apps/website/docs/fate-and-benchmarks.md`).
 
 ## Commands
 

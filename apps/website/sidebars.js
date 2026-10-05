@@ -30,6 +30,7 @@ const sidebars = {
     },
     "performance",
     "fate-and-benchmarks",
+    "results",
     "migration",
     "faq",
     {

@@ -7,24 +7,28 @@
 // inlined in CMD, e.g.:
 //   fate-filter-adelay: SRC = $(TARGET_PATH)/tests/data/asynth-44100-2.wav
 //   fate-filter-adelay: CMD = framecrc -i $(SRC) -af ...
-// This parser only understands the framecrc/framemd5 forms (the ones this
-// first subset runs); anything else is left out rather than guessed at.
+// This parser only understands the framecrc, framemd5, crc, md5 and md5pipe
+// forms that name one test per line; anything else is left out rather than
+// guessed at.
 //
 // This is a small, from-scratch reader of that convention, not a port of
 // FFmpeg's tests/fate-run.sh. run.mjs reimplements just enough of
-// fate-run.sh's framecrc/framemd5 behavior to compare output against the
-// same tests/ref/fate/<name> reference files.
+// fate-run.sh's helpers to compare output against the same
+// tests/ref/fate/<name> reference files.
 
-const CMD_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*CMD\s*=\s*(framecrc|framemd5)\s+(.*)$/;
+const CMD_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*CMD\s*=\s*(framecrc|framemd5|crc|md5pipe|md5)\s+(.*)$/;
 const VAR_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*(?!CMD\s*=)([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/;
 
 function joinContinuations(text) {
-  return text.replace(/\\\r?\n[ \t]*/g, " ");
+  // "$\<newline>" is make's idiom for a line break that leaves no space, and
+  // make needs ";" in a rule line written "\;" and passes it on without the
+  // backslash.
+  return text.replace(/\$\\\r?\n[ \t]*/g, "").replace(/\\\r?\n[ \t]*/g, " ").replace(/\\;/g, ";");
 }
 
 /**
  * @param {string} text contents of one .mak file
- * @returns {{name: string, mode: "framecrc"|"framemd5", args: string, vars: Record<string,string>}[]}
+ * @returns {{name: string, mode: "framecrc"|"framemd5"|"crc"|"md5pipe"|"md5", args: string, vars: Record<string,string>}[]}
  */
 export function parseMakFile(text) {
   const joined = joinContinuations(text);
@@ -104,11 +108,15 @@ export function classifyTest(test) {
   const generate = [];
   let unsupported = false;
 
-  for (const match of resolved.matchAll(/\$\(TARGET_SAMPLES\)\/[^\s'"]+|\$\(TARGET_PATH\)\/[^\s'"]+/g)) {
+  for (const match of resolved.matchAll(/\$\(TARGET_SAMPLES\)\/[^\s'"|]+|\$\(TARGET_PATH\)\/[^\s'"|]+/g)) {
     const token = match[0];
     const sampleMatch = SAMPLE_PATH_RE.exec(token);
     if (sampleMatch) {
-      samples.push(sampleMatch[1]);
+      // A "%d" pattern names an image sequence, not one file to fetch.
+      if (sampleMatch[1].includes("%")) unsupported = true;
+      else samples.push(sampleMatch[1]);
+      // A VobSub .idx reads its .sub next to it.
+      if (sampleMatch[1].endsWith(".idx")) samples.push(sampleMatch[1].replace(/\.idx$/, ".sub"));
       continue;
     }
     const buildMatch = BUILD_PATH_RE.exec(token);
@@ -120,12 +128,19 @@ export function classifyTest(test) {
     }
   }
 
+  // A relative tests/data/ path is a file the FATE build generates with its
+  // own make rules.
+  if (/(^|[\s=,:])tests\/data\//.test(resolved)) unsupported = true;
+
   // Any $(VAR) left over after resolving this test's own variables is a
   // reference this runner does not know how to satisfy (e.g. $(SRC_PATH),
   // pointing at the FFmpeg source tree itself).
   if (!unsupported && ANY_TOKEN_RE.test(resolved.replace(/\$\(TARGET_PATH\)|\$\(TARGET_SAMPLES\)/g, ""))) {
     unsupported = true;
   }
+
+  // Only exact comparison is implemented, not grep, stddev and the like.
+  if (test.vars.CMP && !["diff", "oneline"].includes(test.vars.CMP)) unsupported = true;
 
   if (unsupported) return { kind: "unsupported", samples: [], generate: [] };
   if (samples.length > 0) return { kind: "sample", samples, generate };

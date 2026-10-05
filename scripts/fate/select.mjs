@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Reads the FATE .mak files fetched by fetch-defs.mjs, extracts framecrc /
-// framemd5 tests from the allowlisted files in config.mjs, and writes a
-// manifest of the chosen subset as JSON.
+// Reads the FATE .mak files fetched by fetch-defs.mjs, extracts the framecrc,
+// framemd5, crc, md5 and md5pipe tests from the allowlisted files in
+// config.mjs, and writes a manifest of the chosen subset as JSON.
 //
 // Usage: node scripts/fate/select.mjs --tag n9.0.2 --subset fast --out manifest.json
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -64,7 +64,9 @@ function main() {
     // $(TARGET_PATH) and $(TARGET_SAMPLES).
     const { test, kind, samples, generate } = entry.eligible[entry.taken++];
     const args = resolveVars(test.args, test.vars);
-    tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile: entry.makFile });
+    // CMP = oneline tests carry their expected output inline in REF.
+    const refLiteral = test.vars.CMP === "oneline" && test.vars.REF ? test.vars.REF : undefined;
+    tests.push({ name: test.name, mode: test.mode, args, kind, samples, generate, makFile: entry.makFile, refLiteral });
   }
 
   const tests = [];

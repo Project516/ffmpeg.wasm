@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Benchmarks a fixed set of transcodes on native FFmpeg and on a built core,
-// on the same machine, and reports wall time, peak RSS, and the wasm/native
-// ratio as JSON.
+// on the same machine, and reports the median wall time and peak RSS of
+// several runs as JSON.
 //
 // Uses the same 1-second H.264 sample the browser/Node tests already embed
 // (tests/test-helper-browser.js) so no extra sample download is needed. That
@@ -42,7 +42,7 @@ const CASES = [
 ];
 
 function parseArgs(argv) {
-  const args = { core: null, native: false, label: null, out: null, runs: 3, one: null, input: null };
+  const args = { core: null, native: false, label: null, out: null, runs: 5, one: null, input: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--core") args.core = argv[++i];
     else if (argv[i] === "--native") args.native = true;
@@ -179,13 +179,14 @@ async function bench({ core, native, inputPath, runs }) {
   return results;
 }
 
-// Only successful runs count: GNU time still writes wall-time/RSS numbers
-// for a run that timed out or exited non-zero, so an unfiltered average
-// could report a failed transcode as a normal measurement.
-function average(samples, key) {
-  const values = samples.filter((s) => s.ok).map((s) => s[key]).filter((v) => v != null);
+// Median of the successful runs: GNU time still writes wall-time/RSS numbers
+// for a run that timed out or exited non-zero, so failed runs are excluded,
+// and the median keeps one slow run on a shared runner from moving the result.
+function median(samples, key) {
+  const values = samples.filter((s) => s.ok).map((s) => s[key]).filter((v) => v != null).sort((a, b) => a - b);
   if (values.length === 0) return null;
-  return values.reduce((a, b) => a + b, 0) / values.length;
+  const mid = values.length >> 1;
+  return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
 }
 
 async function main() {
@@ -203,8 +204,8 @@ async function main() {
 
     const cases = results.map((r) => ({
       name: r.name,
-      avgWallMs: average(r.samples, "wallMs"),
-      avgPeakRssKb: average(r.samples, "peakRssKb"),
+      medianWallMs: median(r.samples, "wallMs"),
+      medianPeakRssKb: median(r.samples, "peakRssKb"),
       okRuns: r.samples.filter((s) => s.ok).length,
       totalRuns: r.samples.length,
       samples: r.samples,
@@ -213,6 +214,7 @@ async function main() {
     const report = {
       label,
       native,
+      ...(native ? { version: execFileSync("ffmpeg", ["-version"], { encoding: "utf8" }).split("\n")[0].replace(/ Copyright.*/, "") } : {}),
       generatedAt: new Date().toISOString(),
       runs,
       cases,
@@ -221,7 +223,7 @@ async function main() {
     console.log(`wrote ${out}`);
     for (const c of cases) {
       console.log(
-        `${label} ${c.name}: avg ${c.avgWallMs?.toFixed(1) ?? "?"}ms, peak RSS ${c.avgPeakRssKb ?? "?"}KB, ${c.okRuns}/${c.totalRuns} runs ok`,
+        `${label} ${c.name}: median ${c.medianWallMs?.toFixed(1) ?? "?"}ms, peak RSS ${c.medianPeakRssKb ?? "?"}KB, ${c.okRuns}/${c.totalRuns} runs ok`,
       );
     }
   } finally {

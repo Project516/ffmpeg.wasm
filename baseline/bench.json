@@ -1,0 +1,45 @@
+{
+  "native": "ffmpeg version 6.1.1-3ubuntu5",
+  "cores": {
+    "st": {
+      "h264-to-vp9": {
+        "nativeMs": 90,
+        "wasmMs": 430,
+        "ratio": 4.78,
+        "peakRssKb": 222632
+      },
+      "h264-to-mpeg4": {
+        "nativeMs": 70,
+        "wasmMs": 320,
+        "ratio": 4.57,
+        "peakRssKb": 230676
+      },
+      "scale-half": {
+        "nativeMs": 70,
+        "wasmMs": 910,
+        "ratio": 13,
+        "peakRssKb": 373320
+      }
+    },
+    "mt": {
+      "h264-to-vp9": {
+        "nativeMs": 90,
+        "wasmMs": 840,
+        "ratio": 9.33,
+        "peakRssKb": 717564
+      },
+      "h264-to-mpeg4": {
+        "nativeMs": 70,
+        "wasmMs": 860,
+        "ratio": 12.29,
+        "peakRssKb": 704392
+      },
+      "scale-half": {
+        "nativeMs": 70,
+        "wasmMs": 800,
+        "ratio": 11.43,
+        "peakRssKb": 756052
+      }
+    }
+  }
+}

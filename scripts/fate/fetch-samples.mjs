@@ -25,6 +25,12 @@ function rsyncWithRetry(args) {
       execFileSync("rsync", ["--timeout=60", ...args], { stdio: "inherit" });
       return;
     } catch (err) {
+      // 23 is "some files could not be transferred", e.g. a sample the mirror
+      // no longer has. run.mjs reports a test missing its sample as skipped.
+      if (err.status === 23) {
+        console.warn("rsync could not transfer some files, continuing without them");
+        return;
+      }
       if (attempt === RSYNC_RETRIES) throw err;
       console.warn(`rsync failed (attempt ${attempt}/${RSYNC_RETRIES}), retrying: ${err.message}`);
     }
