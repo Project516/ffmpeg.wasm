@@ -61,7 +61,12 @@ function names(core, flag) {
   core.reset();
   core.setLogger(({ message }) => lines.push(message));
   core.exec("-hide_banner", flag);
-  return new Set(lines.map((l) => /^\s*[VAS][.\w]{5}\s+(\S+)/.exec(l)?.[1]).filter((n) => n && n !== "="));
+  return new Set(
+    lines
+      .flatMap((l) => l.split("\n"))
+      .map((l) => /^\s*[VAS][.\w]{5}\s+(\S+)/.exec(l)?.[1])
+      .filter((n) => n && n !== "=")
+  );
 }
 
 async function main() {
