@@ -172,6 +172,30 @@ describe("[helpers] probe()", () => {
     expect(ffmpeg.signals[0]).to.equal(controller.signal);
   });
 
+  it("rejects a signal that is already aborted, before touching the file system", async () => {
+    const ffmpeg = new FakeFFmpeg();
+    const controller = new AbortController();
+    controller.abort();
+    let error;
+    try {
+      await probe(ffmpeg, bytes(1), { signal: controller.signal });
+    } catch (e) {
+      error = e;
+    }
+    expect(error.name).to.equal("AbortError");
+    expect(ffmpeg.dirs.size).to.equal(1);
+  });
+
+  it("rejects a timeout of zero, which would stop ffmpeg at once", async () => {
+    let rejected = false;
+    try {
+      await probe(new FakeFFmpeg(), bytes(1), { timeout: 0 });
+    } catch {
+      rejected = true;
+    }
+    expect(rejected).to.be.true;
+  });
+
   it("uses a separate directory for concurrent calls", async () => {
     const ffmpeg = new FakeFFmpeg();
     const dirs = [];

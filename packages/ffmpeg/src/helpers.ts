@@ -43,16 +43,15 @@ let nextJob = 0;
 const isNode = (): boolean =>
   typeof process !== "undefined" && process.versions?.node != null;
 
-// webpackIgnore and @vite-ignore keep bundlers from resolving node:fs for the
-// browser build; it is only reached for a file: URL under Node.js.
-const NODE_FS_SPECIFIER = "node:fs/promises";
-
+// getBuiltinModule instead of import("node:fs/promises"), which bundlers
+// would try to resolve for the browser.
 const readLocalFile = async (url: URL): Promise<Uint8Array> => {
-  const fs = (await import(
-    /* webpackIgnore: true */
-    /* @vite-ignore */
-    NODE_FS_SPECIFIER
-  )) as typeof import("node:fs/promises");
+  const fs = process.getBuiltinModule?.("node:fs/promises");
+  if (!fs) {
+    throw new Error(
+      "reading a file: URL needs Node.js 20.16 or later; read the file yourself and pass a Uint8Array"
+    );
+  }
   return new Uint8Array(await fs.readFile(url));
 };
 
@@ -131,12 +130,14 @@ const withJob = async <T>(
   { signal, timeout }: HelperOptions,
   run: (job: Job) => Promise<T>
 ): Promise<T> => {
-  nonNegative("timeout", timeout);
+  positive("timeout", timeout);
+  // The worker calls do not notice a signal that is already aborted.
+  signal?.throwIfAborted();
   const { data, ext } = await readInput(input);
   const dir = `/ffmpeg-wasm-job-${nextJob++}`;
   const job: Job = { dir, inputPath: `${dir}/input${ext}`, signal, timeout };
-  await ffmpeg.createDir(dir, { signal });
   try {
+    await ffmpeg.createDir(dir, { signal });
     await ffmpeg.writeFile(job.inputPath, data, { signal });
     return await run(job);
   } finally {
