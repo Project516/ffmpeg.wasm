@@ -148,9 +148,10 @@ describe(genName("setTimeout()"), () => {
     expect("setTimeout" in core).to.be.true;
   });
 
+  // -re paces input at its native rate, so the job outlasts the timeout.
   it("should timeout", () => {
     core.setTimeout(1); // timeout after 1ms
-    expect(core.exec("-i", "video.mp4", "video.avi")).to.equal(1);
+    expect(core.exec("-re", "-i", "video.mp4", "video.avi")).to.equal(1);
   });
 });
 

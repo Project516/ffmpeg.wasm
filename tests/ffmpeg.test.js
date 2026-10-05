@@ -147,8 +147,9 @@ describe(genName("FFmpeg.exec()"), function () {
     ffmpeg.off("progress", listener);
   });
 
+  // -re paces input at its native rate, so the job outlasts the timeout.
   it("should stop if timeout", async () => {
-    const ret = await ffmpeg.exec(["-i", "video.mp4", "video.avi"], 1);
+    const ret = await ffmpeg.exec(["-re", "-i", "video.mp4", "video.avi"], 1);
     expect(ret).to.equal(1);
   });
 
