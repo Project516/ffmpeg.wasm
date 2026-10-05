@@ -1,4 +1,4 @@
-const { FFmpeg } = window.FFmpegWASM;
+const { FFmpeg, probe, transcode, extractFrames } = window.FFmpegWASM;
 
 const genName = (name) => `[ffmpeg][${FFMPEG_TYPE}] ${name}`;
 
@@ -165,5 +165,46 @@ describe(genName("FFmpeg.exec()"), function () {
     return promise.catch((err) => {
       expect(err.name).to.equal("AbortError");
     });
+  });
+});
+
+describe(genName("helpers (probe(), transcode(), extractFrames())"), function () {
+  let ffmpeg;
+  let video;
+
+  before(async () => {
+    ffmpeg = await createFFmpeg();
+    video = b64ToUint8Array(VIDEO_1S_MP4);
+  });
+
+  after(() => {
+    ffmpeg.terminate();
+  });
+
+  it("should probe a Blob and a File", async () => {
+    for (const input of [new Blob([video]), new File([video], "clip.mp4")]) {
+      const info = await probe(ffmpeg, input);
+      expect(info.format.format_name).to.include("mp4");
+      expect(info.streams.some((s) => s.codec_type === "video")).to.be.true;
+    }
+  });
+
+  it("should transcode a Uint8Array and leave it usable", async () => {
+    const out = await transcode(ffmpeg, video, { format: "avi" });
+    expect(out.length).to.not.equal(0);
+    expect(video.length).to.not.equal(0);
+    const info = await probe(ffmpeg, out);
+    expect(info.format.format_name).to.equal("avi");
+  });
+
+  it("should extract png frames", async () => {
+    const frames = await extractFrames(ffmpeg, video, { count: 2 });
+    expect(frames).to.have.lengthOf(2);
+    expect(frames[0][1]).to.equal(0x50);
+  });
+
+  it("should leave no files behind", async () => {
+    const names = (await ffmpeg.listDir("/")).map(({ name }) => name);
+    expect(names.filter((n) => n.startsWith("ffmpeg-wasm-job-"))).to.deep.equal([]);
   });
 });
