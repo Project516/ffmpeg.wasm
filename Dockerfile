@@ -204,10 +204,10 @@ COPY --from=zimg-builder $INSTALL_DIR $INSTALL_DIR
 # Build ffmpeg
 # PRESET picks build/presets/<PRESET>.env, which sets the FFmpeg configure
 # flags (FFMPEG_FLAGS), the libraries to link (FFMPEG_LIBS) and, optionally,
-# extra emcc link flags (FFMPEG_LINK_FLAGS). Declared here
-# so changing it only invalidates the layers from this stage on. The library
-# stages above build for every preset; a preset only changes what FFmpeg
-# enables and what the core links.
+# extra emcc link flags (FFMPEG_LINK_FLAGS). The ARG is declared in this stage
+# so changing it only invalidates the layers from here on. The library stages
+# above build for every preset; a preset only changes what FFmpeg enables and
+# what the core links.
 FROM ffmpeg-base AS ffmpeg-builder
 ARG PRESET=full
 COPY build/presets/${PRESET}.env /src/preset.env

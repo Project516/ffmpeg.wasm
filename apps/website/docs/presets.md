@@ -9,7 +9,7 @@ their own core and want a smaller download.
 | --- | --- |
 | `full` | Everything: x264, x265, libvpx, lame, theora, vorbis, opus, webp, freetype, fribidi, libass and zimg, with all of FFmpeg's decoders, encoders, muxers, demuxers and filters. |
 | `web` | The codecs and containers web video and audio use. Decoders for h264, hevc, vp8, vp9, mpeg4, mjpeg, png, gif, webp, aac, mp3, opus, vorbis, flac, alac and PCM. Encoders for h264 (x264), vp8 and vp9 (libvpx), aac, opus, mp3, vorbis, flac, png, mjpeg, gif and webp. mp4, mov, webm, matroska, ogg, mp3, flac, wav, gif and image demuxers and muxers, and the common filters (scale, crop, pad, transpose, fps, overlay, concat, volume, amix, atempo, and others). No x265, theora, subtitle rendering or `lavfi` sources. |
-| `decode` | Every decoder, demuxer, parser, protocol and filter that `full` has, so any input plays. Only the png, mjpeg, rawvideo and PCM encoders, and the null, image2, wav, rawvideo, framecrc, framemd5, md5, crc and hash muxers. No encoder libraries. It is linked at `-O2`, because `wasm-opt -O3` crashes on it. |
+| `decode` | Every FFmpeg-native decoder, and every demuxer, parser, protocol and filter that `full` has, so any input plays. The libvpx and libopus decoders are gone, and the native vp8, vp9 and opus decoders cover those formats. Only the png, mjpeg, rawvideo and PCM encoders, and the null, image2, wav, rawvideo, framecrc, framemd5, md5, crc and hash muxers. No encoder libraries. It is linked at `-O2`, because `wasm-opt -O3` crashes on it. |
 
 The preset files are `build/presets/<name>.env`. Each sets `FFMPEG_FLAGS`
 (configure flags), `FFMPEG_LIBS` (libraries to link) and, optionally,

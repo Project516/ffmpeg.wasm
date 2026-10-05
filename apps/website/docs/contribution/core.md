@@ -67,9 +67,9 @@ A community member, @Kaizodo, shared an approach that resulted in a build size o
 
 The general strategy is to:
 
-1.  **Start with a minimal configuration:** Instead of removing libraries one by one, a more effective approach is to start with a minimal ffmpeg configuration. This can be achieved by using flags like `--disable-everything` in the ffmpeg configuration step within the `Dockerfile`.
+1.  **Start with a minimal configuration:** Instead of removing libraries one by one, a more effective approach is to start with a minimal ffmpeg configuration. This can be achieved by using flags like `--disable-everything` in `FFMPEG_FLAGS` of a preset file in `build/presets/`.
 2.  **Enable specific components:** After disabling everything, you can selectively enable only the encoders, decoders, muxers, demuxers, and protocols you need for your specific use case. For example: `--enable-encoder=libx264`, `--enable-decoder=png`, `--enable-muxer=mp4`, etc.
-3.  **Include only necessary libraries:** Make sure your `Dockerfile` only builds and links the external libraries that correspond to the features you enabled (e.g., `libx264`). You can remove the build stages for any other libraries.
+3.  **Include only necessary libraries:** Make sure `FFMPEG_FLAGS` and `FFMPEG_LIBS` only list the external libraries that correspond to the features you enabled (e.g., `libx264`). You can remove the `Dockerfile` build stages for any other libraries.
 
 This approach gives you control over the build content and its final size.
 

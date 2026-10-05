@@ -80,6 +80,7 @@ jobs:
         with:
           node-version: 22
       - name: Check the core and record its size
+        shell: bash
         run: node scripts/preset-check.mjs --core packages/core --preset full | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload core
         uses: actions/upload-artifact@v7
@@ -103,6 +104,7 @@ jobs:
         with:
           node-version: 22
       - name: Check the core and record its size
+        shell: bash
         run: node scripts/preset-check.mjs --core packages/core-mt --preset full | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload core-mt
         uses: actions/upload-artifact@v7
@@ -135,6 +137,7 @@ jobs:
         with:
           node-version: 22
       - name: Check the core and record its size
+        shell: bash
         run: node scripts/preset-check.mjs --core packages/core${{ matrix.core == 'mt' && '-mt' || '' }} --preset ${{ matrix.preset }} | tee -a "$GITHUB_STEP_SUMMARY"
 
   tests:
