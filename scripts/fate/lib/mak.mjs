@@ -19,10 +19,11 @@
 const CMD_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*CMD\s*=\s*(framecrc|framemd5|crc|md5pipe|md5)\s+(.*)$/;
 const VAR_RE = /^fate-([A-Za-z0-9][\w.+-]*)\s*:\s*(?!CMD\s*=)([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/;
 
-// make needs a ";" inside a variable value on a rule line written as "\;"
-// and passes it on without the backslash.
 function joinContinuations(text) {
-  return text.replace(/\\\r?\n[ \t]*/g, " ").replace(/\\;/g, ";");
+  // "$\<newline>" is make's idiom for a line break that leaves no space, and
+  // make needs ";" in a rule line written "\;" and passes it on without the
+  // backslash.
+  return text.replace(/\$\\\r?\n[ \t]*/g, "").replace(/\\\r?\n[ \t]*/g, " ").replace(/\\;/g, ";");
 }
 
 /**
@@ -114,6 +115,8 @@ export function classifyTest(test) {
       // A "%d" pattern names an image sequence, not one file to fetch.
       if (sampleMatch[1].includes("%")) unsupported = true;
       else samples.push(sampleMatch[1]);
+      // A VobSub .idx reads its .sub next to it.
+      if (sampleMatch[1].endsWith(".idx")) samples.push(sampleMatch[1].replace(/\.idx$/, ".sub"));
       continue;
     }
     const buildMatch = BUILD_PATH_RE.exec(token);
@@ -135,6 +138,9 @@ export function classifyTest(test) {
   if (!unsupported && ANY_TOKEN_RE.test(resolved.replace(/\$\(TARGET_PATH\)|\$\(TARGET_SAMPLES\)/g, ""))) {
     unsupported = true;
   }
+
+  // Only exact comparison is implemented, not grep, stddev and the like.
+  if (test.vars.CMP && !["diff", "oneline"].includes(test.vars.CMP)) unsupported = true;
 
   if (unsupported) return { kind: "unsupported", samples: [], generate: [] };
   if (samples.length > 0) return { kind: "sample", samples, generate };

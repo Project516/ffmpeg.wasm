@@ -174,7 +174,9 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
   // and per-input decode options are part of the command being tested, not
   // runner-specific conveniences.
   const argv = ["-nostdin", "-nostats", "-noauto_conversion_filters", "-cpuflags", "all"];
-  for (const arg of tokenize(args)) {
+  // fate-run.sh's ffmpeg() loops over an unquoted $@, so an argument with
+  // spaces is split again there.
+  for (const arg of tokenize(args).flatMap((token) => token.split(/\s+/).filter(Boolean))) {
     if (arg === "-i") {
       argv.push("-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice");
     }
