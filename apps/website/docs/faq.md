@@ -14,9 +14,9 @@ upgrade.
 
 ### Why is ffmpeg.wasm so slow compared to native ffmpeg?
 
-The core is built with `--disable-asm`, so FFmpeg runs its plain C code
-without the hand-written assembly native builds use, and WebAssembly SIMD is
-limited to 128 bits. Encoding is several times slower than native. Decoding
+The core is built with `--disable-asm`, so FFmpeg and its libraries run
+plain C code instead of the hand-written assembly and SIMD that native builds
+use. Encoding is several times slower than native. Decoding
 and remuxing are closer. See [Performance](/docs/performance) and
 [FATE and benchmarks](/docs/fate-and-benchmarks) for measurements.
 
