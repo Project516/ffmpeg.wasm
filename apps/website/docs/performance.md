@@ -46,8 +46,9 @@ this input, but needs `SharedArrayBuffer` and about twice the memory.
 The multithread core pays a fixed cost on every run: it starts a pool of
 worker threads and reserves 1 GB of memory before it does any work. On a long
 transcode that cost is small and the threads win. On a short job it is most of
-the time, and the single-thread core is faster. From the CI benchmark, on 1 second
-clips:
+the time, and the single-thread core is usually faster. Scaling is the
+exception here, because the scale filter spreads across threads. From the CI
+benchmark, on 1-second clips:
 
 | case                  | core (st) | core-mt |
 | --------------------- | --------- | ------- |
