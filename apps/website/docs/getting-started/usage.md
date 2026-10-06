@@ -432,7 +432,10 @@ function() {
 The mount is read-only, so write outputs outside it.
 
 ```ts
-await ffmpeg.mount('WORKERFS', { files: [file] }, '/input');
+import { FFFSType } from '@project516/ffmpeg-wasm';
+
+await ffmpeg.createDir('/input');
+await ffmpeg.mount(FFFSType.WORKERFS, { files: [file] }, '/input');
 await ffmpeg.exec(['-i', `/input/${file.name}`, 'output.mp4']);
 await ffmpeg.unmount('/input');
 ```
