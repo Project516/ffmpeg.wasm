@@ -171,14 +171,23 @@ function ffprobe(..._args) {
  * starts as its own promising export on its own C stack.
  */
 const pfiberResolvers = new Map();
+// Opt-in: set Module.pfiberTrace to a function that takes one line.
+const trace = (line) => Module["pfiberTrace"]?.(line);
 
 function pfiberRun(next, start, top) {
+  trace(`js queue ${start ? "start" : "resume"} ${next}`);
   queueMicrotask(() => {
     if (start) {
+      trace(`js enter ${next}`);
       stackRestore(top);
-      Module["_pfiber_enter"](next).catch((e) => Module["pfiberFail"]?.(e));
+      Module["_pfiber_enter"](next).then(
+        () => trace(`js entered-done ${next}`),
+        (e) => (trace(`js entered-fail ${next} ${e}`), Module["pfiberFail"]?.(e))
+      );
     } else {
-      pfiberResolvers.get(next)();
+      const resolve = pfiberResolvers.get(next);
+      trace(`js resolve ${next} ${resolve ? "ok" : "MISSING"}`);
+      resolve();
     }
   });
 }
@@ -188,6 +197,7 @@ async function pfiberSwitch(self, next, start, top) {
   const resumed = new Promise((resolve) => pfiberResolvers.set(self, resolve));
   pfiberRun(next, start, top);
   await resumed;
+  trace(`js resumed ${self}`);
   pfiberResolvers.delete(self);
   stackRestore(sp);
 }

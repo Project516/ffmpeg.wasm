@@ -212,6 +212,26 @@ typedef struct {
 static double pf_now_ms(void);
 static int pfiber_index_of(pfiber_t *f);
 
+#ifdef PFIBER_JSPI
+/* Opt-in tracing: Module.pfiberTrace receives one line per event. */
+EM_JS(int, pf_trace_enabled, (void), { return Module["pfiberTrace"] ? 1 : 0; });
+EM_JS(void, pf_trace_line, (const char *s), { Module["pfiberTrace"](UTF8ToString(s)); });
+static int g_trace;
+static void pf_trace(const char *fmt, ...)
+{
+    if (!g_trace)
+        return;
+    char buf[160];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    pf_trace_line(buf);
+}
+#else
+#define pf_trace(...) ((void)0)
+#endif
+
 static pfiber_t *pfiber_at(int idx)
 {
     return idx < 0 ? &g_main : &g_table[idx];
@@ -349,6 +369,7 @@ static void pf_idle_wait(double wake_at_ms)
 {
     double now = pf_now_ms();
     g_idle_waits++;
+    pf_trace("c idle %d", pfiber_index_of(g_current));
 
     /* Sample the clock in batches, not every pass. pf_now_ms is a clock_gettime,
      * which is a JavaScript import under Emscripten, so reading it on every
@@ -466,6 +487,8 @@ static void pfiber_reset(void)
     g_main.state = PF_RUNNABLE;
 #ifdef PFIBER_JSPI
     g_main.started = 1;
+    g_trace = pf_trace_enabled();
+    pf_trace("c reset");
 #else
     /* See g_main_stack_base: this is the one moment they still describe it. */
     g_main_stack_base = (void *)emscripten_stack_get_base();
@@ -678,7 +701,10 @@ static void pfiber_reschedule(void)
     pfiber_t *prev = g_current;
     g_current = next;
 #ifdef PFIBER_JSPI
+    pf_trace("c switch %d(%d) -> %d(%d)", pfiber_index_of(prev), prev->state,
+             pfiber_index_of(next), next->state);
     pfiber_enter_next(prev, next);
+    pf_trace("c back %d", pfiber_index_of(prev));
 #else
     emscripten_fiber_swap(&prev->ctx, &next->ctx);
     /* Only the way back needs fixing up, and only for g_main: it runs
@@ -719,6 +745,8 @@ static void pfiber_trampoline(void *arg)
     g_switches++;
     g_last_switch_ms = pf_now_ms();
     g_current = next;
+    pf_trace("c exit %d -> %d(%d)", pfiber_index_of(f), pfiber_index_of(next),
+             next->state);
     pfiber_enter_next(NULL, next);
 #else
     /* Never returns: a fiber that has finished has nothing to return to.
@@ -792,6 +820,7 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                            asyncify_stack, PFIBER_ASYNCIFY_STACK_SIZE);
 #endif
     f->state = PF_RUNNABLE;
+    pf_trace("c create %d", pfiber_index_of(f));
 
     /* Do not swap to it now; the caller (fftools sets up all its threads up
      * front, then immediately blocks) will hand it a turn on its own next
@@ -805,11 +834,14 @@ int __wrap_pthread_join(pthread_t thread, void **retval)
     pfiber_ensure_main();
     pfiber_t *f = (pfiber_t *)(uintptr_t)thread;
 
+    pf_trace("c join %d waits on %d(%d)", pfiber_index_of(g_current),
+             pfiber_index_of(f), f->state);
     f->join_waiter = g_current;
     pf_block(g_current);
     while (f->state != PF_DONE)
         pfiber_reschedule();
     pf_unblock(g_current);
+    pf_trace("c joined %d", pfiber_index_of(f));
 
     if (retval)
         *retval = f->retval;
