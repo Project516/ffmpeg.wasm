@@ -16,7 +16,7 @@ const EXPECT = {
   full: {
     encoders: ["libx264", "libx265", "libvpx-vp9", "libmp3lame", "libopus", "libvorbis", "libwebp", "aac", "png"],
     decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "prores"],
-    absent: [],
+    absent: ["libdav1d"],
     encodes: [["-c:v", "libx264", "out.mp4"], ["-c:v", "libvpx-vp9", "-b:v", "200k", "out.webm"]],
   },
   web: {
