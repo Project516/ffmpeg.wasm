@@ -47,6 +47,8 @@ const CASES = [
     name: "scale-half",
     args: (inp, out) => ["-i", inp, "-vf", "scale=trunc(iw/4)*2:trunc(ih/4)*2", out.replace(/\.\w+$/, ".mp4")],
   },
+  // Remuxing without re-encoding, the most common real-world job.
+  { name: "h264-remux-mkv", args: (inp, out) => ["-i", inp, "-c", "copy", out.replace(/\.\w+$/, ".mkv")] },
   // Same command as the performance docs page. Slow, so only with --include-long.
   {
     name: "vp8-720p-to-mp4",

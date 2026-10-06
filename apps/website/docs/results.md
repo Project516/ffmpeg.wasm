@@ -97,3 +97,4 @@ Median of five runs on one GitHub Actions runner, against native ffmpeg version 
 | h264-to-mpeg4 | 90 | 360 | 4.00x | 187 | 930 | 10.33x | 680 |
 | scale-half | 90 | 1120 | 12.44x | 371 | 970 | 10.78x | 729 |
 | vp8-720p-to-mp4 | 5210 | 81970 | 15.73x | 496 | 35110 | 6.74x | 1033 |
+| h264-remux-mkv | 60 | 160 | 2.67x | 169 | 670 | 11.17x | 638 |
