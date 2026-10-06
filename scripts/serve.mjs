@@ -52,8 +52,9 @@ export const serve = (port, { isolated = true } = {}) => {
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.argv[2] ?? 3000);
-  const isolated = !process.argv.includes("--no-isolation");
+  const args = process.argv.slice(2);
+  const isolated = !args.includes("--no-isolation");
+  const port = Number(args.find((a) => a !== "--no-isolation") ?? 3000);
   serve(port, { isolated }).on("listening", () =>
     console.log(`serving ${ROOT} on http://localhost:${port} (isolated: ${isolated})`)
   );
