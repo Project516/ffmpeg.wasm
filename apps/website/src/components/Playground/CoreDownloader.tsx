@@ -6,12 +6,11 @@ import { CORE_SIZE } from "./const";
 
 export default function CoreDownloader({ url, received, total: reported }) {
   const known = reported > 0 ? reported : CORE_SIZE[url];
-  const total = known >= received ? known : 0;
-  const percent = total > 0 ? Math.min(100, (received / total) * 100) : 0;
+  const percent = known > 0 ? Math.min(100, (received / known) * 100) : 0;
   return (
     <Container>
       <Typography>{`Downloading ${url}`}</Typography>
-      <Typography>{`(${received} / ${total > 0 ? total : "unknown"} bytes)`}</Typography>
+      <Typography>{`(${received} / ${known >= received ? known : "unknown"} bytes)`}</Typography>
       <LinearProgressWithLabel value={percent} />
     </Container>
   );

@@ -82,7 +82,9 @@ const playgroundConst = readFileSync(
   "utf8"
 );
 const coreVersion = playgroundConst.match(/CORE_VERSION = "([^"]+)"/)?.[1];
-if (coreSizes.version !== coreVersion) {
+if (!coreVersion) {
+  errors.push('Playground const.ts has no CORE_VERSION = "<version>" line');
+} else if (coreSizes.version !== coreVersion) {
   errors.push(
     `core-sizes.json is for ${coreSizes.version} but Playground CORE_VERSION is ${coreVersion}; run node scripts/update-core-sizes.mjs ${coreVersion}`
   );
