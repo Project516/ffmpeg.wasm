@@ -67,6 +67,7 @@ export interface WorkerFSMountConfig {
  */
 export interface FSStream {
   fd: number;
+  position: number;
 }
 
 /**
@@ -96,6 +97,7 @@ export interface FS {
   unmount: (path: string) => void;
   open: (path: string, flags: string) => FSStream;
   getStreamChecked: (fd: number) => FSStream;
+  fstat: (fd: number) => Stat;
   read: (
     stream: FSStream,
     buffer: Uint8Array,

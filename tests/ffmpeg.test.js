@@ -142,6 +142,9 @@ describe(
         Uint8Array.from([2, 3, 4, 5])
       );
       expect(await ffmpeg.read(fd, 4, 5)).to.have.length(0);
+      expect(await ffmpeg.read(fd, 2 ** 31, 3)).to.deep.equal(
+        Uint8Array.from([4, 5])
+      );
       await ffmpeg.close(fd);
     });
 

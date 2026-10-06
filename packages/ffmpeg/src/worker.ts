@@ -156,15 +156,12 @@ const open = ({ path, flags }: FFMessageOpenData): number =>
   ffmpeg.FS.open(path, flags).fd;
 
 const read = ({ fd, length, position }: FFMessageReadData): Uint8Array => {
-  const buffer = new Uint8Array(length);
-  const count = ffmpeg.FS.read(
-    ffmpeg.FS.getStreamChecked(fd),
-    buffer,
-    0,
-    length,
-    position
-  );
-  return buffer.slice(0, count);
+  const stream = ffmpeg.FS.getStreamChecked(fd);
+  // Allocate no more than the file holds, whatever length asks for.
+  const left = ffmpeg.FS.fstat(fd).size - (position ?? stream.position);
+  const buffer = new Uint8Array(Math.max(0, Math.min(length, left)));
+  const count = ffmpeg.FS.read(stream, buffer, 0, buffer.length, position);
+  return count === buffer.length ? buffer : buffer.slice(0, count);
 };
 
 const write = ({ fd, data, position }: FFMessageWriteData): number =>

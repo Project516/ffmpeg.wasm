@@ -289,6 +289,7 @@ describe(genName("FFmpeg"), function () {
       2, 3, 4, 5,
     ]);
     expect(await ffmpeg.read(rfd, 4, 5)).to.have.length(0);
+    expect(Array.from(await ffmpeg.read(rfd, 2 ** 31, 3))).to.deep.equal([4, 5]);
     await ffmpeg.close(rfd);
     await ffmpeg.deleteFile("/chunked.bin");
   });

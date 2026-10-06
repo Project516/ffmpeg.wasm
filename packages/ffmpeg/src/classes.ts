@@ -414,7 +414,8 @@ export class FFmpeg {
   /**
    * Read up to `length` bytes from `position`, or from where the last read or
    * write ended. Resolves to the bytes read: fewer than `length`, and empty
-   * at the end of the file.
+   * at the end of the file. A read at `position` does not move the file
+   * offset.
    *
    * @category File System
    */
@@ -432,7 +433,9 @@ export class FFmpeg {
 
   /**
    * Write `data` at `position`, or where the last read or write ended.
-   * Resolves to the number of bytes written.
+   * Resolves to the number of bytes written. A write at `position` does not
+   * move the file offset. Without `position`, descriptors opened with "a"
+   * or "a+" write at the end of the file.
    *
    * @remarks
    * Like writeFile(), `data` is transferred to the worker, which leaves it

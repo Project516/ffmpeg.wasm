@@ -462,7 +462,10 @@ await ffmpeg.exec(["-i", "input.mp4", "output.mp4"]);
   `"a"`, `"a+"`) and resolves to the file descriptor.
 - `read(fd, length, position?)` resolves to up to `length` bytes, empty at the
   end of the file. Without `position` it continues from the last read or write.
-- `write(fd, data, position?)` resolves to the number of bytes written. Like
+  With `position` the file offset does not move.
+- `write(fd, data, position?)` resolves to the number of bytes written. The
+  offset moves the same way as for `read()`. Without `position`, descriptors
+  opened with `"a"` or `"a+"` write at the end of the file. Like
   `writeFile()`, it transfers `data` and leaves it empty unless you pass
   `{ transfer: false }` as the last argument.
 - `close(fd)` releases the descriptor. Using it afterwards rejects.
