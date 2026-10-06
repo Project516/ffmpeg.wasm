@@ -1,3 +1,8 @@
 allowBuilds:
   core-js: true
   core-js-pure: true
+overrides:
+  postcss-selector-parser@<7.1.6: ^7.1.6
+  serialize-javascript@<7.0.5: ^7.0.5
+  tinypool@<2.1.2: ^2.1.2
+  uuid@<11.1.1: ^11.1.1
