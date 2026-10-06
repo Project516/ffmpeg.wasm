@@ -17,7 +17,7 @@ ENV FFMPEG_VERSION_ST=n9.0.2
 ENV FFMPEG_VERSION_MT=n9.0.2
 ENV FFMPEG_COMMIT_ST=946fcce07b6dcd0331c8cc609192aeff5e1924f8
 ENV FFMPEG_COMMIT_MT=946fcce07b6dcd0331c8cc609192aeff5e1924f8
-# Clang shipped with emsdk 6.0.10 defaults several legacy-C88/C89 patterns
+# Clang shipped with emsdk 6.0.11 defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
 # int/pointer conversions) to hard errors. Some of the bundled third-party
 # libraries still rely on that older, looser C dialect in a few places, so
