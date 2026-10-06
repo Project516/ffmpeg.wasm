@@ -609,6 +609,31 @@ describe(genName("repeated calls and exit codes"), function () {
   });
 });
 
+describe(genName("errors from the core"), function () {
+  this.timeout(60000);
+
+  // No known command traps the core, and the Node worker cannot be swapped
+  // for a stand-in; the trap path is covered by the browser suite. This
+  // checks that an ordinary error does not unload the instance.
+  it("keeps the instance loaded after an ordinary error", async () => {
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    try {
+      let rejected = false;
+      try {
+        await ffmpeg.listDir("/does-not-exist");
+      } catch {
+        rejected = true;
+      }
+      expect(rejected).to.be.true;
+      expect(ffmpeg.loaded).to.be.true;
+      expect(await ffmpeg.exec(["-h"])).to.equal(0);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
 describe(genName("core glue"), function () {
   // bind.js shares a scope with Emscripten's glue, so a top-level function
   // named like a global replaces it for the glue too.

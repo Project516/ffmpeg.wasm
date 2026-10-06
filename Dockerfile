@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.10@sha256:865e5dd094beca432e8c0a1d5e1c465db5f998dca4e439981029b3b81fb39ed5
 
 # Base emsdk image with environment variables.
-FROM emscripten/emsdk:6.0.10@sha256:e077d54e2b8970575ebc4f185ac1de0b95c05f2b266134d4ba27449af7aebf65 AS emsdk-base
+FROM emscripten/emsdk:6.0.11@sha256:cdefec943f04fd4b2b2fe23b0a1a346be9fc560ef5784a83faa27dd351381372 AS emsdk-base
 ARG EXTRA_CFLAGS
 ARG EXTRA_LDFLAGS
 ARG FFMPEG_ST
@@ -17,7 +17,7 @@ ENV FFMPEG_VERSION_ST=n9.0.2
 ENV FFMPEG_VERSION_MT=n9.0.2
 ENV FFMPEG_COMMIT_ST=946fcce07b6dcd0331c8cc609192aeff5e1924f8
 ENV FFMPEG_COMMIT_MT=946fcce07b6dcd0331c8cc609192aeff5e1924f8
-# Clang shipped with emsdk 6.0.10 defaults several legacy-C88/C89 patterns
+# Clang shipped with emsdk 6.0.11 defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
 # int/pointer conversions) to hard errors. Some of the bundled third-party
 # libraries still rely on that older, looser C dialect in a few places, so
@@ -193,7 +193,6 @@ COPY build/zimg.sh /src/build.sh
 RUN bash -x /src/build.sh
 
 # Build dav1d
-# Every preset builds it; only the ones that enable --enable-libdav1d link it.
 FROM emsdk-base AS dav1d-builder
 ENV DAV1D_BRANCH=1.5.4
 ENV DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7

@@ -19,6 +19,11 @@ All five packages share one version. To release:
 
 1. Open a PR that sets `version` in every `packages/*/package.json` and
    `CORE_VERSION` in `packages/ffmpeg/src/const.ts` to the new version.
+   CI also fails until `apps/website/src/data/core-sizes.json` is for that
+   version. Once CI has built the cores on the PR, run
+   `node scripts/update-core-sizes.mjs <version> --run <run-id>` with that
+   run's id (`gh run list --branch <branch>`) and push the result. Without
+   `--run` the script reads the published packages from jsDelivr.
 2. After it merges, tag the merge commit and push the tag:
    `git tag v<version> <sha> && git push origin v<version>`.
 

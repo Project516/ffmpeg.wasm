@@ -11,6 +11,9 @@ CONF_FLAGS=(
   --disable-simd                   # disable simd optimization
 )
 
+# zimg reports errors by throwing.
+export CXXFLAGS="$CXXFLAGS -fexceptions"
+
 emconfigure ./autogen.sh
 
 emconfigure ./configure "${CONF_FLAGS[@]}"

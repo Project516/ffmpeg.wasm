@@ -1,3 +1,5 @@
+import coreSizes from "@site/src/data/core-sizes.json";
+
 # Usage
 
 Learn the basics of using ffmpeg.wasm.
@@ -5,6 +7,10 @@ Learn the basics of using ffmpeg.wasm.
 :::note
 It is recommended to read [Overview](/docs/overview) first.
 :::
+
+The examples download ffmpeg-core when you press the load button. The
+single-thread core is about {Math.round(coreSizes.core["ffmpeg-core.wasm"] / 1e6)} MB and the multi-thread core about
+{Math.round(coreSizes["core-mt"]["ffmpeg-core.wasm"] / 1e6)} MB, before the CDN compresses them.
 
 ## Transcode webm to mp4 video
 
@@ -58,7 +64,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -119,7 +125,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -172,7 +178,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -183,6 +189,8 @@ function() {
 :::danger
 `progress` is an experimental feature and might not work for many cases
 (ex. concat video files, convert image files, ...). Please use with caution.
+`progress` stays between 0 and 1, and stays 0 for an input with no known
+duration until the command ends.
 :::
 
 ```jsx live
@@ -228,7 +236,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -298,7 +306,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -357,7 +365,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -418,7 +426,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -426,25 +434,22 @@ function() {
 
 ## Use WORKERFS
 
-:::note
-Required:
+`mount()` exposes a `File` or `Blob` to ffmpeg without copying it into memory.
+The mount is read-only, so write outputs outside it.
 
-- @project516/ffmpeg-wasm@0.12.10+
-- @project516/ffmpeg-wasm-core@0.12.4+
-  :::
+```ts
+import { FFFSType } from '@project516/ffmpeg-wasm';
 
-Please Check this PR: [Add WORKERFS support](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/581)
+await ffmpeg.createDir('/input');
+await ffmpeg.mount(FFFSType.WORKERFS, { files: [file] }, '/input');
+await ffmpeg.exec(['-i', `/input/${file.name}`, 'output.mp4']);
+await ffmpeg.unmount('/input');
+```
+
+Use `{ blobs: [{ name: 'input.mp4', data: blob }] }` for a `Blob` that is not
+a `File`.
 
 ## Abort exec() with signal
-
-:::note
-Required:
-
-- @project516/ffmpeg-wasm@0.12.10+
-- @project516/ffmpeg-wasm-core@0.12.4+
-  :::
-
-Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
 
 Aborting rejects the promise with an `AbortError`. Where `SharedArrayBuffer`
 is available (a cross-origin isolated page, or Node.js) it also stops the
@@ -460,6 +465,24 @@ const controller = new AbortController();
 const running = ffmpeg.exec(args, -1, { signal: controller.signal });
 controller.abort();
 await running.catch((e) => e.name); // "AbortError"
+```
+
+## Recover from a core crash
+
+If the core traps (a wasm `RuntimeError`) during a call, that call rejects
+with the error, every pending call rejects, and the instance is unloaded:
+`ffmpeg.loaded` is `false` and later calls reject with a "not loaded" error.
+The core's memory may be corrupt after a trap, so call `load()` to start a
+new one. An `abort()` inside FFmpeg during `exec()` or `ffprobe()` is not
+treated as a trap: the call resolves with a nonzero exit code and the core
+stays loaded.
+
+```ts
+try {
+  await ffmpeg.exec(args);
+} catch (e) {
+  if (!ffmpeg.loaded) await ffmpeg.load();
+}
 ```
 
 ## Read and write files in chunks
@@ -532,6 +555,8 @@ copies it instead.
 
 Calling `load()` on an already loaded `FFmpeg` keeps the loaded core and
 resolves `false`. Call `terminate()` first to load a different core.
+
+A `file:` URL input needs Node.js 20.16 or later under Node.js.
 
 `extractFrames()` writes `png`, `jpg` or `webp` images. `webp` needs a core
 built with libwebp, which the default core has.

@@ -88,7 +88,7 @@ ffmpeg.wasm is built with toolchains / libraries:
         </TableHead>
         <TableBody>
           {[
-            {name: "Emscripten", version: "6.0.10", note: "Emscripten is a toolchain for compiling C and C++ code into WebAssembly and JavaScript, making it possible to run applications written in these languages in web browsers. Version is the emsdk Docker image tag."},
+            {name: "Emscripten", version: "6.0.11", note: "Emscripten is a toolchain for compiling C and C++ code into WebAssembly and JavaScript, making it possible to run applications written in these languages in web browsers. Version is the emsdk Docker image tag."},
             {name: "FFmpeg", version: "n9.0.2 (multithread core), n9.0.2 (single-thread core)", note: "FFmpeg is a powerful multimedia framework that can decode, encode, transcode, and stream audio and video files. Both cores now build the same FFmpeg release; the single-thread core runs fftools' scheduler on a cooperative pthread shim (src/pthread-fiber) since it has no SharedArrayBuffer for real threads. See \"FFmpeg upgrade plan\" in AGENTS.md."},
             {name: "x264", version: "4-cores (branch)", note: "x264 is a popular video encoding library that provides high-quality H.264 video compression. Built from the ffmpegwasm mirror's 4-cores branch; upstream x264 has no stable release tags to move to."},
             {name: "x265", version: "4.2", note: "x265 is a video encoding library that specializes in encoding videos using the H.265/HEVC codec, offering high compression efficiency for video content. Built from canonical upstream (multicoreware/x265_git)."},
@@ -105,7 +105,7 @@ ffmpeg.wasm is built with toolchains / libraries:
             {name: "harfbuzz", version: "8.5.0", note: "HarfBuzz is a text shaping engine that allows complex script text to be rendered correctly. Pinned to the last release before harfbuzz dropped its autotools build for meson-only."},
             {name: "libass", version: "0.17.5", note: "libass is a library for rendering and formatting subtitles in multimedia applications, making it essential for displaying subtitles alongside video content."},
             {name: "zimg", version: "release-3.0.6 (3.0.6)", note: "zimg implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion."},
-            {name: "dav1d", version: "1.5.4", note: "dav1d is a fast AV1 video decoder. Built from canonical upstream (VideoLAN) and linked only by the web and decode presets."}
+            {name: "dav1d", version: "1.5.4", note: "dav1d is a fast AV1 video decoder. Built from canonical upstream (VideoLAN)."}
            ].map((row) => (
             <TableRow
               key={row.name}

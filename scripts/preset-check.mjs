@@ -15,8 +15,9 @@ const repoRoot = join(import.meta.dirname, "..");
 const EXPECT = {
   full: {
     encoders: ["libx264", "libx265", "libvpx-vp9", "libmp3lame", "libopus", "libvorbis", "libwebp", "aac", "png"],
-    decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "prores"],
-    absent: ["libdav1d"],
+    decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "prores", "libdav1d"],
+    av1: true,
+    absent: [],
     encodes: [["-c:v", "libx264", "out.mp4"], ["-c:v", "libvpx-vp9", "-b:v", "200k", "out.webm"]],
   },
   web: {

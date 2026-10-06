@@ -19,13 +19,15 @@ export default function Playground() {
   const [isCoreMT, setIsCoreMT] = useState(false);
   const [url, setURL] = useState("");
   const [received, setReceived] = useState(0);
+  const [total, setTotal] = useState(-1);
   const ffmpeg = useRef(new FFmpeg());
 
   const load = async (mt: boolean = false) => {
     setState(State.LOADING);
-    const setProgress = ({ url: _url, received: _received }) => {
+    const setProgress = ({ url: _url, received: _received, total: _total }) => {
       setURL(_url as string);
       setReceived(_received);
+      setTotal(_total);
     };
     const coreURL = await toBlobURL(
       mt ? CORE_MT_URL : CORE_URL,
@@ -66,7 +68,7 @@ export default function Playground() {
         {(() => {
           switch (state) {
             case State.LOADING:
-              return <CoreDownloader url={url} received={received} />;
+              return <CoreDownloader url={url} received={received} total={total} />;
             case State.LOADED:
               return <Workspace ffmpeg={ffmpeg} />;
             default:

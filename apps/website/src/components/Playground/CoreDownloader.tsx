@@ -4,13 +4,14 @@ import Container from "@mui/material/Container";
 import LinearProgressWithLabel from "@site/src/components/common/LinearProgressWithLabel";
 import { CORE_SIZE } from "./const";
 
-export default function CoreDownloader({ url, received }) {
-  const total = CORE_SIZE[url];
+export default function CoreDownloader({ url, received, total: reported }) {
+  const known = reported > 0 ? reported : CORE_SIZE[url];
+  const percent = known > 0 ? Math.min(100, (received / known) * 100) : 0;
   return (
     <Container>
       <Typography>{`Downloading ${url}`}</Typography>
-      <Typography>{`(${received} / ${total} bytes)`}</Typography>
-      <LinearProgressWithLabel value={(received / total) * 100} />
+      <Typography>{`(${received} / ${known >= received ? known : "unknown"} bytes)`}</Typography>
+      <LinearProgressWithLabel value={percent} />
     </Container>
   );
 }
