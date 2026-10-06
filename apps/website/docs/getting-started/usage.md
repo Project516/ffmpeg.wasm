@@ -561,6 +561,72 @@ A `file:` URL input needs Node.js 20.16 or later under Node.js.
 `extractFrames()` writes `png`, `jpg` or `webp` images. `webp` needs a core
 built with libwebp, which the default core has.
 
+## Experimental: JSPI core
+
+:::warning
+`@project516/ffmpeg-wasm-core-jspi` is experimental. It is not part of the
+default install, and its behavior can change between releases. Use
+`@project516/ffmpeg-wasm-core` unless you have a reason to try it.
+:::
+
+The default single-thread core switches between FFmpeg's threads with
+Asyncify, which rewrites the wasm code. The JSPI core does the same job with
+[JavaScript Promise Integration](https://github.com/WebAssembly/js-promise-integration),
+a feature of the browser and Node.js. It runs the same FFmpeg and the same
+`src/pthread-fiber` scheduler, so it needs no `SharedArrayBuffer`. Its wasm
+file is about 19% smaller than the default core's (32.4 MB against 40.1 MB,
+before compression), and the CI benchmark cases ran faster and used less
+memory.
+
+It needs a runtime with JSPI: Chrome 137 or later, Firefox 153 or later,
+Safari 27 or later, or Node.js 24 or later (tested on 24.21.0, and an older
+24.x may need `--experimental-wasm-jspi`). On any other runtime the core
+fails to load.
+
+Install the package and point `coreURL` and `wasmURL` at it. `FFmpeg` works the
+same as with the other cores:
+
+```ts
+const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.16.0/dist/umd";
+await ffmpeg.load({
+  coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+  wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+});
+```
+
+Under Node.js, pass the path from `require.resolve('@project516/ffmpeg-wasm-core-jspi')`
+as `coreURL`, as for [the multithread core](#multithread-core).
+
+If you call the core directly without `FFmpeg`, `exec()` and `ffprobe()`
+return a Promise instead of a number, so `await` them.
+
+### Experimental: known issues
+
+- Only a runtime with JSPI can load it. There is no fallback to the default
+  core, so choose the core yourself.
+- `exec()` and `ffprobe()` on the core return a Promise, and the core throws
+  if you start a command while another runs. `FFmpeg` queues commands, so
+  it is only a problem when you drive the core yourself.
+- `FFmpeg` keeps answering file calls (`readFile`, `writeFile`, `listDir`)
+  while a command runs, because the worker is no longer blocked. With the other
+  cores those calls wait for the command to end. Do not touch a file the
+  running command is reading or writing.
+- Abort and `timeout` work, in Node.js and in Chromium, Firefox and WebKit
+  tests, and they behave as on the other cores. FFmpeg checks for them in its
+  transcode loop, so a command stuck inside one decoder call, or before the
+  loop starts, does not stop. `ffprobe()` does not stop. An abort needs
+  `SharedArrayBuffer`, as on the other cores.
+- When all threads wait for I/O the scheduler spins on the clock instead of
+  waiting on a timer, so it can use a full CPU core while idle. The Asyncify
+  core does the same.
+- The scheduler does not update the engine's stack limits when it switches
+  threads. The core is built without stack overflow checks, so nothing reads
+  them, but a thread that overflows its stack is not detected.
+- It has only been tested on short clips and FFmpeg's FATE subset in CI. It
+  has had no long-running or large-file testing, and no memory-leak testing
+  over many commands.
+- It is not on the Playground, and its size is not in `core-sizes.json`.
+
 ## Node.js
 
 `@project516/ffmpeg-wasm` runs the same code in Node.js, using a

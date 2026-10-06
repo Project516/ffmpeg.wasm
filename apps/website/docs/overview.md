@@ -71,6 +71,7 @@ name space:
 | @project516/ffmpeg-wasm-types | TypeScript types |
 | @project516/ffmpeg-wasm-core | single-thread ffmpeg.wasm core |
 | @project516/ffmpeg-wasm-core-mt | multi-thread ffmpeg.wasm core |
+| @project516/ffmpeg-wasm-core-jspi | experimental single-thread core that uses JSPI, see [Usage](/docs/getting-started/usage#experimental-jspi-core) |
 
 ## Libraries
 
