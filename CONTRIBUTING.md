@@ -19,7 +19,12 @@ All five packages share one version. To release:
 
 1. Open a PR that sets `version` in every `packages/*/package.json` and
    `CORE_VERSION` in `packages/ffmpeg/src/const.ts` to the new version.
-2. After it merges, tag the merge commit and push the tag:
+2. On that PR, refresh the published benchmark and FATE numbers. Dispatch a
+   nightly-mode CI run with `gh workflow run CI.yml --ref <branch> -f
+   subset=full`, wait for it, then run `node scripts/baseline/update.mjs
+   <run-id>` and commit the changed `baseline/` and
+   `apps/website/docs/results.md` in the same PR.
+3. After it merges, tag the merge commit and push the tag:
    `git tag v<version> <sha> && git push origin v<version>`.
 
 The tag runs `.github/workflows/release.yml`, which runs CI, publishes every

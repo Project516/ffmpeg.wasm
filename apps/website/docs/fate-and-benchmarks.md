@@ -9,7 +9,9 @@ pass/fail/skip and wasm/native ratio framing come from
 `CORRECTNESS.md` (LGPL-2.1-or-later).
 
 The current numbers are on [FATE and benchmark results](./results.md), a page
-generated from the committed baseline.
+generated from the committed baseline. The baseline is refreshed at each
+release (see "Releasing" in `CONTRIBUTING.md`). The nightly run is a
+regression watchdog: it compares against the baseline and does not update it.
 
 The `fate` and `benchmark` jobs are **not required checks**. A failing FATE
 test does not fail them. The `baseline-check` job compares each run with the
