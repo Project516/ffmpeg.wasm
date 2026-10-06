@@ -224,6 +224,41 @@ describe(genName("FFmpeg.exec()"), function () {
     expect(ret).to.equal(1);
   });
 
+  it("stops the running command when the signal aborts", async function () {
+    if (!window.crossOriginIsolated) this.skip();
+    const controller = new AbortController();
+    const started = new Promise((resolve) => {
+      const onLog = ({ message }) => {
+        if (!message.startsWith("Output #0")) return;
+        ffmpeg.off("log", onLog);
+        resolve();
+      };
+      ffmpeg.on("log", onLog);
+    });
+    // Never ends on its own, so a later call only returns if abort stopped it.
+    const running = ffmpeg.exec(
+      ["-re", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=10", "-f", "null", "-"],
+      -1,
+      { signal: controller.signal }
+    );
+    await started;
+    controller.abort();
+
+    let error;
+    try {
+      await running;
+    } catch (e) {
+      error = e;
+    }
+    expect(error.name).to.equal("AbortError");
+
+    const next = await Promise.race([
+      ffmpeg.exec(["-version"]),
+      new Promise((resolve) => setTimeout(resolve, 10000, "timed out")),
+    ]);
+    expect(next).to.equal(0);
+  });
+
   it("should abort", () => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -277,5 +312,127 @@ describe(genName("helpers (probe(), transcode(), extractFrames())"), function ()
   it("should leave no files behind", async () => {
     const names = (await ffmpeg.listDir("/")).map(({ name }) => name);
     expect(names.filter((n) => n.startsWith("ffmpeg-wasm-job-"))).to.deep.equal([]);
+  });
+});
+
+// Endless input, so the command cannot finish before the call is settled.
+const ENDLESS = ["-f", "lavfi", "-i", "testsrc=d=600:s=16x16", "-f", "null", "-"];
+
+describe(genName("abort signal"), function () {
+  it("should reject exec() with an AbortError", async () => {
+    const ffmpeg = await createFFmpeg();
+    try {
+      const controller = new AbortController();
+      const pending = ffmpeg.exec(ENDLESS, -1, { signal: controller.signal });
+      controller.abort();
+      let name;
+      try {
+        await pending;
+      } catch (err) {
+        name = err.name;
+      }
+      expect(name).to.equal("AbortError");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+
+  it("should reject file calls with an AbortError", async () => {
+    const ffmpeg = await createFFmpeg();
+    try {
+      const controller = new AbortController();
+      const pending = ffmpeg.listDir("/", { signal: controller.signal });
+      controller.abort();
+      let name;
+      try {
+        await pending;
+      } catch (err) {
+        name = err.name;
+      }
+      expect(name).to.equal("AbortError");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
+describe(genName("FFmpeg.terminate()"), function () {
+  const rejection = async (promise) => {
+    try {
+      await promise;
+    } catch (err) {
+      return String(err.message ?? err);
+    }
+    return undefined;
+  };
+
+  it("should reject pending calls with the terminate error", async () => {
+    const ffmpeg = await createFFmpeg();
+    const pending = ffmpeg.exec(ENDLESS);
+    ffmpeg.terminate();
+    expect(await rejection(pending)).to.match(/terminate/);
+  });
+
+  it("should reject calls made after terminate()", async () => {
+    const ffmpeg = await createFFmpeg();
+    ffmpeg.terminate();
+    expect(await rejection(ffmpeg.listDir("/"))).to.match(/not loaded/);
+  });
+
+  it("should load again with a fresh file system", async () => {
+    const ffmpeg = await createFFmpeg();
+    await ffmpeg.writeFile("/before", "x");
+    ffmpeg.terminate();
+    const config = { coreURL: CORE_URL, thread: FFMPEG_TYPE === "mt" };
+    try {
+      expect(await ffmpeg.load(config)).to.equal(true);
+      const names = (await ffmpeg.listDir("/")).map(({ name }) => name);
+      expect(names).to.not.include("before");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+
+  it("should do nothing when never loaded", () => {
+    expect(() => new FFmpeg().terminate()).to.not.throw();
+  });
+});
+
+describe(genName("load() on a loaded instance"), function () {
+  it("should keep the loaded core and its files", async () => {
+    const ffmpeg = await createFFmpeg();
+    try {
+      await ffmpeg.writeFile("/kept.txt", "hello");
+      const config = { coreURL: CORE_URL, thread: FFMPEG_TYPE === "mt" };
+      expect(await ffmpeg.load(config)).to.equal(false);
+      expect(await ffmpeg.readFile("/kept.txt", "utf8")).to.equal("hello");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
+describe(genName("FFmpeg.exec() exit codes"), function () {
+  let ffmpeg;
+
+  before(async () => {
+    ffmpeg = await createFFmpeg();
+  });
+
+  after(() => {
+    ffmpeg.terminate();
+  });
+
+  it("should return non-zero for bad arguments, a missing input and an unknown encoder", async () => {
+    expect(await ffmpeg.exec(["-definitely-not-an-option"])).to.not.equal(0);
+    expect(await ffmpeg.exec(["-i", "missing.mp4", "missing.avi"])).to.not.equal(0);
+    expect(
+      await ffmpeg.exec(["-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1", "-c:v", "no-such-encoder", "bad.mp4"])
+    ).to.not.equal(0);
+  });
+
+  it("should run again after a failure", async () => {
+    expect(await ffmpeg.exec(["-definitely-not-an-option"])).to.not.equal(0);
+    expect(await ffmpeg.exec(["-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1", "-f", "null", "-"])).to.equal(0);
   });
 });
