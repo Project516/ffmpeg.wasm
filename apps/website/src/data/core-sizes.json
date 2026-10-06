@@ -1,0 +1,11 @@
+{
+  "version": "0.16.0",
+  "core": {
+    "ffmpeg-core.js": 132616,
+    "ffmpeg-core.wasm": 39962692
+  },
+  "core-mt": {
+    "ffmpeg-core.js": 136157,
+    "ffmpeg-core.wasm": 32355181
+  }
+}

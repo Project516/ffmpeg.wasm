@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Checks that apps/website/docs/overview.md's Libraries table has not drifted
-// from the versions actually pinned in the Dockerfile. Run with
+// from the versions actually pinned in the Dockerfile, and that
+// apps/website/src/data/core-sizes.json is for the current package version. Run with
 // `node scripts/check-doc-versions.mjs`.
 //
 // Each entry maps one or more Dockerfile pins to the row they must appear in,
@@ -33,7 +34,7 @@ const DOCKERFILE_TO_ROW = [
   { row: "dav1d", patterns: [/ENV DAV1D_BRANCH=(\S+)/] },
 ];
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -71,12 +72,38 @@ for (const { row, patterns } of DOCKERFILE_TO_ROW) {
   }
 }
 
+// The Playground's download sizes must describe the version it loads, and
+// that version must be the one the packages are at.
+const coreSizes = JSON.parse(
+  readFileSync(join(repoRoot, "apps/website/src/data/core-sizes.json"), "utf8")
+);
+const playgroundConst = readFileSync(
+  join(repoRoot, "apps/website/src/components/Playground/const.ts"),
+  "utf8"
+);
+const coreVersion = playgroundConst.match(/CORE_VERSION = "([^"]+)"/)?.[1];
+if (coreSizes.version !== coreVersion) {
+  errors.push(
+    `core-sizes.json is for ${coreSizes.version} but Playground CORE_VERSION is ${coreVersion}; run node scripts/update-core-sizes.mjs ${coreVersion}`
+  );
+}
+for (const dir of readdirSync(join(repoRoot, "packages"))) {
+  const pkg = JSON.parse(
+    readFileSync(join(repoRoot, "packages", dir, "package.json"), "utf8")
+  );
+  if (pkg.version !== coreSizes.version) {
+    errors.push(
+      `packages/${dir} is ${pkg.version} but core-sizes.json is for ${coreSizes.version}; run node scripts/update-core-sizes.mjs ${pkg.version}`
+    );
+  }
+}
+
 if (errors.length > 0) {
-  console.error("Docs Libraries table is out of date with the Dockerfile:\n");
+  console.error("Docs are out of date:\n");
   for (const error of errors) {
     console.error(`- ${error}`);
   }
   process.exit(1);
 }
 
-console.log("overview.md Libraries table matches the Dockerfile.");
+console.log("overview.md Libraries table matches the Dockerfile, and core-sizes.json matches the package version.");

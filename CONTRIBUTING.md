@@ -18,7 +18,12 @@ Pull requests target `master`.
 All five packages share one version. To release:
 
 1. Open a PR that sets `version` in every `packages/*/package.json` and
-   `CORE_VERSION` in `packages/ffmpeg/src/const.ts` to the new version.
+   `CORE_VERSION` in `packages/ffmpeg/src/const.ts` to the new version, and
+   refresh the docs site's core download sizes with
+   `node scripts/update-core-sizes.mjs <version> --local` after downloading
+   the CI core artifacts into `packages/core/dist` and `packages/core-mt/dist`
+   (CI fails if `apps/website/src/data/core-sizes.json` is for another
+   version). To fix it after a release, drop `--local` to read jsDelivr.
 2. After it merges, tag the merge commit and push the tag:
    `git tag v<version> <sha> && git push origin v<version>`.
 
