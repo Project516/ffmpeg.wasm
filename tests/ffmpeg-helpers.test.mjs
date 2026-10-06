@@ -140,7 +140,12 @@ describe(genName("helpers"), function () {
     it("stops after the timeout", async () => {
       let error;
       try {
-        await transcode(ffmpeg, video, { format: "avi", timeout: 1 });
+        await transcode(ffmpeg, video, {
+          format: "avi",
+          timeout: 1,
+          // An endless output, so only the timeout can end the run.
+          args: ["-vf", "loop=loop=-1:size=1"],
+        });
       } catch (e) {
         error = e;
       }
