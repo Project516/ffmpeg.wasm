@@ -176,7 +176,6 @@ RUN bash -x /src/build.sh
 
 # Base ffmpeg image with dependencies and source code populated.
 FROM emsdk-base AS ffmpeg-base
-RUN embuilder build sdl2 sdl2-mt
 # Pick the FFmpeg release per FFMPEG_MT (see the FFMPEG_VERSION_ST/MT comment
 # above), then apply the fftools patches, now needed by both cores.
 # build/patches/n9 makes fftools work as a wasm runtime instead of a process:

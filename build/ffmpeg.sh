@@ -21,6 +21,7 @@ CONF_FLAGS=(
   --disable-debug               # disable debug mode
   --disable-runtime-cpudetect   # disable cpu detection
   --disable-autodetect          # disable env auto detect
+  --disable-network             # no sockets in a browser worker
 
   # assign toolchains and extra flags
   --nm=emnm

@@ -3,6 +3,26 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Changed
+
+- Both cores can grow their wasm memory up to 4 GB, up from 2 GB for the
+  multi-thread core and the Emscripten default for the single-thread core.
+- The multi-thread core caps the core count FFmpeg sees at 4, uses a 2 MB
+  default thread stack, and fails a command that needs more threads than the
+  pool has instead of hanging.
+- FFmpeg is built with `--disable-network`, SDL is no longer linked, and the
+  single-thread core drops the stack overflow check.
+- LAME is built with `NDEBUG`, so a failed assert no longer aborts the module.
+- x264's `slicetype_slice_cost` has the signature its thread pool calls it
+  with.
+
+### Fixed
+
+- The core reads the `wasmURL` hash only when locating the `.wasm` file, and
+  loads when `mainScriptUrlOrBlob` has no hash.
+
 ## 0.16.0
 
 ### Added
