@@ -17,6 +17,7 @@ import { createRequire } from "node:module";
 import { Worker, isMainThread, workerData } from "node:worker_threads";
 import inspector from "node:inspector";
 import fs from "node:fs";
+import util from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -92,12 +93,12 @@ async function child(args) {
   const hb = new Int32Array(new SharedArrayBuffer(16)); // [heartbeat, iteration]
   new Worker(scriptPath, { workerData: { hb, stall: args.stall, id, out: args.out, traceFile, stallFile } });
 
-  process.on("uncaughtException", (e) => (console.log(`CRASH uncaught ${e?.stack ?? e}`), process.exit(2)));
-  process.on("unhandledRejection", (e) => (console.log(`CRASH unhandled ${e?.stack ?? e}`), process.exit(2)));
+  process.on("uncaughtException", (e) => (console.log(`CRASH uncaught ${e?.stack ?? util.inspect(e)}`), process.exit(2)));
+  process.on("unhandledRejection", (e) => (console.log(`CRASH unhandled ${e?.stack ?? util.inspect(e)}`), process.exit(2)));
 
   let traceFd = -1;
   const pfiberTrace = args.trace
-    ? (line) => fs.writeSync(traceFd, `${performance.now().toFixed(1)} ${line}\n`)
+    ? (line) => traceFd >= 0 && fs.writeSync(traceFd, `${performance.now().toFixed(1)} ${line}\n`)
     : undefined;
   const create = async () => {
     const core = await require(path.resolve(args.core))(pfiberTrace ? { pfiberTrace } : {});

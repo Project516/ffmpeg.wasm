@@ -26,7 +26,6 @@ jobs:
   repro:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    continue-on-error: true
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,15 +42,15 @@ jobs:
         with:
           node-version: 24
       - name: Round 1, fresh core per iteration
-        continue-on-error: true
+        if: always()
         timeout-minutes: 25
         run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode fresh --out repro/fresh
       - name: Round 2, fresh core with tracing
-        continue-on-error: true
+        if: always()
         timeout-minutes: 25
         run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode fresh --trace --out repro/fresh-trace
       - name: Round 3, one core with tracing
-        continue-on-error: true
+        if: always()
         timeout-minutes: 25
         run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode same --trace --out repro/same-trace
       - name: Upload logs
