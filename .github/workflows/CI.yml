@@ -389,7 +389,10 @@ jobs:
 
   benchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Nightly and full-subset dispatch also run the slow 720p case.
+    timeout-minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.subset == 'full')) && 75 || 30 }}
+    env:
+      BENCH_FLAGS: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.subset == 'full')) && '--include-long' || '' }}
     needs:
       - build-core
       - build-core-mt
@@ -424,11 +427,11 @@ jobs:
       - name: Record native FFmpeg version
         run: ffmpeg -version | head -1
       - name: Benchmark native FFmpeg
-        run: node scripts/bench/run.mjs --native --out bench-native.json
+        run: node scripts/bench/run.mjs --native --out bench-native.json $BENCH_FLAGS
       - name: Benchmark st core
-        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
+        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json $BENCH_FLAGS
       - name: Benchmark mt core
-        run: node scripts/bench/run.mjs --core packages/core-mt --label mt --out bench-mt.json
+        run: node scripts/bench/run.mjs --core packages/core-mt --label mt --out bench-mt.json $BENCH_FLAGS
       - name: Combine into a ratio report
         run: node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-mt.json --out bench-report.json --markdown-out bench-report.md
       - name: Write step summary

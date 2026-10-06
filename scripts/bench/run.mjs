@@ -20,9 +20,10 @@
 //        node scripts/bench/run.mjs --native --out bench-native.json
 import { createRequire } from "node:module";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
@@ -32,6 +33,13 @@ const repoRoot = join(scriptPath, "..", "..", "..");
 // never be able to stall the whole benchmark job.
 const RUN_TIMEOUT_MS = 60_000;
 
+// 10 s of 720p VP8 from test-videos.co.uk, pinned by hash.
+const BBB_720P = {
+  file: "bbb-720p-10s.webm",
+  url: "https://test-videos.co.uk/vids/bigbuckbunny/webm/vp8/720/Big_Buck_Bunny_720_10s_1MB.webm",
+  sha256: "26118c9bc96b6aed305861720207289fbc8bbe80432560def572eb7a8f33ea2b",
+};
+
 const CASES = [
   { name: "h264-to-vp9", args: (inp, out) => ["-i", inp, "-c:v", "libvpx-vp9", "-b:v", "500k", out.replace(/\.\w+$/, ".webm")] },
   { name: "h264-to-mpeg4", args: (inp, out) => ["-i", inp, out.replace(/\.\w+$/, ".avi")] },
@@ -39,10 +47,18 @@ const CASES = [
     name: "scale-half",
     args: (inp, out) => ["-i", inp, "-vf", "scale=trunc(iw/4)*2:trunc(ih/4)*2", out.replace(/\.\w+$/, ".mp4")],
   },
+  // Same command as the performance docs page. Slow, so only with --include-long.
+  {
+    name: "vp8-720p-to-mp4",
+    long: true,
+    input: BBB_720P,
+    timeoutMs: 600_000,
+    args: (inp, out) => ["-i", inp, out.replace(/\.\w+$/, ".mp4")],
+  },
 ];
 
 function parseArgs(argv) {
-  const args = { core: null, native: false, label: null, out: null, runs: 5, one: null, input: null };
+  const args = { core: null, native: false, label: null, out: null, runs: 5, one: null, input: null, includeLong: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--core") args.core = argv[++i];
     else if (argv[i] === "--native") args.native = true;
@@ -51,6 +67,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--runs") args.runs = Number(argv[++i]);
     else if (argv[i] === "--one") args.one = argv[++i];
     else if (argv[i] === "--input") args.input = argv[++i];
+    else if (argv[i] === "--include-long") args.includeLong = true;
   }
   if (args.one) {
     if (!args.input || (!args.core && !args.native)) {
@@ -59,7 +76,7 @@ function parseArgs(argv) {
     return args;
   }
   if (!args.out || (!args.core && !args.native)) {
-    throw new Error("usage: run.mjs (--core <path> --label <name> | --native) --out <file.json> [--runs N]");
+    throw new Error("usage: run.mjs (--core <path> --label <name> | --native) --out <file.json> [--runs N] [--include-long]");
   }
   if (!args.label) args.label = args.native ? "native" : "core";
   return args;
@@ -72,6 +89,19 @@ function sampleMp4Path(tmpDir) {
   const { VIDEO_1S_MP4 } = require(join(repoRoot, "tests", "test-helper-browser.js"));
   const path = join(tmpDir, "sample.mp4");
   writeFileSync(path, Buffer.from(VIDEO_1S_MP4, "base64"));
+  return path;
+}
+
+// Downloads a case's pinned input into dir.
+async function downloadInput({ file, url, sha256 }, dir) {
+  const path = join(dir, file);
+  if (existsSync(path)) return path;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`fetching ${url}: ${res.status}`);
+  const data = Buffer.from(await res.arrayBuffer());
+  const actual = createHash("sha256").update(data).digest("hex");
+  if (actual !== sha256) throw new Error(`${file}: sha256 is ${actual}, expected ${sha256}`);
+  writeFileSync(path, data);
   return path;
 }
 
@@ -90,8 +120,9 @@ async function runOne({ one, core, native, input }) {
       const ffcore = await createFFmpegCore();
       ffcore.setLogger(() => {});
       ffcore.setProgress(() => {});
-      ffcore.FS.writeFile("in.mp4", readFileSync(input));
-      const ret = ffcore.exec(...testCase.args("in.mp4", "out.tmp"));
+      const name = `in${extname(input)}`;
+      ffcore.FS.writeFile(name, readFileSync(input));
+      const ret = ffcore.exec(...testCase.args(name, "out.tmp"));
       if (ret !== 0) throw new Error(`ffmpeg exited ${ret}`);
     }
   } finally {
@@ -124,7 +155,7 @@ function parseTimeStats(text) {
 // `/usr/bin/time` process: `time` forks the timed `node` process, which for
 // the native case execs `ffmpeg` in turn, and a plain SIGTERM to `time`
 // alone would leave that descendant running.
-function runUnderTime(childArgs) {
+function runUnderTime(childArgs, timeoutMs = RUN_TIMEOUT_MS) {
   return new Promise((resolvePromise) => {
     const statsPath = join(tmpdir(), `bench-time-${process.pid}-${Math.random().toString(36).slice(2)}.txt`);
     const child = spawn("/usr/bin/time", ["-v", "-o", statsPath, process.execPath, scriptPath, ...childArgs], {
@@ -140,7 +171,7 @@ function runUnderTime(childArgs) {
       } catch {
         // already gone
       }
-    }, RUN_TIMEOUT_MS);
+    }, timeoutMs);
 
     const finish = (ok, reason) => {
       clearTimeout(timer);
@@ -164,13 +195,15 @@ function runUnderTime(childArgs) {
   });
 }
 
-async function bench({ core, native, inputPath, runs }) {
+async function bench({ core, native, inputPath, inputDir, runs, includeLong }) {
   const results = [];
   for (const testCase of CASES) {
+    if (testCase.long && !includeLong) continue;
     const samples = [];
-    const childArgs = ["--one", testCase.name, "--input", inputPath, ...(native ? ["--native"] : ["--core", core])];
+    const input = testCase.input ? await downloadInput(testCase.input, inputDir) : inputPath;
+    const childArgs = ["--one", testCase.name, "--input", input, ...(native ? ["--native"] : ["--core", core])];
     for (let i = 0; i < runs; i++) {
-      const sample = await runUnderTime(childArgs);
+      const sample = await runUnderTime(childArgs, testCase.timeoutMs);
       if (!sample.ok) console.warn(`${testCase.name} run ${i + 1}/${runs} failed${sample.reason ? `: ${sample.reason}` : ""}`);
       samples.push(sample);
     }
@@ -196,11 +229,11 @@ async function main() {
     return;
   }
 
-  const { core, native, label, out, runs } = args;
+  const { core, native, label, out, runs, includeLong } = args;
   const tmpDir = mkdtempSync(join(tmpdir(), "ffmpeg-bench-"));
   try {
     const inputPath = sampleMp4Path(tmpDir);
-    const results = await bench({ core, native, inputPath, runs });
+    const results = await bench({ core, native, inputPath, inputDir: tmpDir, runs, includeLong });
 
     const cases = results.map((r) => ({
       name: r.name,
