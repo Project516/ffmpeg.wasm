@@ -17,7 +17,23 @@ Module["DEFAULT_ARGS_FFPROBE"] = DEFAULT_ARGS_FFPROBE;
  */
 
 Module["ret"] = -1;
-Module["timeout"] = -1;
+// The patched fftools reads Module.timeout. A set abort flag reads as a
+// timeout of 0, and a flag with no timeout reads as a huge one so ffmpeg polls
+// finely enough to see the flag.
+const NO_TIMEOUT = -1;
+const POLL_ONLY_TIMEOUT = 2 ** 31 - 1;
+let timeoutMs = NO_TIMEOUT;
+let abortFlag = null;
+Object.defineProperty(Module, "timeout", {
+  get() {
+    if (abortFlag && Atomics.load(abortFlag, 0) !== 0) return 0;
+    if (abortFlag && timeoutMs === NO_TIMEOUT) return POLL_ONLY_TIMEOUT;
+    return timeoutMs;
+  },
+  set(value) {
+    timeoutMs = value;
+  },
+});
 Module["logger"] = () => {};
 Module["progress"] = () => {};
 
@@ -149,6 +165,10 @@ function setExecTimeout(timeout) {
   Module["timeout"] = timeout;
 }
 
+function setAbortFlag(flag) {
+  abortFlag = flag;
+}
+
 function setProgress(handler) {
   Module["progress"] = handler;
 }
@@ -160,6 +180,7 @@ function receiveProgress(progress, time) {
 function reset() {
   Module["ret"] = -1;
   Module["timeout"] = -1;
+  abortFlag = null;
 }
 
 /**
@@ -199,6 +220,7 @@ Module["exec"] = exec;
 Module["ffprobe"] = ffprobe;
 Module["setLogger"] = setLogger;
 Module["setTimeout"] = setExecTimeout;
+Module["setAbortFlag"] = setAbortFlag;
 Module["setProgress"] = setProgress;
 Module["reset"] = reset;
 Module["receiveProgress"] = receiveProgress;

@@ -7,9 +7,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Aborting the `AbortSignal` passed to `exec()` now stops the running command
+  where `SharedArrayBuffer` is available (cross-origin isolated pages, and
+  Node.js), so the worker is free for the next call. It ends like a timeout
+  (exit code `1`) and the promise still rejects with `AbortError`. Without
+  `SharedArrayBuffer` the abort only rejects the promise, as before. `ffprobe()`
+  does not stop (backport of upstream ffmpegwasm/ffmpeg.wasm#978).
 - `open()`, `read()`, `write()` and `close()` read and write a file in chunks
   through a file descriptor (backport of upstream ffmpegwasm/ffmpeg.wasm#984).
   `write()` transfers its `Uint8Array` unless `{ transfer: false }`.
+- The `web` and `decode` presets decode AV1 through libdav1d 1.5.4. The `full`
+  preset, and so the published cores, does not link it yet.
 
 ### Changed
 
@@ -26,6 +34,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `load({ classWorkerURL })` works from the UMD build. It resolves the URL
+  against the page instead of failing with `Cannot find module`.
 - When the core traps during a call (a wasm `RuntimeError`, such as
   `unreachable` or an out-of-bounds access), that call rejects with the
   error, pending calls reject, and the `FFmpeg` instance is unloaded

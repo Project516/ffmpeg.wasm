@@ -446,6 +446,22 @@ Required:
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
 
+Aborting rejects the promise with an `AbortError`. Where `SharedArrayBuffer`
+is available (a cross-origin isolated page, or Node.js) it also stops the
+running `exec()` command, the way `timeout` does, so the worker is free for the
+next call. The command's own exit code is `1`, but the promise has already
+rejected, so you do not see it. Without `SharedArrayBuffer` (such as the
+single-thread core on a page that is not cross-origin isolated) the command
+keeps running in the worker, and later calls wait for it to finish. `ffprobe()`
+accepts a signal but, like its `timeout`, does not stop a running command.
+
+```ts
+const controller = new AbortController();
+const running = ffmpeg.exec(args, -1, { signal: controller.signal });
+controller.abort();
+await running.catch((e) => e.name); // "AbortError"
+```
+
 ## Recover from a core crash
 
 If the core traps (a wasm `RuntimeError`) during a call, that call rejects

@@ -16,18 +16,20 @@ const EXPECT = {
   full: {
     encoders: ["libx264", "libx265", "libvpx-vp9", "libmp3lame", "libopus", "libvorbis", "libwebp", "aac", "png"],
     decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "prores"],
-    absent: [],
+    absent: ["libdav1d"],
     encodes: [["-c:v", "libx264", "out.mp4"], ["-c:v", "libvpx-vp9", "-b:v", "200k", "out.webm"]],
   },
   web: {
     encoders: ["libx264", "libvpx-vp9", "libmp3lame", "libopus", "libvorbis", "aac", "png"],
-    decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3"],
+    decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "libdav1d"],
+    av1: true,
     absent: ["libx265", "prores"],
     encodes: [["-c:v", "libx264", "out.mp4"], ["-c:v", "libvpx-vp9", "-b:v", "200k", "out.webm"]],
   },
   decode: {
     encoders: ["png", "mjpeg"],
-    decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "prores"],
+    decoders: ["h264", "hevc", "vp9", "opus", "aac", "mp3", "prores", "libdav1d"],
+    av1: true,
     absent: ["libx264", "libx265", "libmp3lame", "libvpx-vp9", "libopus"],
     encodes: [],
   },
@@ -95,6 +97,10 @@ async function main() {
   };
   if (run("-i", "video.mp4", "-f", "null", "-") !== 0) problems.push("decode to null failed");
   if (run("-i", "video.mp4", "-frames:v", "1", "frame.png") !== 0) problems.push("png encode failed");
+  if (expect.av1) {
+    core.FS.writeFile("av1.webm", readFileSync(join(repoRoot, "tests", "fixtures", "av1.webm")));
+    if (run("-i", "av1.webm", "-f", "null", "-") !== 0) problems.push("av1 decode failed");
+  }
   for (const args of expect.encodes) {
     if (run("-i", "video.mp4", ...args) !== 0) problems.push(`encode failed: ${args.join(" ")}`);
   }
