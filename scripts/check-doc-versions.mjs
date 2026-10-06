@@ -30,6 +30,7 @@ const DOCKERFILE_TO_ROW = [
   { row: "harfbuzz", patterns: [/ENV HARFBUZZ_BRANCH=(\S+)/] },
   { row: "libass", patterns: [/ENV LIBASS_BRANCH=(\S+)/] },
   { row: "zimg", patterns: [/ENV ZIMG_BRANCH=(\S+)/] },
+  { row: "dav1d", patterns: [/ENV DAV1D_BRANCH=(\S+)/] },
 ];
 
 import { readFileSync } from "node:fs";
