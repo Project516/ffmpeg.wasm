@@ -16,6 +16,10 @@ const pages = ["ffmpeg-core-st", "ffmpeg-st", "ffmpeg-esm-fallback"];
 if (isolated) pages.push("ffmpeg-mt");
 const PAGE_TIMEOUT_MS = 8 * 60 * 1000;
 
+// A page whose core spins natively never answers evaluate() or close().
+const within = (promise, ms = 5000) =>
+  Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms, null))]);
+
 // Runs before the page scripts and wraps mocha.run() to record the result.
 const collectResults = () => {
   const result = { done: false, passes: 0, failures: [] };
@@ -29,7 +33,7 @@ const collectResults = () => {
         const runner = run.apply(this, args);
         runner.on("pass", () => result.passes++);
         runner.on("fail", (test, err) =>
-          result.failures.push({ title: test.fullTitle(), message: err.message })
+          result.failures.push({ title: test.fullTitle(), message: String(err?.message ?? err) })
         );
         runner.on("end", () => (result.done = true));
         return runner;
@@ -60,14 +64,17 @@ const runPage = async (name) => {
       timeout: PAGE_TIMEOUT_MS,
     });
     result = await page.evaluate(() => window.__mochaResult);
+    if (result.passes === 0 && !result.failures.length) {
+      result.failures.push({ title: "(page)", message: "no tests ran" });
+    }
   } catch (err) {
-    const partial = await page.evaluate(() => window.__mochaResult).catch(() => null);
+    const partial = await within(page.evaluate(() => window.__mochaResult).catch(() => null));
     result = {
       passes: partial?.passes ?? 0,
       failures: [...(partial?.failures ?? []), { title: "(page)", message: err.message }],
     };
   }
-  await page.close().catch(() => {});
+  await within(page.close().catch(() => {}));
   return { name, logs, ...result };
 };
 
