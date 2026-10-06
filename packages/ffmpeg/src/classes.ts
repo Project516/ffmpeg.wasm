@@ -434,8 +434,9 @@ export class FFmpeg {
   /**
    * Write `data` at `position`, or where the last read or write ended.
    * Resolves to the number of bytes written. A write at `position` does not
-   * move the file offset. Without `position`, descriptors opened with "a"
-   * or "a+" write at the end of the file.
+   * advance the file offset by the bytes written. On a descriptor opened
+   * with "a" or "a+", every write first moves the offset to the end of the
+   * file, so a write without `position` appends.
    *
    * @remarks
    * Like writeFile(), `data` is transferred to the worker, which leaves it
