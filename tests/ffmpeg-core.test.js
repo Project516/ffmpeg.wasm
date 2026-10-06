@@ -141,6 +141,16 @@ describe(genName("exec() after a failure"), () => {
   });
 });
 
+describe(genName("exec() after a zimg exception"), () => {
+  beforeEach(reset);
+
+  it("should fail zscale without aborting, then transcode", () => {
+    expect(core.exec("-i", "video.mp4", "-vf", "zscale=w=3:h=-1", "zscale.mp4")).to.not.equal(0);
+    expect(core.exec("-i", "video.mp4", "video.avi")).to.equal(0);
+    core.FS.unlink("video.avi");
+  });
+});
+
 describe(genName("setTimeout()"), () => {
   beforeEach(reset);
 

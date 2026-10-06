@@ -26,6 +26,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- An error zimg reports by throwing (such as `-vf zscale=w=3:h=-1`) makes
+  `exec()` return a nonzero code instead of aborting the core (upstream
+  ffmpegwasm/ffmpeg.wasm#971).
 - The core's `setTimeout()` no longer replaces the global `setTimeout` inside
   the core, which Emscripten's own timers (`poll()` and async callbacks) use.
 - The core reads the `wasmURL` hash only when locating the `.wasm` file, and
