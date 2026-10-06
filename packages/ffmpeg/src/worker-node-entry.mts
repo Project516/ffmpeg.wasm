@@ -143,22 +143,45 @@ const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
   return true;
 };
 
-const exec = ({ args, timeout = -1, abortFlag }: FFMessageExecData): ExitCode => {
-  ffmpeg.setTimeout(timeout);
-  if (abortFlag) ffmpeg.setAbortFlag(abortFlag);
-  ffmpeg.exec(...args);
-  const ret = ffmpeg.ret;
-  ffmpeg.reset();
-  return ret;
+// The JSPI core returns a Promise from exec() and ffprobe(), and the worker
+// then handles other messages while one runs. Commands are queued so they
+// still run one at a time.
+let lastCommand: Promise<unknown> = Promise.resolve();
+const queueCommand = <T,>(run: () => Promise<T>): Promise<T> => {
+  const next = lastCommand.then(run, run);
+  lastCommand = next.catch(() => {});
+  return next;
 };
 
-const ffprobe = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
-  ffmpeg.setTimeout(timeout);
-  ffmpeg.ffprobe(...args);
-  const ret = ffmpeg.ret;
-  ffmpeg.reset();
-  return ret;
-};
+const exec = ({
+  args,
+  timeout = -1,
+  abortFlag,
+}: FFMessageExecData): Promise<ExitCode> =>
+  queueCommand(async () => {
+    ffmpeg.setTimeout(timeout);
+    if (abortFlag) ffmpeg.setAbortFlag(abortFlag);
+    try {
+      await ffmpeg.exec(...args);
+      return ffmpeg.ret;
+    } finally {
+      ffmpeg.reset();
+    }
+  });
+
+const ffprobe = ({
+  args,
+  timeout = -1,
+}: FFMessageExecData): Promise<ExitCode> =>
+  queueCommand(async () => {
+    ffmpeg.setTimeout(timeout);
+    try {
+      await ffmpeg.ffprobe(...args);
+      return ffmpeg.ret;
+    } finally {
+      ffmpeg.reset();
+    }
+  });
 
 const writeFile = ({ path, data }: FFMessageWriteFileData): OK => {
   ffmpeg.FS.writeFile(path, data);
@@ -250,10 +273,10 @@ const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
         result = await load((data ?? {}) as FFMessageLoadConfig);
         break;
       case FFMessageType.EXEC:
-        result = exec(data as FFMessageExecData);
+        result = await exec(data as FFMessageExecData);
         break;
       case FFMessageType.FFPROBE:
-        result = ffprobe(data as FFMessageExecData);
+        result = await ffprobe(data as FFMessageExecData);
         break;
       case FFMessageType.OPEN:
         result = open(data as FFMessageOpenData);

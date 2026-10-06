@@ -9,7 +9,7 @@
 // core's virtual filesystem, and diffs it against tests/ref/fate/<name>. See
 // scripts/fate/config.mjs for the wasmpeg credit and background.
 //
-// core.exec() is synchronous, and the wasm side's own timeout check
+// core.exec() is synchronous on the st and mt cores, and the wasm side's own timeout check
 // (core.setTimeout(), fftools/ffmpeg.c's is_timeout()) is only polled
 // inside transcode()'s main loop. A hang before that loop, or stuck inside
 // one decode/filter call, never reaches that check, so it alone cannot stop
@@ -72,7 +72,7 @@ function parseArgs(argv) {
     return args;
   }
   if (!args.core || !args.label || !args.manifest || !args.out) {
-    throw new Error("usage: run.mjs --core <path-to-core-package> --label st|mt --manifest <file.json> --out <results.json>");
+    throw new Error("usage: run.mjs --core <path-to-core-package> --label st|mt|jspi --manifest <file.json> --out <results.json>");
   }
   return args;
 }
@@ -101,7 +101,7 @@ function writeHostFile(FS, mountRoot, dir, relpath) {
 // that can only ever end in "skip".
 function preflight(test, label, refDir, samplesDir, generatedDir) {
   const known = KNOWN_FAILURES[test.name];
-  if (known && (known.cores ?? ["st", "mt"]).includes(label)) {
+  if (known && (known.cores ?? ["st", "mt", "jspi"]).includes(label)) {
     return { status: "skip", reason: `known failure: ${known.reason}` };
   }
   if (test.kind === "sample") {
@@ -196,7 +196,7 @@ async function runExec(createFFmpegCore, test, refDir, samplesDir, generatedDir)
   let ret;
   const execStart = Date.now();
   try {
-    ret = core.exec(...argv);
+    ret = await core.exec(...argv);
   } catch (err) {
     return { status: "fail", reason: `exec threw: ${err.message}`, log: logLines.slice(-20) };
   }
@@ -265,7 +265,7 @@ function runIndexWithWatchdog({ corePkg, manifestPath, index, generatedDir }) {
 
     const child = spawn(
       process.execPath,
-      [scriptPath, "--core", corePkg, "--manifest", manifestPath, "--index", String(index), "--result", resultPath, "--generated-dir", generatedDir],
+      [...process.execArgv, scriptPath, "--core", corePkg, "--manifest", manifestPath, "--index", String(index), "--result", resultPath, "--generated-dir", generatedDir],
       { stdio: "inherit", detached: true, env: { ...process.env, FATE_STALL_FILE: stallPath } },
     );
 

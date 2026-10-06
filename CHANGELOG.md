@@ -7,12 +7,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- An opt-in JSPI single-thread core, built with `make prd-jspi` into
-  `packages/core-jspi` and not published. It runs the same pthread shim but
-  switches threads by suspending the wasm stack with JSPI instead of Asyncify,
-  so `exec()` and `ffprobe()` return Promises and it needs a runtime with JSPI
-  (Chrome 137+, Firefox, Node.js 24+). Its CI job is not a required check
-  (based on upstream ffmpegwasm/ffmpeg.wasm#987).
+- An experimental single-thread core that switches threads with JSPI instead
+  of Asyncify, as the optional package `@project516/ffmpeg-wasm-core-jspi`
+  (build it with `make prd-jspi`). It runs the same pthread shim, and needs
+  Chrome 137+, Firefox 153+, Safari 27+ or Node.js 24+. `exec()` and
+  `ffprobe()` on the core return Promises, and the worker now awaits them, so
+  `FFmpeg` works with every core. Its CI jobs are not required checks (based
+  on upstream ffmpegwasm/ffmpeg.wasm#987).
 - Aborting the `AbortSignal` passed to `exec()` now stops the running command
   where `SharedArrayBuffer` is available (cross-origin isolated pages, and
   Node.js), so the worker is free for the next call. It ends like a timeout

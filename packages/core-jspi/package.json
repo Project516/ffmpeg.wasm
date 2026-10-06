@@ -1,0 +1,47 @@
+{
+  "name": "@project516/ffmpeg-wasm-core-jspi",
+  "version": "0.16.0",
+  "description": "Experimental FFmpeg WebAssembly version (single thread, JSPI)",
+  "main": "./dist/umd/ffmpeg-core.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/ffmpeg-core.js",
+      "require": "./dist/umd/ffmpeg-core.js"
+    },
+    "./wasm": {
+      "import": "./dist/esm/ffmpeg-core.wasm",
+      "require": "./dist/umd/ffmpeg-core.wasm"
+    }
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/copy-license.mjs"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Project516/ffmpeg.wasm.git"
+  },
+  "keywords": [
+    "ffmpeg",
+    "WebAssembly",
+    "video",
+    "audio",
+    "transcode"
+  ],
+  "author": "Jerome Wu <jeromewus@gmail.com>",
+  "license": "AGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/Project516/ffmpeg.wasm/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "homepage": "https://github.com/Project516/ffmpeg.wasm#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

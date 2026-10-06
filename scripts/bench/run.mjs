@@ -91,7 +91,7 @@ async function runOne({ one, core, native, input }) {
       ffcore.setLogger(() => {});
       ffcore.setProgress(() => {});
       ffcore.FS.writeFile("in.mp4", readFileSync(input));
-      const ret = ffcore.exec(...testCase.args("in.mp4", "out.tmp"));
+      const ret = await ffcore.exec(...testCase.args("in.mp4", "out.tmp"));
       if (ret !== 0) throw new Error(`ffmpeg exited ${ret}`);
     }
   } finally {
@@ -127,7 +127,7 @@ function parseTimeStats(text) {
 function runUnderTime(childArgs) {
   return new Promise((resolvePromise) => {
     const statsPath = join(tmpdir(), `bench-time-${process.pid}-${Math.random().toString(36).slice(2)}.txt`);
-    const child = spawn("/usr/bin/time", ["-v", "-o", statsPath, process.execPath, scriptPath, ...childArgs], {
+    const child = spawn("/usr/bin/time", ["-v", "-o", statsPath, process.execPath, ...process.execArgv, scriptPath, ...childArgs], {
       stdio: "inherit",
       detached: true,
     });

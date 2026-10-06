@@ -49,8 +49,8 @@ Lessons from the shim, so they are not rediscovered:
 
 ## Layout
 
-- `packages/core`, `packages/core-mt`: built wasm artifacts (single-thread,
-  multi-thread). Not source, produced by the Docker build.
+- `packages/core`, `packages/core-mt`, `packages/core-jspi`: built wasm
+  artifacts (single-thread, multi-thread, experimental single-thread with JSPI). Not source, produced by the Docker build.
 - `packages/ffmpeg`: the worker-based API that loads a core and runs it, and
   the helpers in `src/helpers.ts` (`probe`, `transcode`, `extractFrames`) built
   on its exec and file system calls. Their option and result types live in

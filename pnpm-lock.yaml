@@ -211,6 +211,8 @@ importers:
 
   packages/core: {}
 
+  packages/core-jspi: {}
+
   packages/core-mt: {}
 
   packages/ffmpeg:

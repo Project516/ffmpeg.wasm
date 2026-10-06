@@ -22,9 +22,11 @@
     "test:node:core:mt": "pnpm run test:node --require tests/test-helper-mt.js tests/ffmpeg-core.test.js",
     "test:node:core:st": "pnpm run test:node --require tests/test-helper-st.js tests/ffmpeg-core.test.js",
     "test:node:ffmpeg:st": "pnpm run test:node tests/ffmpeg-node.test.mjs",
+    "test:node:ffmpeg:jspi": "pnpm run test:node tests/ffmpeg-node.test.mjs --jspi",
     "test:node:ffmpeg:mt": "pnpm run test:node tests/ffmpeg-node.test.mjs --mt",
     "test:node:helpers:args": "pnpm run test:node tests/ffmpeg-helpers-args.test.mjs",
     "test:node:helpers:st": "pnpm run test:node tests/ffmpeg-helpers.test.mjs",
+    "test:node:helpers:jspi": "pnpm run test:node tests/ffmpeg-helpers.test.mjs --jspi",
     "test:node:helpers:mt": "pnpm run test:node tests/ffmpeg-helpers.test.mjs --mt",
     "prepublishOnly": "pnpm run build"
   },
