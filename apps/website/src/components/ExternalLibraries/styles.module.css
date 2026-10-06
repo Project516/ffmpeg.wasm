@@ -7,8 +7,13 @@
   color: #1b1b1d;
 }
 
+/* Block-level so logos and text tiles line up without an inline baseline gap. */
 .libraryImg {
+  display: block;
+  margin: 0 auto;
   height: 96px;
+  max-width: 100%;
+  object-fit: contain;
   padding: 16px;
 }
 
@@ -17,7 +22,9 @@
 }
 
 .textTile {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
+  margin: 0 auto;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
