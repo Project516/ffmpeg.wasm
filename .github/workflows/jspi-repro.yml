@@ -10,7 +10,7 @@ on:
     inputs:
       iterations:
         type: string
-        default: "300"
+        default: "60"
       procs:
         type: string
         default: "4"
@@ -43,20 +43,20 @@ jobs:
           node-version: 24
       - name: Round 1, process per iteration
         if: always()
-        timeout-minutes: 25
-        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode proc --out repro/proc
+        timeout-minutes: 12
+        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 60 }} --mode proc --out repro/proc
       - name: Round 2, process per iteration with tracing
         if: always()
-        timeout-minutes: 25
-        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode proc --trace --out repro/proc-trace
+        timeout-minutes: 12
+        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 60 }} --mode proc --trace --out repro/proc-trace
       - name: Round 3, one process at a time with tracing
         if: always()
-        timeout-minutes: 25
-        run: node scripts/jspi-repro.mjs --procs 1 --iterations ${{ inputs.iterations || 300 }} --mode proc --trace --out repro/proc1-trace
+        timeout-minutes: 12
+        run: node scripts/jspi-repro.mjs --procs 1 --iterations ${{ inputs.iterations || 60 }} --mode proc --trace --out repro/proc1-trace
       - name: Round 4, fresh core per iteration with tracing
         if: always()
-        timeout-minutes: 25
-        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode fresh --trace --out repro/fresh-trace
+        timeout-minutes: 12
+        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 60 }} --mode fresh --trace --out repro/fresh-trace
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
