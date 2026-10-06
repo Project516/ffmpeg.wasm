@@ -43,8 +43,8 @@ function parse(argv) {
 
 const FATE_PREFIX = ["-nostdin", "-nostats", "-noauto_conversion_filters", "-cpuflags", "all"];
 const CASES = {
-  jpg: ["-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice", "-i", "f.jpg", "-bitexact", "-f", "framecrc", "-y", "/out"],
-  png: ["-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice", "-i", "f.png", "-bitexact", "-f", "framecrc", "-y", "/out"],
+  jpg: [...FATE_PREFIX, "-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice", "-i", "f.jpg", "-bitexact", "-f", "framecrc", "-y", "/out"],
+  png: [...FATE_PREFIX, "-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice", "-i", "f.png", "-bitexact", "-f", "framecrc", "-y", "/out"],
   mp4: ["-i", "video.mp4", "-frames:v", "1", "-y", "o.png"],
 };
 const OUTPUT = { jpg: "/out", png: "/out", mp4: "o.png" };
@@ -103,6 +103,7 @@ async function child(args) {
   const create = async () => {
     const core = await require(path.resolve(args.core))(pfiberTrace ? { pfiberTrace } : {});
     core.setLogger(({ message }) => {
+      if (process.env.REPRO_LOG) console.log("ffmpeg:", message);
       if (typeof message === "string" && message.includes("pthread-fiber:")) fs.appendFileSync(stallFile, message + "\n");
     });
     core.setTimeout(60000);
@@ -133,9 +134,9 @@ async function child(args) {
     }
     if (args.mode === "fresh") core = await create();
     for (const [f, data] of Object.entries(files)) core.FS.writeFile(f, data);
-    const ret = await core.exec(...FATE_PREFIX, ...CASES[name]);
-    const size = core.FS.readFile(OUTPUT[name]).length;
-    core.FS.unlink(OUTPUT[name]);
+    const ret = await core.exec(...CASES[name]);
+    const size = core.FS.analyzePath(OUTPUT[name]).exists ? core.FS.readFile(OUTPUT[name]).length : 0;
+    if (size) core.FS.unlink(OUTPUT[name]);
     if (ret !== 0 || size === 0) console.log(`BAD iteration ${i} case ${name} ret=${ret} size=${size}`);
     Atomics.add(hb, 0, 1);
     if ((i + 1) % 50 === 0) console.log(`ok ${i + 1}/${args.iterations} ${((Date.now() - start) / 1000).toFixed(0)}s`);
