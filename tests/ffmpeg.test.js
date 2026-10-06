@@ -111,6 +111,77 @@ describe(
   }
 );
 
+describe(
+  genName("FFmpeg chunked file APIs (open(), read(), write(), close())"),
+  function () {
+    let ffmpeg;
+
+    before(async () => {
+      ffmpeg = await createFFmpeg();
+    });
+
+    after(() => {
+      ffmpeg.terminate();
+    });
+
+    it("should write in chunks and read the file back", async () => {
+      const fd = await ffmpeg.open("/chunked1", "w");
+      expect(await ffmpeg.write(fd, Uint8Array.from([1, 2, 3]))).to.equal(3);
+      expect(await ffmpeg.write(fd, Uint8Array.from([4, 5]))).to.equal(2);
+      await ffmpeg.close(fd);
+      const data = await ffmpeg.readFile("/chunked1");
+      expect(data).to.deep.equal(Uint8Array.from([1, 2, 3, 4, 5]));
+    });
+
+    it("should read with a length and an offset", async () => {
+      await ffmpeg.writeFile("/chunked2", Uint8Array.from([1, 2, 3, 4, 5]));
+      const fd = await ffmpeg.open("/chunked2", "r");
+      expect(await ffmpeg.read(fd, 2)).to.deep.equal(Uint8Array.from([1, 2]));
+      expect(await ffmpeg.read(fd, 2)).to.deep.equal(Uint8Array.from([3, 4]));
+      expect(await ffmpeg.read(fd, 4, 1)).to.deep.equal(
+        Uint8Array.from([2, 3, 4, 5])
+      );
+      expect(await ffmpeg.read(fd, 4, 5)).to.have.length(0);
+      expect(await ffmpeg.read(fd, 2 ** 31, 3)).to.deep.equal(
+        Uint8Array.from([4, 5])
+      );
+      await ffmpeg.close(fd);
+    });
+
+    it("should reject use of a closed file descriptor", async () => {
+      const fd = await ffmpeg.open("/chunked3", "w");
+      await ffmpeg.close(fd);
+      for (const use of [
+        () => ffmpeg.write(fd, Uint8Array.from([1])),
+        () => ffmpeg.read(fd, 1),
+        () => ffmpeg.close(fd),
+      ]) {
+        let error;
+        try {
+          await use();
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.equal(undefined);
+      }
+    });
+
+    it("should transfer written data unless transfer is false", async () => {
+      const fd = await ffmpeg.open("/chunked4", "w");
+      const kept = Uint8Array.from([1, 2]);
+      await ffmpeg.write(fd, kept, undefined, { transfer: false });
+      expect(kept.length).to.equal(2);
+      const moved = Uint8Array.from([3, 4]);
+      await ffmpeg.write(fd, moved);
+      expect(moved.length).to.equal(0);
+      await ffmpeg.close(fd);
+      expect(await ffmpeg.readFile("/chunked4")).to.deep.equal(
+        Uint8Array.from([1, 2, 3, 4])
+      );
+    });
+  }
+);
+
 describe(genName("FFmpeg.exec()"), function () {
   let ffmpeg;
 

@@ -446,6 +446,34 @@ Required:
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
 
+## Read and write files in chunks
+
+`open()`, `read()`, `write()` and `close()` work on a file descriptor, so a
+large file can be written as it arrives instead of held in one array.
+
+```ts
+const fd = await ffmpeg.open("input.mp4", "w");
+for await (const chunk of response.body) await ffmpeg.write(fd, chunk);
+await ffmpeg.close(fd);
+await ffmpeg.exec(["-i", "input.mp4", "output.mp4"]);
+```
+
+- `open(path, flags)` takes Node.js-style flags (`"r"`, `"r+"`, `"w"`, `"w+"`,
+  `"a"`, `"a+"`) and resolves to the file descriptor.
+- `read(fd, length, position?)` resolves to up to `length` bytes, empty at the
+  end of the file. Without `position` it continues from the last read or write.
+  With `position` the file offset does not move.
+- `write(fd, data, position?)` resolves to the number of bytes written. The
+  offset moves the same way as for `read()`, except that on a descriptor
+  opened with `"a"` or `"a+"` every write first moves it to the end of the
+  file, so a write without `position` appends. Like
+  `writeFile()`, it transfers `data` and leaves it empty unless you pass
+  `{ transfer: false }` as the last argument.
+- `close(fd)` releases the descriptor. Using it afterwards rejects.
+
+The data still lives in the in-memory file system, and `exec()` reads its
+input from there. This does not stream input into ffmpeg.
+
 ## Helpers: probe, transcode and extract frames
 
 `probe()`, `transcode()` and `extractFrames()` cover common jobs without the

@@ -10,6 +10,10 @@ import type {
   FFMessage,
   FFMessageLoadConfig,
   FFMessageExecData,
+  FFMessageOpenData,
+  FFMessageReadData,
+  FFMessageWriteData,
+  FFMessageCloseData,
   FFMessageWriteFileData,
   FFMessageReadFileData,
   FFMessageDeleteFileData,
@@ -160,6 +164,32 @@ const writeFile = ({ path, data }: FFMessageWriteFileData): OK => {
   return true;
 };
 
+const open = ({ path, flags }: FFMessageOpenData): number =>
+  ffmpeg.FS.open(path, flags).fd;
+
+const read = ({ fd, length, position }: FFMessageReadData): Uint8Array => {
+  const stream = ffmpeg.FS.getStreamChecked(fd);
+  // Allocate no more than the file holds, whatever length asks for.
+  const left = ffmpeg.FS.fstat(fd).size - (position ?? stream.position);
+  const buffer = new Uint8Array(Math.max(0, Math.min(length, left)));
+  const count = ffmpeg.FS.read(stream, buffer, 0, buffer.length, position);
+  return count === buffer.length ? buffer : buffer.slice(0, count);
+};
+
+const write = ({ fd, data, position }: FFMessageWriteData): number =>
+  ffmpeg.FS.write(
+    ffmpeg.FS.getStreamChecked(fd),
+    data,
+    0,
+    data.length,
+    position
+  );
+
+const close = ({ fd }: FFMessageCloseData): OK => {
+  ffmpeg.FS.close(ffmpeg.FS.getStreamChecked(fd));
+  return true;
+};
+
 const readFile = ({ path, encoding }: FFMessageReadFileData): FileData =>
   ffmpeg.FS.readFile(path, { encoding });
 
@@ -223,6 +253,18 @@ const handleMessage = async ({ id, type, data }: FFMessage): Promise<void> => {
         break;
       case FFMessageType.FFPROBE:
         result = ffprobe(data as FFMessageExecData);
+        break;
+      case FFMessageType.OPEN:
+        result = open(data as FFMessageOpenData);
+        break;
+      case FFMessageType.READ:
+        result = read(data as FFMessageReadData);
+        break;
+      case FFMessageType.WRITE:
+        result = write(data as FFMessageWriteData);
+        break;
+      case FFMessageType.CLOSE:
+        result = close(data as FFMessageCloseData);
         break;
       case FFMessageType.WRITE_FILE:
         result = writeFile(data as FFMessageWriteFileData);
