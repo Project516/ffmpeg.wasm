@@ -118,9 +118,8 @@ CONF_FLAGS=(
   $LDFLAGS
   -sENVIRONMENT=web,worker,node             # web for loading the core directly on a page, worker for @project516/ffmpeg-wasm, node for running the worker under Node.js
   -sWASM_BIGINT                            # enable big int support
-  ${FFMPEG_MT:+ -fwasm-exceptions}         # catch zimg's exceptions instead of aborting; wasm exceptions do not work with Asyncify
-  ${FFMPEG_ST:+ -fexceptions}              # JS-based exceptions for the Asyncify st core
-  -sDEFAULT_TO_CXX                        # link libc++, which x265 needs
+  -fexceptions                             # catch zimg's exceptions; JS-based, so it works with Asyncify
+  -sDEFAULT_TO_CXX                         # link libc++, which x265 needs
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library
   ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB} # start with a large initial memory, but still allow growth (capped at 4GB) so a single high-res frame (e.g. 4K) does not abort with OOM

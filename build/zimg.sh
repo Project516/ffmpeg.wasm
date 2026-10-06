@@ -11,12 +11,8 @@ CONF_FLAGS=(
   --disable-simd                   # disable simd optimization
 )
 
-# zimg reports errors by throwing. Asyncify (st) cannot use wasm exceptions.
-if [ -n "${FFMPEG_MT:-}" ]; then
-  export CXXFLAGS="$CXXFLAGS -fwasm-exceptions"
-else
-  export CXXFLAGS="$CXXFLAGS -fexceptions"
-fi
+# zimg reports errors by throwing.
+export CXXFLAGS="$CXXFLAGS -fexceptions"
 
 emconfigure ./autogen.sh
 
