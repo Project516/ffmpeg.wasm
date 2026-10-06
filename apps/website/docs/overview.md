@@ -105,7 +105,7 @@ ffmpeg.wasm is built with toolchains / libraries:
             {name: "harfbuzz", version: "8.5.0", note: "HarfBuzz is a text shaping engine that allows complex script text to be rendered correctly. Pinned to the last release before harfbuzz dropped its autotools build for meson-only."},
             {name: "libass", version: "0.17.5", note: "libass is a library for rendering and formatting subtitles in multimedia applications, making it essential for displaying subtitles alongside video content."},
             {name: "zimg", version: "release-3.0.6 (3.0.6)", note: "zimg implements the commonly required image processing basics of scaling, colorspace conversion, and depth conversion."},
-            {name: "dav1d", version: "1.5.4", note: "dav1d is a fast AV1 video decoder. Built from canonical upstream (VideoLAN) and linked only by the web and decode presets."}
+            {name: "dav1d", version: "1.5.4", note: "dav1d is a fast AV1 video decoder. Built from canonical upstream (VideoLAN)."}
            ].map((row) => (
             <TableRow
               key={row.name}

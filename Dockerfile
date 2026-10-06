@@ -193,7 +193,6 @@ COPY build/zimg.sh /src/build.sh
 RUN bash -x /src/build.sh
 
 # Build dav1d
-# Every preset builds it; only the ones that enable --enable-libdav1d link it.
 FROM emsdk-base AS dav1d-builder
 ENV DAV1D_BRANCH=1.5.4
 ENV DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7

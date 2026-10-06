@@ -7,7 +7,7 @@ their own core and want a smaller download.
 
 | preset | contents |
 | --- | --- |
-| `full` | Everything: x264, x265, libvpx, lame, theora, vorbis, opus, webp, freetype, fribidi, libass and zimg, with all of FFmpeg's decoders, encoders, muxers, demuxers and filters. |
+| `full` | Everything: x264, x265, libvpx, lame, theora, vorbis, opus, webp, freetype, fribidi, libass, zimg and dav1d, with all of FFmpeg's decoders, encoders, muxers, demuxers and filters. |
 | `web` | The codecs and containers web video and audio use. Decoders for h264, hevc, vp8, vp9, av1 (libdav1d), mpeg4, mjpeg, png, gif, webp, aac, mp3, opus, vorbis, flac, alac and PCM. Encoders for h264 (x264), vp8 and vp9 (libvpx), aac, opus, mp3, vorbis, flac, png, mjpeg, gif and webp. mp4, mov, webm, matroska, ogg, mp3, flac, wav, gif and image demuxers and muxers, and the common filters (scale, crop, pad, transpose, fps, overlay, concat, volume, amix, atempo, and others). No x265, theora, subtitle rendering or `lavfi` sources. |
 | `decode` | Every FFmpeg-native decoder, plus AV1 through libdav1d, and every demuxer, parser, protocol and filter that `full` has, so any input plays. The libvpx and libopus decoders are gone, and the native vp8, vp9 and opus decoders cover those formats. Only the png, mjpeg, rawvideo and PCM encoders, and the null, image2, wav, rawvideo, framecrc, framemd5, md5, crc and hash muxers. No encoder libraries. It is linked at `-O2`, because `wasm-opt -O3` crashes on it. |
 
@@ -47,7 +47,7 @@ is as slow as a full one. Later builds reuse the cached library layers.
 
 CI builds `web` and `decode` for both cores, checks that each core has the
 codecs its preset lists and none that it leaves out, and runs a short decode
-and encode, plus an AV1 decode for the presets that include libdav1d
+and encode, plus an AV1 decode
 (`scripts/preset-check.mjs`).
 
 A smaller core fails on a command that needs a component it left out, for
