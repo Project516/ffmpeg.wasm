@@ -462,6 +462,24 @@ controller.abort();
 await running.catch((e) => e.name); // "AbortError"
 ```
 
+## Recover from a core crash
+
+If the core traps (a wasm `RuntimeError`) during a call, that call rejects
+with the error, every pending call rejects, and the instance is unloaded:
+`ffmpeg.loaded` is `false` and later calls reject with a "not loaded" error.
+The core's memory may be corrupt after a trap, so call `load()` to start a
+new one. An `abort()` inside FFmpeg during `exec()` or `ffprobe()` is not
+treated as a trap: the call resolves with a nonzero exit code and the core
+stays loaded.
+
+```ts
+try {
+  await ffmpeg.exec(args);
+} catch (e) {
+  if (!ffmpeg.loaded) await ffmpeg.load();
+}
+```
+
 ## Read and write files in chunks
 
 `open()`, `read()`, `write()` and `close()` work on a file descriptor, so a

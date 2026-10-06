@@ -33,6 +33,69 @@ describe(genName("concurrent load()"), () => {
   });
 });
 
+describe(genName("core trap"), function () {
+  // No known command traps the core, so a stand-in worker answers with one.
+  const trappingWorker = URL.createObjectURL(
+    new Blob(
+      [
+        `self.onmessage = ({ data: { id, type } }) =>
+          postMessage(type === "LOAD" ?
+            { id, type, data: true } :
+            { id, type: "ERROR", data: "RuntimeError: unreachable" });`,
+      ],
+      { type: "text/javascript" }
+    )
+  );
+
+  it("rejects the call, unloads, and loads again", async () => {
+    const ffmpeg = new FFmpeg();
+    try {
+      await ffmpeg.load({ classWorkerURL: trappingWorker });
+      expect(ffmpeg.loaded).to.be.true;
+
+      let error;
+      try {
+        await ffmpeg.exec(["-version"]);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.match(/^RuntimeError: unreachable/);
+      expect(ffmpeg.loaded).to.be.false;
+
+      let notLoaded;
+      try {
+        await ffmpeg.listDir("/");
+      } catch (e) {
+        notLoaded = e;
+      }
+      expect(String(notLoaded)).to.include("not loaded");
+
+      await ffmpeg.load({ coreURL: CORE_URL, thread: FFMPEG_TYPE === "mt" });
+      expect(ffmpeg.loaded).to.be.true;
+      expect(await ffmpeg.exec(["-version"])).to.equal(0);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+
+  it("keeps the instance loaded after an ordinary error", async () => {
+    const ffmpeg = await createFFmpeg();
+    try {
+      let rejected = false;
+      try {
+        await ffmpeg.listDir("/does-not-exist");
+      } catch {
+        rejected = true;
+      }
+      expect(rejected).to.be.true;
+      expect(ffmpeg.loaded).to.be.true;
+      expect(await ffmpeg.exec(["-version"])).to.equal(0);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
 describe(
   genName(
     "FFmpeg directory APIs (createDir(), listDir(), deleteDir(), rename())"

@@ -18,7 +18,12 @@ import {
   FFFSPath,
 } from "./types.js";
 import { getMessageID } from "./utils.js";
-import { ERROR_TERMINATED, ERROR_NOT_LOADED, ERROR_WORKER } from "./errors.js";
+import {
+  ERROR_TERMINATED,
+  ERROR_NOT_LOADED,
+  ERROR_WORKER,
+  ERROR_CRASHED,
+} from "./errors.js";
 
 declare const __FFMPEG_WORKER_TYPE__: WorkerType;
 
@@ -26,6 +31,13 @@ declare const __FFMPEG_WORKER_TYPE__: WorkerType;
 // for the ESM build, which runs as-is with no bundling step.
 const WORKER_TYPE: WorkerType =
   typeof __FFMPEG_WORKER_TYPE__ === "undefined" ? "module" : __FFMPEG_WORKER_TYPE__;
+
+// webpack turns `new URL(variable, import.meta.url)` into a module lookup, and
+// the UMD build has no module URL, so it resolves against the page instead.
+const resolveWorkerURL = (url: string): URL => {
+  const base = WORKER_TYPE === "classic" ? self.location.href : import.meta.url;
+  return new URL(url, base);
+};
 
 type FFMessageOptions = {
   signal?: AbortSignal;
@@ -98,7 +110,13 @@ export class FFmpeg {
             break;
           case FFMessageType.ERROR:
             this.#rejects[id](data);
-            break;
+            delete this.#resolves[id];
+            delete this.#rejects[id];
+            // A trap or abort leaves the core's memory in an unknown state.
+            if (typeof data === "string" && /^RuntimeError\b/.test(data)) {
+              this.#terminate(ERROR_CRASHED);
+            }
+            return;
         }
         delete this.#resolves[id];
         delete this.#rejects[id];
@@ -228,7 +246,7 @@ export class FFmpeg {
   ): Promise<IsFirst> => {
     if (!this.#worker) {
       this.#worker = classWorkerURL ?
-        new Worker(new URL(classWorkerURL, import.meta.url), {
+        new Worker(resolveWorkerURL(classWorkerURL), {
           type: WORKER_TYPE,
         }) :
         // We need to duplicated the code here to enable webpack
@@ -352,11 +370,13 @@ export class FFmpeg {
    *
    * @category FFmpeg
    */
-  public terminate = (): void => {
+  public terminate = (): void => this.#terminate(ERROR_TERMINATED);
+
+  #terminate = (error: Error): void => {
     const ids = Object.keys(this.#rejects);
     // rejects all incomplete Promises.
     for (const id of ids) {
-      this.#rejects[id](ERROR_TERMINATED);
+      this.#rejects[id](error);
       delete this.#rejects[id];
       delete this.#resolves[id];
     }
