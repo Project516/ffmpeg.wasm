@@ -10,6 +10,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `open()`, `read()`, `write()` and `close()` read and write a file in chunks
   through a file descriptor (backport of upstream ffmpegwasm/ffmpeg.wasm#984).
   `write()` transfers its `Uint8Array` unless `{ transfer: false }`.
+- The `web` and `decode` presets decode AV1 through libdav1d 1.5.4. The `full`
+  preset, and so the published cores, does not link it yet.
 
 ### Changed
 

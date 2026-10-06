@@ -192,6 +192,16 @@ RUN git clone --recursive -b $ZIMG_BRANCH https://github.com/sekrit-twc/zimg.git
 COPY build/zimg.sh /src/build.sh
 RUN bash -x /src/build.sh
 
+# Build dav1d
+# Every preset builds it; only the ones that enable --enable-libdav1d link it.
+FROM emsdk-base AS dav1d-builder
+ENV DAV1D_BRANCH=1.5.4
+ENV DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7
+ADD https://code.videolan.org/videolan/dav1d.git#$DAV1D_COMMIT /src
+COPY build/meson-cross.ini /meson-cross.ini
+COPY build/dav1d.sh /src/build.sh
+RUN bash -x /src/build.sh
+
 # Base ffmpeg image with dependencies and source code populated.
 FROM emsdk-base AS ffmpeg-base
 # Pick the FFmpeg release per FFMPEG_MT (see the FFMPEG_VERSION_ST/MT comment
@@ -217,6 +227,7 @@ COPY --from=vorbis-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=libwebp-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=libass-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=zimg-builder $INSTALL_DIR $INSTALL_DIR
+COPY --from=dav1d-builder $INSTALL_DIR $INSTALL_DIR
 
 # Build ffmpeg
 # PRESET picks build/presets/<PRESET>.env, which sets the FFmpeg configure
