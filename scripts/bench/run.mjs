@@ -52,7 +52,7 @@ const CASES = [
     name: "vp8-720p-to-mp4",
     long: true,
     input: BBB_720P,
-    timeoutMs: 600_000,
+    timeoutMs: 300_000,
     args: (inp, out) => ["-i", inp, out.replace(/\.\w+$/, ".mp4")],
   },
 ];
@@ -96,7 +96,7 @@ function sampleMp4Path(tmpDir) {
 async function downloadInput({ file, url, sha256 }, dir) {
   const path = join(dir, file);
   if (existsSync(path)) return path;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
   if (!res.ok) throw new Error(`fetching ${url}: ${res.status}`);
   const data = Buffer.from(await res.arrayBuffer());
   const actual = createHash("sha256").update(data).digest("hex");
