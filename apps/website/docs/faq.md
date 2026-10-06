@@ -50,10 +50,10 @@ The whole project, including both packages, is licensed under AGPL-3.0-or-later.
 
 ### What is the maximum size of input file?
 
-It depends on how the file gets in. FFmpeg's own memory is capped at 2 GB in
+It depends on how the file gets in. FFmpeg's own memory is capped at 4 GB in
 both cores: the single-thread core starts at 48 MB and grows on demand, the
 multi-thread core starts at 1 GB. A file copied in with `writeFile()` also
-needs room in the browser's memory, so large files fail well before 2 GB on
+needs room in the browser's memory, so large files fail well before 4 GB on
 low-memory devices.
 
 For big inputs, mount the `File` with `WORKERFS` instead, which reads it

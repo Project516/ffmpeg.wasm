@@ -206,6 +206,28 @@ describe(genName("setLogger()"), () => {
   });
 });
 
+describe(genName("locateFile()"), () => {
+  afterEach(() => {
+    delete core.mainScriptUrlOrBlob;
+  });
+
+  it("should use the wasmURL in the hash for the wasm file", () => {
+    const hash = btoa(JSON.stringify({ wasmURL: "https://wasm.test/a.wasm" }));
+    core.mainScriptUrlOrBlob = `https://core.test/ffmpeg-core.js#${hash}`;
+    expect(core.locateFile("ffmpeg-core.wasm", "https://core.test/")).to.equal("https://wasm.test/a.wasm");
+  });
+
+  it("should not read the hash for other files", () => {
+    core.mainScriptUrlOrBlob = "https://core.test/ffmpeg-core.js#not-base64";
+    expect(core.locateFile("ffmpeg-core.data", "https://core.test/")).to.equal("https://core.test/ffmpeg-core.data");
+  });
+
+  it("should fall back to the prefix without a hash", () => {
+    core.mainScriptUrlOrBlob = "https://core.test/ffmpeg-core.js";
+    expect(core.locateFile("ffmpeg-core.wasm", "https://core.test/")).to.equal("https://core.test/ffmpeg-core.wasm");
+  });
+});
+
 describe(genName("setProgress()"), () => {
   beforeEach(reset);
 

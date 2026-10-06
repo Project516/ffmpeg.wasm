@@ -52,6 +52,9 @@ FFTOOLS=(
   fftools/ffprobe.o
 )
 FFTOOLS_INC=()
+if [ -n "${FFMPEG_MT:-}" ]; then
+  FFTOOLS+=(src/bind/ffmpeg/threads.c)
+fi
 PTHREAD_FIBER_FLAGS=()
 
 if [ -n "${FFMPEG_ST:-}" ]; then
@@ -73,15 +76,6 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # uses and nothing here calls. Each fiber carries its own asyncify stack
     # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
     -sASYNCIFY_STACK_SIZE=65536
-    # A fiber whose stack runs out does not fault on wasm, it writes past the end
-    # of its allocation and takes the heap with it, which surfaces later as
-    # whatever the corruption reaches. That is the same shape as a logic hang,
-    # so the check is on: STACK_OVERFLOW_CHECK=2 tests the stack pointer on
-    # every function entry and reports one instead of corrupting quietly. It is
-    # only meaningful with pthread_fiber.c's emscripten_stack_set_limits() calls
-    # around every swap, since the checker otherwise compares against whichever
-    # fiber's bounds were set last rather than the one actually running.
-    -sSTACK_OVERFLOW_CHECK=2
     # ASSERTIONS also turns on emscripten's checkIncomingModuleAPI(), which
     # aborts at load when the caller supplies a Module property that is not in
     # INCOMING_MODULE_JS_API. @project516/ffmpeg-wasm always supplies
@@ -90,8 +84,7 @@ if [ -n "${FFMPEG_ST:-}" ]; then
     # list for a PTHREADS build, and the st core has none: without pthreads
     # libpthread.js, which is what pulls it in, is not linked. So ASSERTIONS
     # makes the st core fail to load while the mt core is fine. It costs speed
-    # too, so it comes out; STACK_OVERFLOW_CHECK is what the hang hunt needs
-    # and it works on its own.
+    # too, so it comes out.
     -sASSERTIONS=0
     -Wl,--wrap=pthread_create
     -Wl,--wrap=pthread_join
@@ -126,12 +119,13 @@ CONF_FLAGS=(
   -sENVIRONMENT=web,worker,node             # web for loading the core directly on a page, worker for @project516/ffmpeg-wasm, node for running the worker under Node.js
   -sWASM_BIGINT                            # enable big int support
   -sDEFAULT_TO_CXX                         # link libc++, which x265 needs
-  -sUSE_SDL=2                              # use emscripten SDL2 lib port
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library
-  ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=2GB} # start with a large initial memory, but still allow growth (capped at 2GB) so a single high-res frame (e.g. 4K) does not abort with OOM
+  ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB} # start with a large initial memory, but still allow growth (capped at 4GB) so a single high-res frame (e.g. 4K) does not abort with OOM
   ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE=32}    # use 32 threads
-  ${FFMPEG_ST:+ -sINITIAL_MEMORY=48MB -sALLOW_MEMORY_GROWTH} # Use just enough memory as memory usage can grow, plus headroom for pthread-fiber's per-thread stacks and Asyncify's own overhead
+  ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE_STRICT=2} # fail instead of hanging when a command needs more threads than the pool has
+  ${FFMPEG_MT:+ -sDEFAULT_PTHREAD_STACK_SIZE=2MB} # the 64KB default overflows in x264 and decoder threads
+  ${FFMPEG_ST:+ -sINITIAL_MEMORY=48MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB} # Use just enough memory as memory usage can grow, plus headroom for pthread-fiber's per-thread stacks and Asyncify's own overhead
   "${PTHREAD_FIBER_FLAGS[@]}"
   -sEXPORT_NAME="$EXPORT_NAME"             # required in browser env, so that user can access this module from window object
   -sEXPORTED_FUNCTIONS=$(node src/bind/ffmpeg/export.js) # exported functions
