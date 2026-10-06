@@ -9,7 +9,9 @@ pass/fail/skip and wasm/native ratio framing come from
 `CORRECTNESS.md` (LGPL-2.1-or-later).
 
 The current numbers are on [FATE and benchmark results](./results.md), a page
-generated from the committed baseline.
+generated from the committed baseline. The baseline is refreshed at each
+release (see "Releasing" in `CONTRIBUTING.md`). The nightly run is a
+regression watchdog: it compares against the baseline and does not update it.
 
 The `fate` and `benchmark` jobs are **not required checks**. A failing FATE
 test does not fail them. The `baseline-check` job compares each run with the
@@ -98,6 +100,14 @@ same external tool, rather than the core's own `process.hrtime`/
 `scripts/bench/report.mjs` combines the native and core results into one
 report with a wasm/native time ratio per case, written as JSON
 (`bench-report.json`) and as a markdown table in the step summary.
+
+A fourth case, `vp8-720p-to-mp4`, runs `-i input.webm output.mp4` on 10
+seconds of 720p VP8 (Big Buck Bunny from test-videos.co.uk, pinned by
+SHA-256, downloaded at run time). It takes minutes on the st core, so it runs
+only in nightly mode (the schedule, or a manual dispatch with `subset=full`),
+through `--include-long`. Pull request runs skip it, and `check.mjs` only
+compares the cases a run has. Refresh the baseline from a nightly run, or the
+case is dropped from `baseline/bench.json`.
 
 Each sample is run five times and the median is reported, so one slow run on
 a shared runner does not move the result.

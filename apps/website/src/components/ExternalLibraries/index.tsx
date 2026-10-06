@@ -1,10 +1,12 @@
 import React from "react";
 import clsx from "clsx";
+import useBaseUrl from "@docusaurus/useBaseUrl";
 import styles from "./styles.module.css";
 
 interface LibraryItem {
   title: string;
   desc: string;
+  /** Path under static/, e.g. "/img/libs/x264.png". */
   img?: string;
   isBlackBackground?: boolean;
 }
@@ -13,43 +15,43 @@ const libs: LibraryItem[] = [
   {
     title: "x264",
     desc: "H.264 Codec",
-    img: require("@site/static/img/libs/x264.png").default,
+    img: "/img/libs/x264.png",
     isBlackBackground: true,
   },
   {
     title: "x265",
     desc: "H.265 codec",
-    img: require("@site/static/img/libs/x265.webp").default,
+    img: "/img/libs/x265.webp",
   },
   {
     title: "libvpx",
     desc: "VP8/VP9 codec",
-    img: require("@site/static/img/libs/libvpx.png").default,
+    img: "/img/libs/libvpx.png",
   },
   {
     title: "theora",
     desc: "OGV codec",
-    img: require("@site/static/img/libs/theora.png").default,
+    img: "/img/libs/theora.png",
   },
   {
     title: "lame",
     desc: "MP3 codec",
-    img: require("@site/static/img/libs/lame.gif").default,
+    img: "/img/libs/lame.gif",
   },
   {
     title: "vorbis",
     desc: "OGG codec",
-    img: require("@site/static/img/libs/vorbis.png").default,
+    img: "/img/libs/vorbis.png",
   },
   {
     title: "opus",
     desc: "OPUS codec",
-    img: require("@site/static/img/libs/opus.png").default,
+    img: "/img/libs/opus.png",
   },
   {
     title: "freetype2",
     desc: "Font file renderer",
-    img: require("@site/static/img/libs/freetype.png").default,
+    img: "/img/libs/freetype.png",
   },
   {
     title: "libass",
@@ -58,17 +60,17 @@ const libs: LibraryItem[] = [
   {
     title: "libwebp",
     desc: "WEBP codec",
-    img: require("@site/static/img/libs/webp.png").default,
+    img: "/img/libs/webp.png",
   },
   {
     title: "dav1d",
     desc: "AV1 decoder",
-    img: require("@site/static/img/libs/dav1d.svg").default,
+    img: "/img/libs/dav1d.svg",
   },
   {
     title: "harfbuzz",
     desc: "Text shaping",
-    img: require("@site/static/img/libs/harfbuzz.svg").default,
+    img: "/img/libs/harfbuzz.svg",
   },
   {
     title: "fribidi",
@@ -86,12 +88,14 @@ const Library: React.FC<LibraryItem> = ({
   img,
   isBlackBackground = false,
 }) => {
+  const src = useBaseUrl(img ?? "");
   return (
     <div className={clsx("col col--2")}>
       <div className="text--center">
         {img ? (
           <img
-            src={img}
+            src={src}
+            alt={title}
             className={clsx(
               styles.libraryImg,
               isBlackBackground && styles.blackBackground

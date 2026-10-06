@@ -89,10 +89,12 @@ FFmpeg n9.0.2. The pass rate is pass divided by pass plus fail. A skipped test i
 
 ## Performance
 
-Median of five runs on one GitHub Actions runner, against native ffmpeg version 6.1.1-3ubuntu5 from the runner image, not the pinned tag. Each case transcodes a 1 second H.264 clip, so startup is a large part of the native time.
+Median of five runs on one GitHub Actions runner, against native ffmpeg version 6.1.1-3ubuntu5 from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured nightly only.
 
 | case | native (ms) | st (ms) | st ratio | st peak RSS (MB) | mt (ms) | mt ratio | mt peak RSS (MB) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| h264-to-vp9 | 90 | 430 | 4.78x | 217 | 840 | 9.33x | 701 |
-| h264-to-mpeg4 | 70 | 320 | 4.57x | 225 | 860 | 12.29x | 688 |
-| scale-half | 70 | 910 | 13.00x | 365 | 800 | 11.43x | 738 |
+| h264-to-vp9 | 120 | 510 | 4.25x | 215 | 1040 | 8.67x | 697 |
+| h264-to-mpeg4 | 90 | 360 | 4.00x | 187 | 930 | 10.33x | 680 |
+| scale-half | 90 | 1120 | 12.44x | 371 | 970 | 10.78x | 729 |
+| vp8-720p-to-mp4 | 5210 | 81970 | 15.73x | 496 | 35110 | 6.74x | 1033 |
+| h264-remux-mkv | 60 | 160 | 2.67x | 169 | 670 | 11.17x | 638 |

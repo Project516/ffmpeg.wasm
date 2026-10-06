@@ -1,34 +1,73 @@
 # Performance
 
-ffmpeg.wasm uses transpiled FFmpeg C source code to WebAssembly code, so it
-does not perform as well as native FFmpeg, even with the multithread core.
-This section has a comparison from an earlier release, so you can size the
-gap when deciding whether ffmpeg.wasm fits your use case:
+ffmpeg.wasm is FFmpeg compiled to WebAssembly, so it is slower than native
+FFmpeg, even with the multithread core. This page sizes the gap on one
+workload so you can decide whether ffmpeg.wasm fits your use case.
+
+The numbers are measured by the CI benchmark job, which runs in Node on a
+GitHub Actions runner, not in a browser. Browser results will differ. They are
+refreshed at each release. The nightly run compares against them as a
+regression watchdog and does not update them. See
+[FATE and benchmarks](./fate-and-benchmarks.md) for how they are produced and
+[FATE and benchmark results](./results.md) for the short 1 second cases.
 
 ## Environment
 
-- CPU: 8 × 11th Gen Intel® Core™ i5-1135G7 @ 2.40GHz
-- Memory: 15.6 GiB of RAM
-- OS: Manjaro Linux 6.1.44-1-MANJARO (64-bit)
-- Browser: Google Chrome Version 116.0.5845.96 (Official Build) (64-bit)
-- FFmpeg: n5.1.2
+- Runner: GitHub Actions `ubuntu-latest`, shared hardware.
+- Runtime: Node.js 22.
+- Cores: `core` (single thread) and `core-mt` (multithread), both built from
+  FFmpeg n9.0.2.
+- Native: ffmpeg 6.1.1-3ubuntu5 from the runner image's package manager, not
+  n9.0.2.
 
 ## Comparison
 
 Setup:
 
-- Each command is executed 5 times.
-- Only `ffmpeg.exec()` time is measured.
-- Candidates
-  - FFmpeg: [native FFmpeg](https://hub.docker.com/r/linuxserver/ffmpeg),
-      considered as baseline.
-  - core: ffmpeg.wasm single thread version.
-  - core-mt: ffmpeg.wasm multi thread version.
+- Command: `ffmpeg -i input.webm output.mp4`.
+- Input: [Big Buck Bunny, 720p VP8, 10 seconds](https://test-videos.co.uk/vids/bigbuckbunny/webm/vp8/720/Big_Buck_Bunny_720_10s_1MB.webm),
+  pinned by SHA-256 in `scripts/bench/run.mjs`.
+- Each command runs 5 times, each in a fresh `node` process, and the median
+  wall time is reported. The time includes process and core startup, which is
+  small next to the transcode here.
+- This case is measured nightly, not on every pull request.
 
-### $ ffmpeg -i [input.webm](https://test-videos.co.uk/vids/bigbuckbunny/webm/vp8/720/Big_Buck_Bunny_720_10s_1MB.webm) output.mp4
+|                | native FFmpeg | core (st) | core-mt |
+| -------------- | ------------- | --------- | ------- |
+| Median time    | 5.2 sec       | 82.0 sec  | 35.1 sec |
+| Time vs native | 1x            | 15.7x     | 6.7x    |
+| Peak memory    | 322 MB        | 496 MB    | 1033 MB |
 
-|  #  | FFmpeg | core v0.12.3 | core-mt v0.12.3 |
-| --- | ------ | ------------ | --------------- |
-| Avg | 5.2 sec | 128.8 sec (0.04x) | 60.4 sec (0.08x) |
-| Max | 5.3 sec | 130.7 sec | 63.9 sec |
-| Min | 5.1 sec | 126.6 sec | 59 sec |
+The multithread core is about 2.3 times faster than the single-thread core on
+this input, but needs `SharedArrayBuffer` and about twice the memory.
+
+## Which core to use
+
+The multithread core pays a fixed cost on every run: it starts a pool of
+worker threads and reserves 1 GB of memory before it does any work. On a long
+transcode that cost is small and the threads win. On a short job it is most of
+the time, and the single-thread core is usually faster. Scaling is the
+exception here, because the scale filter spreads across threads. From the CI
+benchmark, on 1-second clips:
+
+| case                  | core (st) | core-mt |
+| --------------------- | --------- | ------- |
+| H.264 to VP9          | 0.51 sec  | 1.04 sec |
+| H.264 to MPEG-4       | 0.36 sec  | 0.93 sec |
+| Scale to half size    | 1.12 sec  | 0.97 sec |
+| Remux to MKV (`-c copy`) | 0.16 sec | 0.67 sec |
+| 10 sec 720p VP8 to MP4 | 82.0 sec | 35.1 sec |
+
+Use the single-thread core for remuxing (`-c copy`), probing, short clips,
+low-memory devices, and pages that are not cross-origin isolated. Use the
+multithread core to re-encode longer video on machines with spare cores and
+memory.
+
+## Earlier result
+
+The previous version of this page measured v0.12.3 (FFmpeg n5.1.2) on the same
+file and command, in Chrome 116 on an 11th Gen Intel Core i5-1135G7, timing
+only `ffmpeg.exec()`. Native took 5.2 sec, core 128.8 sec (24.8x) and core-mt
+60.4 sec (11.6x). The setups differ (browser on a laptop, then Node on a CI
+runner), so treat the change as a rough indication, not a controlled
+comparison.

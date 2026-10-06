@@ -3,42 +3,66 @@
   "cores": {
     "st": {
       "h264-to-vp9": {
-        "nativeMs": 90,
-        "wasmMs": 430,
-        "ratio": 4.78,
-        "peakRssKb": 222632
+        "nativeMs": 120,
+        "wasmMs": 510,
+        "ratio": 4.25,
+        "peakRssKb": 220652
       },
       "h264-to-mpeg4": {
-        "nativeMs": 70,
-        "wasmMs": 320,
-        "ratio": 4.57,
-        "peakRssKb": 230676
+        "nativeMs": 90,
+        "wasmMs": 360,
+        "ratio": 4,
+        "peakRssKb": 191028
       },
       "scale-half": {
-        "nativeMs": 70,
-        "wasmMs": 910,
-        "ratio": 13,
-        "peakRssKb": 373320
+        "nativeMs": 90,
+        "wasmMs": 1120,
+        "ratio": 12.44,
+        "peakRssKb": 379624
+      },
+      "vp8-720p-to-mp4": {
+        "nativeMs": 5210,
+        "wasmMs": 81970,
+        "ratio": 15.73,
+        "peakRssKb": 508148
+      },
+      "h264-remux-mkv": {
+        "nativeMs": 60,
+        "wasmMs": 160,
+        "ratio": 2.67,
+        "peakRssKb": 173368
       }
     },
     "mt": {
       "h264-to-vp9": {
-        "nativeMs": 90,
-        "wasmMs": 840,
-        "ratio": 9.33,
-        "peakRssKb": 717564
+        "nativeMs": 120,
+        "wasmMs": 1040,
+        "ratio": 8.67,
+        "peakRssKb": 713900
       },
       "h264-to-mpeg4": {
-        "nativeMs": 70,
-        "wasmMs": 860,
-        "ratio": 12.29,
-        "peakRssKb": 704392
+        "nativeMs": 90,
+        "wasmMs": 930,
+        "ratio": 10.33,
+        "peakRssKb": 696276
       },
       "scale-half": {
-        "nativeMs": 70,
-        "wasmMs": 800,
-        "ratio": 11.43,
-        "peakRssKb": 756052
+        "nativeMs": 90,
+        "wasmMs": 970,
+        "ratio": 10.78,
+        "peakRssKb": 746852
+      },
+      "vp8-720p-to-mp4": {
+        "nativeMs": 5210,
+        "wasmMs": 35110,
+        "ratio": 6.74,
+        "peakRssKb": 1057448
+      },
+      "h264-remux-mkv": {
+        "nativeMs": 60,
+        "wasmMs": 670,
+        "ratio": 11.17,
+        "peakRssKb": 653036
       }
     }
   }

@@ -225,8 +225,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0(supports-color@8.1.1))
       '@types/node':
-        specifier: ^22.10.0
-        version: 22.20.4
+        specifier: ^22.20.5
+        version: 22.20.5
       eslint:
         specifier: ^10.12.0
         version: 10.12.0(supports-color@8.1.1)
@@ -254,8 +254,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0(supports-color@8.1.1))
       '@types/node':
-        specifier: ^22.10.0
-        version: 22.20.4
+        specifier: ^22.20.5
+        version: 22.20.5
       eslint:
         specifier: ^10.12.0
         version: 10.12.0(supports-color@8.1.1)
@@ -419,8 +419,8 @@ packages:
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
-  '@types/node@22.20.4':
-    resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==}
+  '@types/node@22.20.5':
+    resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
 
   '@types/node@26.6.2':
     resolution: {integrity: sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==}
@@ -2360,7 +2360,7 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
-  '@types/node@22.20.4':
+  '@types/node@22.20.5':
     dependencies:
       undici-types: 6.21.0
 

@@ -554,7 +554,10 @@ jobs:
 
   benchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Nightly and full-subset dispatch also run the slow 720p case.
+    timeout-minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.subset == 'full')) && 75 || 30 }}
+    env:
+      BENCH_FLAGS: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.subset == 'full')) && '--include-long' || '' }}
     needs:
       - build-core
       - build-core-mt
@@ -599,11 +602,11 @@ jobs:
       - name: Record native FFmpeg version
         run: ffmpeg -version | head -1
       - name: Benchmark native FFmpeg
-        run: node scripts/bench/run.mjs --native --out bench-native.json
+        run: node scripts/bench/run.mjs --native --out bench-native.json $BENCH_FLAGS
       - name: Benchmark st core
-        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
+        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json $BENCH_FLAGS
       - name: Benchmark mt core
-        run: node scripts/bench/run.mjs --core packages/core-mt --label mt --out bench-mt.json
+        run: node scripts/bench/run.mjs --core packages/core-mt --label mt --out bench-mt.json $BENCH_FLAGS
       # jspi needs Node.js 24, so st is run again on it for a like-for-like
       # comparison.
       - name: Setup Node.js 24
@@ -615,7 +618,7 @@ jobs:
         id: bench-st24
         if: steps.jspi.outcome == 'success'
         continue-on-error: true
-        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st-node24.json
+        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st-node24.json $BENCH_FLAGS
       - name: Benchmark jspi core
         id: bench-jspi
         if: steps.bench-st24.outcome == 'success'
@@ -623,7 +626,7 @@ jobs:
         run: |
           # V8 before 13.7 needs the flag; later ones no longer list it.
           flag=$(node --v8-options | grep -o -m1 -e '--experimental-wasm-jspi' || true)
-          node $flag scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json
+          node $flag scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json $BENCH_FLAGS
       - name: Combine into a ratio report
         run: node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-mt.json --out bench-report.json --markdown-out bench-report.md
       - name: Compare jspi with st
