@@ -181,9 +181,9 @@ function reset() {
  */
 function _locateFile(path, prefix) {
   const mainScriptUrlOrBlob = Module["mainScriptUrlOrBlob"];
-  if (mainScriptUrlOrBlob && path.endsWith(".wasm")) {
-    const hash = mainScriptUrlOrBlob.slice(mainScriptUrlOrBlob.lastIndexOf("#") + 1);
-    const { wasmURL } = JSON.parse(atob(hash));
+  const hashAt = mainScriptUrlOrBlob ? mainScriptUrlOrBlob.lastIndexOf("#") : -1;
+  if (hashAt >= 0 && path.endsWith(".wasm")) {
+    const { wasmURL } = JSON.parse(atob(mainScriptUrlOrBlob.slice(hashAt + 1)));
     if (wasmURL) return wasmURL;
   }
   return prefix + path;
