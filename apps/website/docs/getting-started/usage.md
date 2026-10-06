@@ -611,6 +611,13 @@ return a Promise instead of a number, so `await` them.
   while a command runs, because the worker is no longer blocked. With the other
   cores those calls wait for the command to end. Do not touch a file the
   running command is reading or writing.
+- A command can hang intermittently. In two full FATE runs, 10 and 13 of 1055
+  tests (about 1%) never finished and were killed after 80 seconds. Each
+  passed when rerun alone, and each hung after FFmpeg printed its final
+  statistics line, mostly on single-frame image inputs. The default and
+  multi-thread cores had no such failures. The cause is not known. `timeout`
+  cannot interrupt it, because FFmpeg only checks it in the transcode loop.
+  Do not use this core where a hung command is unacceptable.
 - Abort and `timeout` work, in Node.js and in Chromium, Firefox and WebKit
   tests, and they behave as on the other cores. FFmpeg checks for them in its
   transcode loop, so a command stuck inside one decoder call, or before the
@@ -622,9 +629,9 @@ return a Promise instead of a number, so `await` them.
 - The scheduler does not update the engine's stack limits when it switches
   threads. The core is built without stack overflow checks, so nothing reads
   them, but a thread that overflows its stack is not detected.
-- It has only been tested on short clips and FFmpeg's FATE subset in CI. It
-  has had no long-running or large-file testing, and no memory-leak testing
-  over many commands.
+- It has only been tested on short clips in CI, the wrapper test suites and
+  FFmpeg's FATE tests. It has had no long-running or large-file testing, and
+  no memory-leak testing over many commands.
 - It is not on the Playground, and its size is not in `core-sizes.json`.
 
 ## Node.js
