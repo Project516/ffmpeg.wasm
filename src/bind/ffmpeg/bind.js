@@ -145,7 +145,7 @@ function setLogger(logger) {
   Module["logger"] = logger;
 }
 
-function setTimeout(timeout) {
+function setExecTimeout(timeout) {
   Module["timeout"] = timeout;
 }
 
@@ -198,7 +198,7 @@ Module["locateFile"] = _locateFile;
 Module["exec"] = exec;
 Module["ffprobe"] = ffprobe;
 Module["setLogger"] = setLogger;
-Module["setTimeout"] = setTimeout;
+Module["setTimeout"] = setExecTimeout;
 Module["setProgress"] = setProgress;
 Module["reset"] = reset;
 Module["receiveProgress"] = receiveProgress;

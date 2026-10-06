@@ -10,7 +10,12 @@
 // message dispatch (see the comment on that in worker-node-entry.mts); the
 // coverage here is what would catch the two drifting.
 import { createRequire } from "node:module";
-import { mkdtemp, writeFile as writeFileFs, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile as readFileFs,
+  writeFile as writeFileFs,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -371,5 +376,19 @@ describe(genName("FFmpeg.terminate()"), function () {
     } finally {
       ffmpeg.terminate();
     }
+  });
+});
+
+describe(genName("core glue"), function () {
+  // bind.js shares a scope with Emscripten's glue, so a top-level function
+  // named like a global replaces it for the glue too.
+  it("declares no top-level function named like a global", async () => {
+    const bind = await readFileFs(
+      new URL("../src/bind/ffmpeg/bind.js", import.meta.url),
+      "utf8"
+    );
+    const names = [...bind.matchAll(/^function (\w+)\(/gm)].map((m) => m[1]);
+    expect(names).to.include("exec");
+    expect(names.filter((name) => name in globalThis)).to.deep.equal([]);
   });
 });
