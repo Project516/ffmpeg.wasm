@@ -10,7 +10,7 @@
 // Extend this list whenever the Dockerfile adds, removes, or renames a
 // pinned library.
 const DOCKERFILE_TO_ROW = [
-  { row: "Emscripten", patterns: [/FROM emscripten\/emsdk:(\S+)/] },
+  { row: "Emscripten", patterns: [/FROM emscripten\/emsdk:([^\s@]+)/] },
   {
     row: "FFmpeg",
     patterns: [/ENV FFMPEG_VERSION_MT=(\S+)/, /ENV FFMPEG_VERSION_ST=(\S+)/],
