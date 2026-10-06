@@ -59,6 +59,8 @@ Lessons from the shim, so they are not rediscovered:
 - `packages/types`: shared TypeScript types.
 - `src/pthread-fiber`: cooperative pthread shim (Emscripten fibers) the st
   core links so fftools' scheduler runs without `SharedArrayBuffer`.
+  With `PFIBER_JSPI` (`make prd-jspi`, the opt-in `packages/core-jspi`) a switch
+  suspends the wasm stack with JSPI instead; see `build/ffmpeg-wasm.sh`.
 - `build/patches/n9`: patches applied to FFmpeg n9.0.2's own fftools sources
   for both cores; see the comment in the Dockerfile's `ffmpeg-base` stage.
 - `src/bind`: JS glue passed to emcc when building the core.

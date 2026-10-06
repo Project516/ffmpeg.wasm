@@ -7,6 +7,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- An opt-in JSPI single-thread core, built with `make prd-jspi` into
+  `packages/core-jspi` and not published. It runs the same pthread shim but
+  switches threads by suspending the wasm stack with JSPI instead of Asyncify,
+  so `exec()` and `ffprobe()` return Promises and it needs a runtime with JSPI
+  (Chrome 137+, Firefox, Node.js 24+). Its CI job is not a required check
+  (based on upstream ffmpegwasm/ffmpeg.wasm#987).
 - Aborting the `AbortSignal` passed to `exec()` now stops the running command
   where `SharedArrayBuffer` is available (cross-origin isolated pages, and
   Node.js), so the worker is free for the next call. It ends like a timeout

@@ -21,6 +21,7 @@ build:
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 	EXTRA_LDFLAGS="$(EXTRA_LDFLAGS)" \
 	FFMPEG_ST="$(FFMPEG_ST)" \
+	FFMPEG_JSPI="$(FFMPEG_JSPI)" \
 	FFMPEG_MT="$(FFMPEG_MT)" \
 	PRESET="$(PRESET)" \
 		docker buildx build \
@@ -28,6 +29,7 @@ build:
 			--build-arg EXTRA_LDFLAGS \
 			--build-arg FFMPEG_MT \
 			--build-arg FFMPEG_ST \
+			--build-arg FFMPEG_JSPI \
 			--build-arg PRESET \
 			-o ./packages/core$(PKG_SUFFIX) \
 			$(EXTRA_ARGS) \
@@ -37,6 +39,13 @@ build-st:
 	make build \
 		FFMPEG_ST=yes
 
+# Opt-in single-thread core that switches threads with JSPI instead of Asyncify.
+build-jspi:
+	make build \
+		PKG_SUFFIX=-jspi \
+		FFMPEG_ST=yes \
+		FFMPEG_JSPI=yes
+
 build-mt:
 	make build \
 		PKG_SUFFIX=-mt \
@@ -44,6 +53,9 @@ build-mt:
 
 dev:
 	make build-st EXTRA_CFLAGS="$(DEV_CFLAGS)" EXTRA_ARGS="$(DEV_ARGS)"
+
+dev-jspi:
+	make build-jspi EXTRA_CFLAGS="$(DEV_CFLAGS)" EXTRA_ARGS="$(DEV_ARGS)"
 
 dev-mt:
 	make build-mt EXTRA_CFLAGS="$(DEV_MT_CFLAGS)" EXTRA_ARGS="$(DEV_ARGS)"
@@ -53,3 +65,6 @@ prd:
 
 prd-mt:
 	make build-mt EXTRA_CFLAGS="$(PROD_MT_CFLAGS)"
+
+prd-jspi:
+	make build-jspi EXTRA_CFLAGS="$(PROD_CFLAGS)"

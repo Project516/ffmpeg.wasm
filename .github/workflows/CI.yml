@@ -112,6 +112,41 @@ jobs:
           name: ffmpeg-core-mt
           path: packages/core-mt/dist/*
 
+  # Opt-in single-thread core that switches threads with JSPI instead of
+  # Asyncify. Not a required check. Reads the st build cache, which already
+  # holds every library and FFmpeg layer, so only the final link runs when
+  # that cache exists; otherwise this is a full build.
+  build-core-jspi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Expose Actions cache runtime to buildx
+        uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+      - name: Build ffmpeg-core-jspi
+        run: make prd-jspi EXTRA_ARGS="--cache-from=type=gha,scope=st"
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Smoke test a transcode
+        run: |
+          # V8 before 13.7 needs the flag; later ones no longer list it.
+          flag=$(node --v8-options | grep -o -m1 -e '--experimental-wasm-jspi' || true)
+          node --version
+          ls -l packages/core-jspi/dist/umd
+          node $flag tests/ffmpeg-core-jspi.test.mjs
+      - name: Upload core-jspi
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ffmpeg-core-jspi
+          path: packages/core-jspi/dist/*
+
   # The smaller presets in build/presets. Each must build, contain what it
   # promises, and run a short decode and encode. The published packages
   # always ship the full preset (build-core, build-core-mt).

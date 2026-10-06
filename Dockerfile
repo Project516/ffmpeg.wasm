@@ -244,6 +244,10 @@ RUN . /src/preset.env && bash -x /src/build.sh $FFMPEG_FLAGS
 
 # Build ffmpeg.wasm
 FROM ffmpeg-builder AS ffmpeg-wasm-builder
+# Declared here, not in emsdk-base, so the opt-in JSPI build reuses the st
+# build's cached library and FFmpeg layers.
+ARG FFMPEG_JSPI
+ENV FFMPEG_JSPI=$FFMPEG_JSPI
 COPY src/bind /src/src/bind
 COPY src/pthread-fiber /src/src/pthread-fiber
 COPY build/ffmpeg-wasm.sh build.sh
