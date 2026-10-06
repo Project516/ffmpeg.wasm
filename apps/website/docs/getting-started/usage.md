@@ -446,6 +446,22 @@ Required:
 
 Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
 
+## Recover from a core crash
+
+If the core traps or aborts (a `RuntimeError`) during a call, that call
+rejects with the error, every pending call rejects, and the instance is
+unloaded: `ffmpeg.loaded` is `false` and later calls reject with a "not
+loaded" error. The core's memory may be corrupt after a trap, so call
+`load()` to start a new one.
+
+```ts
+try {
+  await ffmpeg.exec(args);
+} catch (e) {
+  if (!ffmpeg.loaded) await ffmpeg.load();
+}
+```
+
 ## Read and write files in chunks
 
 `open()`, `read()`, `write()` and `close()` work on a file descriptor, so a
