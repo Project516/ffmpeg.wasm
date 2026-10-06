@@ -41,6 +41,26 @@ Setup:
 The multithread core is about 2.3 times faster than the single-thread core on
 this input, but needs `SharedArrayBuffer` and about twice the memory.
 
+## Which core to use
+
+The multithread core pays a fixed cost on every run: it starts a pool of
+worker threads and reserves 1 GB of memory before it does any work. On a long
+transcode that cost is small and the threads win. On a short job it is most of
+the time, and the single-thread core is faster. The same CI run, on 1 second
+clips:
+
+| case                  | core (st) | core-mt |
+| --------------------- | --------- | ------- |
+| H.264 to VP9          | 0.51 sec  | 1.04 sec |
+| H.264 to MPEG-4       | 0.36 sec  | 0.93 sec |
+| Scale to half size    | 1.12 sec  | 0.97 sec |
+| 10 sec 720p VP8 to MP4 | 82.0 sec | 35.1 sec |
+
+Use the single-thread core for remuxing (`-c copy`), probing, short clips,
+low-memory devices, and pages that are not cross-origin isolated. Use the
+multithread core to re-encode longer video on machines with spare cores and
+memory.
+
 ## Earlier result
 
 The previous version of this page measured v0.12.3 (FFmpeg n5.1.2) on the same
