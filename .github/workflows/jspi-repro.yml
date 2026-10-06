@@ -41,18 +41,22 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-      - name: Round 1, fresh core per iteration
+      - name: Round 1, process per iteration
         if: always()
         timeout-minutes: 25
-        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode fresh --out repro/fresh
-      - name: Round 2, fresh core with tracing
+        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode proc --out repro/proc
+      - name: Round 2, process per iteration with tracing
+        if: always()
+        timeout-minutes: 25
+        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode proc --trace --out repro/proc-trace
+      - name: Round 3, one process at a time with tracing
+        if: always()
+        timeout-minutes: 25
+        run: node scripts/jspi-repro.mjs --procs 1 --iterations ${{ inputs.iterations || 300 }} --mode proc --trace --out repro/proc1-trace
+      - name: Round 4, fresh core per iteration with tracing
         if: always()
         timeout-minutes: 25
         run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode fresh --trace --out repro/fresh-trace
-      - name: Round 3, one core with tracing
-        if: always()
-        timeout-minutes: 25
-        run: node scripts/jspi-repro.mjs --procs ${{ inputs.procs || 4 }} --iterations ${{ inputs.iterations || 300 }} --mode same --trace --out repro/same-trace
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

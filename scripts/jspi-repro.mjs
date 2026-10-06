@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
 
 function parse(argv) {
-  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, child: null, cases: "jpg,png,mp4" };
+  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, child: null, iter: 0, cases: "jpg,png,mp4" };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === "--trace") a.trace = true;
@@ -35,7 +35,8 @@ function parse(argv) {
     else if (k === "--mode") a.mode = argv[++i];
     else if (k === "--out") a.out = argv[++i];
     else if (k === "--stall") a.stall = Number(argv[++i]);
-    else if (k === "--child") a.child = Number(argv[++i]);
+    else if (k === "--child") { const v = argv[++i]; a.child = v === "prep" ? "prep" : Number(v); }
+    else if (k === "--iter") a.iter = Number(argv[++i]);
     else if (k === "--cases") a.cases = argv[++i];
   }
   return a;
@@ -54,6 +55,7 @@ if (!isMainThread) {
 } else {
   const args = parse(process.argv.slice(2));
   if (args.child == null) await parent(args);
+  else if (args.child === "prep") await prep(args);
   else await child(args);
 }
 
@@ -61,29 +63,55 @@ async function parent(args) {
   fs.mkdirSync(args.out, { recursive: true });
   let hangs = 0;
   let done = 0;
-  await Promise.all(
-    Array.from({ length: args.procs }, (_, i) => new Promise((resolve) => {
-      const p = spawn(process.execPath, [...process.execArgv, scriptPath, ...process.argv.slice(2), "--child", String(i)], { stdio: ["ignore", "pipe", "inherit"] });
-      let buf = "";
-      p.stdout.on("data", (d) => {
-        buf += d;
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl);
-          buf = buf.slice(nl + 1);
-          if (line.startsWith("HANG recorded")) hangs++;
-          if (line.startsWith("DONE")) done++;
-          console.log(`[${i}] ${line}`);
-        }
-      });
-      p.on("exit", (code, sig) => {
-        console.log(`[${i}] child exit code=${code} signal=${sig}`);
-        resolve();
-      });
-    }))
-  );
-  console.log(`SUMMARY procs=${args.procs} iterations/proc=${args.iterations} mode=${args.mode} finished=${done} hangs=${hangs}`);
-  process.exit(hangs > 0 || done < args.procs ? 1 : 0);
+  let bad = 0;
+  const run = (extra, tag) => new Promise((resolve) => {
+    const p = spawn(process.execPath, [...process.execArgv, scriptPath, ...process.argv.slice(2), ...extra], { stdio: ["ignore", "pipe", "inherit"] });
+    let buf = "";
+    p.stdout.on("data", (d) => {
+      buf += d;
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        if (line.startsWith("HANG recorded")) hangs++;
+        if (line.startsWith("DONE")) done++;
+        if (line.startsWith("BAD")) bad++;
+        if (!(args.mode === "proc" && (line === "DONE" || line.startsWith("ok ")))) console.log(`[${tag}] ${line}`);
+      }
+    });
+    p.on("exit", (code, sig) => {
+      if (code !== 0 || args.mode !== "proc") console.log(`[${tag}] child exit code=${code} signal=${sig}`);
+      resolve();
+    });
+  });
+  if (args.mode === "proc") {
+    // One process per iteration, like scripts/fate/run.mjs.
+    await run(["--child", "prep"], "prep");
+    done = 0;
+    await Promise.all(
+      Array.from({ length: args.procs }, async (_, slot) => {
+        for (let i = 0; i < args.iterations; i++) await run(["--child", String(slot), "--iter", String(i)], `${slot}:${i}`);
+      })
+    );
+    console.log(`SUMMARY procs=${args.procs} iterations/proc=${args.iterations} mode=proc finished=${done} expected=${args.procs * args.iterations} hangs=${hangs} bad=${bad}`);
+    process.exit(hangs > 0 || bad > 0 || done < args.procs * args.iterations ? 1 : 0);
+  }
+  await Promise.all(Array.from({ length: args.procs }, (_, i) => run(["--child", String(i)], String(i))));
+  console.log(`SUMMARY procs=${args.procs} iterations/proc=${args.iterations} mode=${args.mode} finished=${done} hangs=${hangs} bad=${bad}`);
+  process.exit(hangs > 0 || bad > 0 || done < args.procs ? 1 : 0);
+}
+
+async function prep(args) {
+  const core = await require(path.resolve(args.core))({});
+  const { VIDEO_1S_MP4, b64ToUint8Array } = require("../tests/test-helper-browser.js");
+  core.FS.writeFile("video.mp4", b64ToUint8Array(VIDEO_1S_MP4));
+  fs.mkdirSync(path.join(args.out, "inputs"), { recursive: true });
+  fs.writeFileSync(path.join(args.out, "inputs", "video.mp4"), core.FS.readFile("video.mp4"));
+  for (const f of ["f.jpg", "f.png"]) {
+    if ((await core.exec("-i", "video.mp4", "-frames:v", "1", "-y", f)) !== 0) throw new Error(`could not make ${f}`);
+    fs.writeFileSync(path.join(args.out, "inputs", f), core.FS.readFile(f));
+  }
+  process.exit(0);
 }
 
 async function child(args) {
@@ -110,19 +138,27 @@ async function child(args) {
     return core;
   };
 
-  const { VIDEO_1S_MP4, b64ToUint8Array } = require("../tests/test-helper-browser.js");
-  const files = { "video.mp4": b64ToUint8Array(VIDEO_1S_MP4) };
-  const boot = await create();
-  boot.FS.writeFile("video.mp4", files["video.mp4"]);
-  for (const f of ["f.jpg", "f.png"]) {
-    if ((await boot.exec("-i", "video.mp4", "-frames:v", "1", "-y", f)) !== 0) throw new Error(`could not make ${f}`);
-    files[f] = boot.FS.readFile(f);
+  const proc = args.mode === "proc";
+  const files = {};
+  let boot = null;
+  if (proc) {
+    for (const f of ["video.mp4", "f.jpg", "f.png"]) files[f] = fs.readFileSync(path.join(args.out, "inputs", f));
+  } else {
+    const { VIDEO_1S_MP4, b64ToUint8Array } = require("../tests/test-helper-browser.js");
+    files["video.mp4"] = b64ToUint8Array(VIDEO_1S_MP4);
+    boot = await create();
+    boot.FS.writeFile("video.mp4", files["video.mp4"]);
+    for (const f of ["f.jpg", "f.png"]) {
+      if ((await boot.exec("-i", "video.mp4", "-frames:v", "1", "-y", f)) !== 0) throw new Error(`could not make ${f}`);
+      files[f] = boot.FS.readFile(f);
+    }
   }
 
   const cases = args.cases.split(",");
   let core = args.mode === "same" ? boot : null;
   const start = Date.now();
-  for (let i = 0; i < args.iterations; i++) {
+  for (let n = 0; n < (proc ? 1 : args.iterations); n++) {
+    const i = proc ? args.iter : n;
     const name = cases[i % cases.length];
     Atomics.store(hb, 1, i);
     Atomics.add(hb, 0, 1);
@@ -132,7 +168,7 @@ async function child(args) {
       traceFd = fs.openSync(traceFile, "a");
       fs.writeSync(traceFd, `iteration ${i} case ${name}\n`);
     }
-    if (args.mode === "fresh") core = await create();
+    if (args.mode === "fresh" || proc) core = await create();
     for (const [f, data] of Object.entries(files)) core.FS.writeFile(f, data);
     const ret = await core.exec(...CASES[name]);
     const size = core.FS.analyzePath(OUTPUT[name]).exists ? core.FS.readFile(OUTPUT[name]).length : 0;
