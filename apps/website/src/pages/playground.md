@@ -1,3 +1,4 @@
+import coreSizes from "@site/src/data/core-sizes.json";
 import BrowserOnly from '@docusaurus/BrowserOnly';
 import MuiThemeProvider from "@site/src/components/common/MuiThemeProvider";
 import ThemedButton from "@site/src/components/common/ThemedButton";
@@ -14,7 +15,7 @@ development!
 
 :::tip Quick Start
 
-1. Wait for assets (~32 MB) downloading.
+1. Wait for assets (about {Math.round(coreSizes.core["ffmpeg-core.wasm"] / 1e6)} MB) downloading.
 2. Press <ThemedButton>Load Sample Files</ThemedButton> to download & add sample files.
 3. Press <ThemedButton variant="contained">Run</ThemedButton> to convert an AVI file to MP4 file.
 4. Download output files.

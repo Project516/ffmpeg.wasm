@@ -1,3 +1,5 @@
+import coreSizes from "@site/src/data/core-sizes.json";
+
 # Usage
 
 Learn the basics of using ffmpeg.wasm.
@@ -5,6 +7,10 @@ Learn the basics of using ffmpeg.wasm.
 :::note
 It is recommended to read [Overview](/docs/overview) first.
 :::
+
+The examples download ffmpeg-core when you press the load button. The
+single-thread core is about {Math.round(coreSizes.core["ffmpeg-core.wasm"] / 1e6)} MB and the multi-thread core about
+{Math.round(coreSizes["core-mt"]["ffmpeg-core.wasm"] / 1e6)} MB, before the CDN compresses them.
 
 ## Transcode webm to mp4 video
 
@@ -58,7 +64,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -119,7 +125,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -172,7 +178,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -230,7 +236,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -300,7 +306,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -359,7 +365,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
@@ -420,7 +426,7 @@ function() {
             </>
         )
         : (
-            <button onClick={load}>Load ffmpeg-core (~31 MB)</button>
+            <button onClick={load}>Load ffmpeg-core</button>
         )
     );
 }
