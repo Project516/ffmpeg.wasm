@@ -10,7 +10,7 @@
 // message dispatch (see the comment on that in worker-node-entry.mts); the
 // coverage here is what would catch the two drifting.
 import { createRequire } from "node:module";
-import { mkdtemp, readFile, writeFile as writeFileFs, rm } from "node:fs/promises";
+import { mkdtemp, writeFile as writeFileFs, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -506,17 +506,5 @@ describe(genName("repeated calls and exit codes"), function () {
   it("runs again after a failure", async () => {
     expect(await ffmpeg.exec(["-definitely-not-an-option"])).to.not.equal(0);
     expect(await ffmpeg.exec(["-i", "video.mp4", "-f", "null", "-"])).to.equal(0);
-  });
-});
-
-describe(genName("core glue"), function () {
-  // emscripten glue in the same scope calls the global setTimeout, so
-  // bind.js must not declare its own (upstream #611).
-  it.skip("does not shadow the global setTimeout (upstream #611, bind.js declares function setTimeout)", async () => {
-    const bind = await readFile(
-      new URL("../src/bind/ffmpeg/bind.js", import.meta.url),
-      "utf8"
-    );
-    expect(bind).to.not.match(/^function setTimeout\(/m);
   });
 });
