@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile-upstream:master-labs
+# syntax=docker/dockerfile:1.10@sha256:865e5dd094beca432e8c0a1d5e1c465db5f998dca4e439981029b3b81fb39ed5
 
 # Base emsdk image with environment variables.
-FROM emscripten/emsdk:6.0.10 AS emsdk-base
+FROM emscripten/emsdk:6.0.10@sha256:e077d54e2b8970575ebc4f185ac1de0b95c05f2b266134d4ba27449af7aebf65 AS emsdk-base
 ARG EXTRA_CFLAGS
 ARG EXTRA_LDFLAGS
 ARG FFMPEG_ST
@@ -15,6 +15,8 @@ ENV INSTALL_DIR=/opt
 # bump can stage st and mt separately again if needed.
 ENV FFMPEG_VERSION_ST=n9.0.2
 ENV FFMPEG_VERSION_MT=n9.0.2
+ENV FFMPEG_COMMIT_ST=946fcce07b6dcd0331c8cc609192aeff5e1924f8
+ENV FFMPEG_COMMIT_MT=946fcce07b6dcd0331c8cc609192aeff5e1924f8
 # Clang shipped with emsdk 6.0.10 defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
 # int/pointer conversions) to hard errors. Some of the bundled third-party
@@ -38,7 +40,8 @@ RUN apt-get update && \
 # patch onto current upstream is out of scope here. Kept pinned as-is.
 FROM emsdk-base AS x264-builder
 ENV X264_BRANCH=4-cores
-ADD https://github.com/ffmpegwasm/x264.git#$X264_BRANCH /src
+ENV X264_COMMIT=33cac6b77d5b9259c552156013a817ab23119612
+ADD https://github.com/ffmpegwasm/x264.git#$X264_COMMIT /src
 COPY build/x264.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -49,7 +52,8 @@ RUN bash -x /src/build.sh
 # upstream.
 FROM emsdk-base AS x265-builder
 ENV X265_BRANCH=4.2
-ADD https://bitbucket.org/multicoreware/x265_git.git#$X265_BRANCH /src
+ENV X265_COMMIT=e444744c03978c1fb4e037168967020cf2648427
+ADD https://bitbucket.org/multicoreware/x265_git.git#$X265_COMMIT /src
 COPY build/x265.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -58,7 +62,8 @@ RUN bash -x /src/build.sh
 # build from canonical upstream.
 FROM emsdk-base AS libvpx-builder
 ENV LIBVPX_BRANCH=v1.17.0
-ADD https://github.com/webmproject/libvpx.git#$LIBVPX_BRANCH /src
+ENV LIBVPX_COMMIT=6df3ec34557879fff673706f4a1d9fbd0f3a6f0e
+ADD https://github.com/webmproject/libvpx.git#$LIBVPX_COMMIT /src
 COPY build/libvpx.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -68,7 +73,8 @@ RUN bash -x /src/build.sh
 # only maintained git source, so it stays pinned to its master branch.
 FROM emsdk-base AS lame-builder
 ENV LAME_BRANCH=master
-ADD https://github.com/ffmpegwasm/lame.git#$LAME_BRANCH /src
+ENV LAME_COMMIT=2badea1974ae36cb8312afe99cff1e6b3b5decee
+ADD https://github.com/ffmpegwasm/lame.git#$LAME_COMMIT /src
 COPY build/lame.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -77,7 +83,8 @@ RUN bash -x /src/build.sh
 # canonical upstream.
 FROM emsdk-base AS ogg-builder
 ENV OGG_BRANCH=v1.3.6
-ADD https://github.com/xiph/ogg.git#$OGG_BRANCH /src
+ENV OGG_COMMIT=be05b13e98b048f0b5a0f5fa8ce514d56db5f822
+ADD https://github.com/xiph/ogg.git#$OGG_COMMIT /src
 COPY build/ogg.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -87,7 +94,8 @@ RUN bash -x /src/build.sh
 FROM emsdk-base AS theora-builder
 COPY --from=ogg-builder $INSTALL_DIR $INSTALL_DIR
 ENV THEORA_BRANCH=v1.1.1
-ADD https://github.com/xiph/theora.git#$THEORA_BRANCH /src
+ENV THEORA_COMMIT=7ffd8b2ecfc2d93ae5e16028e7528e609266bfbf
+ADD https://github.com/xiph/theora.git#$THEORA_COMMIT /src
 COPY build/theora.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -96,7 +104,8 @@ RUN bash -x /src/build.sh
 # canonical upstream.
 FROM emsdk-base AS opus-builder
 ENV OPUS_BRANCH=v1.6.1
-ADD https://github.com/xiph/opus.git#$OPUS_BRANCH /src
+ENV OPUS_COMMIT=22244de5a79bd1d6d623c32e72bf1954b56235be
+ADD https://github.com/xiph/opus.git#$OPUS_COMMIT /src
 COPY build/opus.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -106,7 +115,8 @@ RUN bash -x /src/build.sh
 FROM emsdk-base AS vorbis-builder
 COPY --from=ogg-builder $INSTALL_DIR $INSTALL_DIR
 ENV VORBIS_BRANCH=v1.3.7
-ADD https://github.com/xiph/vorbis.git#$VORBIS_BRANCH /src
+ENV VORBIS_COMMIT=0657aee69dec8508a0011f47f3b69d7538e9d262
+ADD https://github.com/xiph/vorbis.git#$VORBIS_COMMIT /src
 COPY build/vorbis.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -115,7 +125,8 @@ RUN bash -x /src/build.sh
 # from canonical upstream.
 FROM emsdk-base AS zlib-builder
 ENV ZLIB_BRANCH=v1.3.2
-ADD https://github.com/madler/zlib.git#$ZLIB_BRANCH /src
+ENV ZLIB_COMMIT=da607da739fa6047df13e66a2af6b8bec7c2a498
+ADD https://github.com/madler/zlib.git#$ZLIB_COMMIT /src
 COPY build/zlib.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -125,7 +136,8 @@ RUN bash -x /src/build.sh
 FROM emsdk-base AS libwebp-builder
 COPY --from=zlib-builder $INSTALL_DIR $INSTALL_DIR
 ENV LIBWEBP_BRANCH=v1.6.0
-ADD https://github.com/webmproject/libwebp.git#$LIBWEBP_BRANCH /src
+ENV LIBWEBP_COMMIT=4fa21912338357f89e4fd51cf2368325b59e9bd9
+ADD https://github.com/webmproject/libwebp.git#$LIBWEBP_COMMIT /src
 COPY build/libwebp.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -134,14 +146,16 @@ RUN bash -x /src/build.sh
 # canonical upstream (freetype moved its primary repo to gitlab.freedesktop.org).
 FROM emsdk-base AS freetype2-builder
 ENV FREETYPE2_BRANCH=VER-2-14-3
-ADD https://gitlab.freedesktop.org/freetype/freetype.git#$FREETYPE2_BRANCH /src
+ENV FREETYPE2_COMMIT=0a0221a1347e2f1e07c395263540026e9a0aa7c7
+ADD https://gitlab.freedesktop.org/freetype/freetype.git#$FREETYPE2_COMMIT /src
 COPY build/freetype2.sh /src/build.sh
 RUN bash -x /src/build.sh
 
 # Build fribidi
 FROM emsdk-base AS fribidi-builder
 ENV FRIBIDI_BRANCH=v1.0.17
-ADD https://github.com/fribidi/fribidi.git#$FRIBIDI_BRANCH /src
+ENV FRIBIDI_COMMIT=b93119f5fdc7ea47672cc304c1455ffa6dfe7536
+ADD https://github.com/fribidi/fribidi.git#$FRIBIDI_COMMIT /src
 COPY build/fribidi.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -152,7 +166,8 @@ RUN bash -x /src/build.sh
 # so this PR stays focused on the toolchain/library version bump.
 FROM emsdk-base AS harfbuzz-builder
 ENV HARFBUZZ_BRANCH=8.5.0
-ADD https://github.com/harfbuzz/harfbuzz.git#$HARFBUZZ_BRANCH /src
+ENV HARFBUZZ_COMMIT=30485ee8c3d43c553afb9d78b9924cb71c8d2f19
+ADD https://github.com/harfbuzz/harfbuzz.git#$HARFBUZZ_COMMIT /src
 COPY build/harfbuzz.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -162,15 +177,18 @@ COPY --from=freetype2-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=fribidi-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=harfbuzz-builder $INSTALL_DIR $INSTALL_DIR
 ENV LIBASS_BRANCH=0.17.5
-ADD https://github.com/libass/libass.git#$LIBASS_BRANCH /src
+ENV LIBASS_COMMIT=4a05d8127f525943ebf45fdc6497c9e665947f0d
+ADD https://github.com/libass/libass.git#$LIBASS_COMMIT /src
 COPY build/libass.sh /src/build.sh
 RUN bash -x /src/build.sh
 
 # Build zimg
 FROM emsdk-base AS zimg-builder
 ENV ZIMG_BRANCH=release-3.0.6
+ENV ZIMG_COMMIT=f819b14e8f39d1282400b0d9543e8ef73c1b2bbd
 RUN apt-get update && apt-get install -y git
-RUN git clone --recursive -b $ZIMG_BRANCH https://github.com/sekrit-twc/zimg.git /src
+RUN git clone --recursive -b $ZIMG_BRANCH https://github.com/sekrit-twc/zimg.git /src && \
+    test "$(git -C /src rev-parse HEAD)" = "$ZIMG_COMMIT"
 COPY build/zimg.sh /src/build.sh
 RUN bash -x /src/build.sh
 
@@ -186,9 +204,9 @@ FROM emsdk-base AS ffmpeg-base
 # FFMPEG_WASM_ST) forcing av_cpu_count() to 1 so FFmpeg's own codec-level
 # threading stays off.
 COPY build/patches /src-patches
-RUN if [ -n "$FFMPEG_MT" ]; then FFMPEG_VERSION="$FFMPEG_VERSION_MT"; else FFMPEG_VERSION="$FFMPEG_VERSION_ST"; fi && \
+RUN if [ -n "$FFMPEG_MT" ]; then FFMPEG_VERSION="$FFMPEG_VERSION_MT"; FFMPEG_COMMIT="$FFMPEG_COMMIT_MT"; else FFMPEG_VERSION="$FFMPEG_VERSION_ST"; FFMPEG_COMMIT="$FFMPEG_COMMIT_ST"; fi && \
     git clone --depth 1 --branch "$FFMPEG_VERSION" https://github.com/FFmpeg/FFmpeg.git /src && \
-    cd /src && patch -p1 < /src-patches/n9/fftools-wasm.patch
+    cd /src && test "$(git rev-parse HEAD)" = "$FFMPEG_COMMIT" && patch -p1 < /src-patches/n9/fftools-wasm.patch
 COPY --from=x264-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=x265-builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=libvpx-builder $INSTALL_DIR $INSTALL_DIR

@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: "weekly"
 
+  # Keeps the emsdk image and dockerfile syntax digests in the Dockerfile
+  # current. Library commits are bumped by hand.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
   # The root pnpm workspace (packages/*). The apps/ examples are standalone
   # and excluded.
   - package-ecosystem: "npm"
