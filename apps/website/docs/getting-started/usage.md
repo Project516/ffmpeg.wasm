@@ -183,6 +183,8 @@ function() {
 :::danger
 `progress` is an experimental feature and might not work for many cases
 (ex. concat video files, convert image files, ...). Please use with caution.
+`progress` stays between 0 and 1, and stays 0 for an input with no known
+duration until the command ends.
 :::
 
 ```jsx live
@@ -426,25 +428,19 @@ function() {
 
 ## Use WORKERFS
 
-:::note
-Required:
+`mount()` exposes a `File` or `Blob` to ffmpeg without copying it into memory.
+The mount is read-only, so write outputs outside it.
 
-- @project516/ffmpeg-wasm@0.12.10+
-- @project516/ffmpeg-wasm-core@0.12.4+
-  :::
+```ts
+await ffmpeg.mount('WORKERFS', { files: [file] }, '/input');
+await ffmpeg.exec(['-i', `/input/${file.name}`, 'output.mp4']);
+await ffmpeg.unmount('/input');
+```
 
-Please Check this PR: [Add WORKERFS support](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/581)
+Use `{ blobs: [{ name: 'input.mp4', data: blob }] }` for a `Blob` that is not
+a `File`.
 
 ## Abort exec() with signal
-
-:::note
-Required:
-
-- @project516/ffmpeg-wasm@0.12.10+
-- @project516/ffmpeg-wasm-core@0.12.4+
-  :::
-
-Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/pull/573)
 
 Aborting rejects the promise with an `AbortError`. Where `SharedArrayBuffer`
 is available (a cross-origin isolated page, or Node.js) it also stops the
@@ -550,6 +546,8 @@ copies it instead.
 
 Calling `load()` on an already loaded `FFmpeg` keeps the loaded core and
 resolves `false`. Call `terminate()` first to load a different core.
+
+A `file:` URL input needs Node.js 20.16 or later under Node.js.
 
 `extractFrames()` writes `png`, `jpg` or `webp` images. `webp` needs a core
 built with libwebp, which the default core has.
