@@ -391,6 +391,50 @@ describe(genName("FFmpeg"), function () {
   });
 });
 
+describe(genName("exec() abort signal"), function () {
+  this.timeout(60000);
+
+  it("stops the running command and frees the worker", async () => {
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    try {
+      const controller = new AbortController();
+      const started = new Promise((resolve) => {
+        const onLog = ({ message }) => {
+          if (!message.startsWith("Output #0")) return;
+          ffmpeg.off("log", onLog);
+          resolve();
+        };
+        ffmpeg.on("log", onLog);
+      });
+      // Never ends on its own, so a later call only returns if abort stopped it.
+      const running = ffmpeg.exec(
+        ["-re", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=10", "-f", "null", "-"],
+        -1,
+        { signal: controller.signal }
+      );
+      await started;
+      controller.abort();
+
+      let error;
+      try {
+        await running;
+      } catch (e) {
+        error = e;
+      }
+      expect(error.name).to.equal("AbortError");
+
+      const next = await Promise.race([
+        ffmpeg.exec(["-h"]),
+        new Promise((resolve) => setTimeout(resolve, 10000, "timed out")),
+      ]);
+      expect(next).to.equal(0);
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
 describe(genName("FFmpeg.terminate()"), function () {
   this.timeout(60000);
 

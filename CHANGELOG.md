@@ -7,6 +7,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Aborting the `AbortSignal` passed to `exec()` now stops the running command
+  where `SharedArrayBuffer` is available (cross-origin isolated pages, and
+  Node.js), so the worker is free for the next call. It ends like a timeout
+  (exit code `1`) and the promise still rejects with `AbortError`. Without
+  `SharedArrayBuffer` the abort only rejects the promise, as before. `ffprobe()`
+  does not stop (backport of upstream ffmpegwasm/ffmpeg.wasm#978).
 - `open()`, `read()`, `write()` and `close()` read and write a file in chunks
   through a file descriptor (backport of upstream ffmpegwasm/ffmpeg.wasm#984).
   `write()` transfers its `Uint8Array` unless `{ transfer: false }`.
