@@ -147,11 +147,18 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      if (!is_last_report) {
          if (last_time == -1) {
              last_time = cur_time;
-@@ -596,8 +642,14 @@
+@@ -596,8 +642,21 @@
              (first_report && atomic_load(&nb_output_dumped) < nb_output_files))
              return;
          last_time = cur_time;
 +        first_report = 0;
++    }
++
++    if (copy_ts) {
++        if (copy_ts_first_pts == AV_NOPTS_VALUE && pts > 1)
++            copy_ts_first_pts = pts;
++        if (copy_ts_first_pts != AV_NOPTS_VALUE)
++            pts -= copy_ts_first_pts;
      }
  
 +    report_progress(is_last_report, pts);
@@ -162,6 +169,20 @@ diff -ruN a/fftools/ffmpeg.c b/fftools/ffmpeg.c
      t = (cur_time-timer_start) / 1000000.0;
  
      vid = 0;
+@@ -635,13 +694,6 @@
+         }
+     }
+ 
+-    if (copy_ts) {
+-        if (copy_ts_first_pts == AV_NOPTS_VALUE && pts > 1)
+-            copy_ts_first_pts = pts;
+-        if (copy_ts_first_pts != AV_NOPTS_VALUE)
+-            pts -= copy_ts_first_pts;
+-    }
+-
+     us    = FFABS64U(pts) % AV_TIME_BASE;
+     secs  = FFABS64U(pts) / AV_TIME_BASE % 60;
+     mins  = FFABS64U(pts) / AV_TIME_BASE / 60 % 60;
 @@ -704,7 +756,9 @@
      av_bprintf(&buf, " elapsed=%"PRId64":%02d:%02d.%02d", hours, mins, secs, ms / 10);
  
@@ -379,7 +400,19 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  
  static int do_analyze_frames = 0;
  static int do_bitexact = 0;
-@@ -2614,7 +2615,7 @@
+@@ -2569,8 +2570,10 @@
+         return AVERROR(ENOMEM);
+ 
+     err = set_decoders(fmt_ctx);
+-    if (err < 0)
++    if (err < 0) {
++        avformat_free_context(fmt_ctx);
+         return err;
++    }
+     if (!av_dict_get(format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
+         av_dict_set(&format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
+         scan_all_pmts_set = 1;
+@@ -2614,7 +2617,7 @@
  
      ifile->streams = av_calloc(fmt_ctx->nb_streams, sizeof(*ifile->streams));
      if (!ifile->streams)
@@ -388,7 +421,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      ifile->nb_streams = fmt_ctx->nb_streams;
  
      /* bind a decoder to each input stream */
-@@ -2635,15 +2636,15 @@
+@@ -2635,15 +2638,19 @@
              err = filter_codec_opts(codec_opts, stream->codecpar->codec_id,
                                      fmt_ctx, stream, codec, &opts, NULL);
              if (err < 0)
@@ -396,27 +429,43 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
 +                return err;
  
              ist->dec_ctx = avcodec_alloc_context3(codec);
-             if (!ist->dec_ctx)
+-            if (!ist->dec_ctx)
 -                exit(1);
++            if (!ist->dec_ctx) {
++                av_dict_free(&opts);
 +                return AVERROR(ENOMEM);
++            }
  
              err = avcodec_parameters_to_context(ist->dec_ctx, stream->codecpar);
-             if (err < 0)
+-            if (err < 0)
 -                exit(1);
++            if (err < 0) {
++                av_dict_free(&opts);
 +                return err;
++            }
  
              if (do_show_log) {
                  // For logging it is needed to disable at least frame threads as otherwise
-@@ -2659,7 +2660,7 @@
+@@ -2659,14 +2666,17 @@
              if (avcodec_open2(ist->dec_ctx, codec, &opts) < 0) {
                  av_log(NULL, AV_LOG_WARNING, "Could not open codec for input stream %d\n",
                         stream->index);
 -                exit(1);
++                av_dict_free(&opts);
 +                return AVERROR(EINVAL);
              }
  
              if ((t = av_dict_iterate(opts, NULL))) {
-@@ -2785,7 +2786,7 @@
+                 av_log(NULL, AV_LOG_ERROR, "Option %s for input stream %d not found\n",
+                        t->key, stream->index);
++                av_dict_free(&opts);
+                 return AVERROR_OPTION_NOT_FOUND;
+             }
++            av_dict_free(&opts);
+         }
+     }
+ 
+@@ -2785,7 +2795,7 @@
  static void show_usage(void)
  {
      av_log(NULL, AV_LOG_INFO, "Simple multimedia streams analyzer\n");
@@ -425,7 +474,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      av_log(NULL, AV_LOG_INFO, "\n");
  }
  
-@@ -2797,7 +2798,7 @@
+@@ -2797,7 +2807,7 @@
      avtext_print_section_header(tfc, NULL, SECTION_ID_PROGRAM_VERSION);
      print_str("version", FFMPEG_VERSION);
      print_fmt("copyright", "Copyright (c) %d-%d the FFmpeg developers",
@@ -434,7 +483,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      print_str("compiler_ident", CC_IDENT);
      print_str("configuration", FFMPEG_CONFIGURATION);
      avtext_print_section_footer(tfc);
-@@ -3042,7 +3043,15 @@
+@@ -3042,7 +3052,15 @@
      return print_input_filename ? 0 : AVERROR(ENOMEM);
  }
  
@@ -451,7 +500,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  {
      av_log_set_callback(log_callback_help);
      show_usage();
-@@ -3363,7 +3372,100 @@
+@@ -3363,7 +3381,100 @@
              do_show_##varname = 1;                                      \
      } while (0)
  
@@ -553,7 +602,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
  {
      const AVTextFormatter *f;
      AVTextFormatContext *tctx;
-@@ -3373,6 +3475,8 @@
+@@ -3373,6 +3484,8 @@
      int ret, input_ret;
      AVTextFormatDataDump data_dump_format_id = AV_TEXTFORMAT_DATADUMP_XXD;
  
@@ -562,7 +611,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
      init_dynload();
  
      setvbuf(stderr, NULL, _IONBF, 0); /* win32 runtime needs this */
-@@ -3504,7 +3608,7 @@
+@@ -3504,7 +3617,7 @@
               (!do_show_program_version && !do_show_library_versions && !do_show_pixel_formats))) {
              show_usage();
              av_log(NULL, AV_LOG_ERROR, "You have to specify one input file.\n");
@@ -571,7 +620,7 @@ diff -ruN a/fftools/ffprobe.c b/fftools/ffprobe.c
              ret = AVERROR(EINVAL);
          } else if (input_filename) {
              ret = probe_file(tctx, input_filename, print_input_filename);
-@@ -3540,5 +3644,10 @@
+@@ -3540,5 +3653,10 @@
  
      avformat_network_deinit();
  
