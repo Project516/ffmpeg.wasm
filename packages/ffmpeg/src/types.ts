@@ -42,6 +42,8 @@ export interface FFMessageLoadConfig {
 export interface FFMessageExecData {
   args: string[];
   timeout?: number;
+  /** Int32Array on a SharedArrayBuffer; the core stops the command once its first element is non-zero. */
+  abortFlag?: Int32Array;
 }
 
 export interface FFMessageOpenData {

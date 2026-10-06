@@ -265,6 +265,13 @@ export class FFmpeg {
    * const data = ffmpeg.readFile("video.mp4");
    * ```
    *
+   * @remarks
+   * When `signal` aborts, the promise rejects with an `AbortError`. If
+   * `SharedArrayBuffer` is available (cross-origin isolated pages, always on
+   * Node.js) the running command also stops, the way a timeout stops it, and
+   * the worker is free for the next call. Otherwise the command keeps running
+   * in the worker and later calls wait for it to finish.
+   *
    * @returns `0` if no error, `!= 0` if timeout (1) or error.
    * @category FFmpeg
    */
@@ -278,15 +285,30 @@ export class FFmpeg {
      */
     timeout = -1,
     { signal }: FFMessageOptions = {}
-  ): Promise<number> =>
-    this.#send(
-      {
-        type: FFMessageType.EXEC,
-        data: { args, timeout },
-      },
-      undefined,
-      signal
-    ) as Promise<number>;
+  ): Promise<number> => {
+    // The worker is busy running the command, so the signal reaches it through
+    // shared memory the core polls. Without SharedArrayBuffer (pages that are
+    // not cross-origin isolated) an abort only rejects the promise.
+    const canShare =
+      typeof SharedArrayBuffer !== "undefined" &&
+      (globalThis.crossOriginIsolated ?? true);
+    const abortFlag =
+      signal && canShare ? new Int32Array(new SharedArrayBuffer(4)) : undefined;
+    const stop = () => {
+      if (abortFlag) Atomics.store(abortFlag, 0, 1);
+    };
+    signal?.addEventListener("abort", stop, { once: true });
+    return (
+      this.#send(
+        {
+          type: FFMessageType.EXEC,
+          data: { args, timeout, abortFlag },
+        },
+        undefined,
+        signal
+      ) as Promise<number>
+    ).finally(() => signal?.removeEventListener("abort", stop));
+  };
 
   /**
    * Execute ffprobe command.
