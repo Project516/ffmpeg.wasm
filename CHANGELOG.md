@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## 0.16.0
 
 ### Added
 
@@ -15,6 +15,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The core ends the argv array it passes to ffmpeg and ffprobe with `NULL`.
+  0.15.0 could crash on a command whose last argument is an option without a
+  value.
 - A second `load()` on a loaded `FFmpeg` no longer creates a second core and
   leaks the first. It keeps the loaded core and resolves `false`.
 - `load()` names the `wasmURL` in its error when the response is not a
