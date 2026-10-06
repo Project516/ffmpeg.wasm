@@ -10,7 +10,7 @@
 // message dispatch (see the comment on that in worker-node-entry.mts); the
 // coverage here is what would catch the two drifting.
 import { createRequire } from "node:module";
-import { mkdtemp, writeFile as writeFileFs, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile as writeFileFs, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -42,6 +42,9 @@ const corePath = fileURLToPath(
 );
 
 const load = (ffmpeg) => ffmpeg.load(coreURL ? { coreURL } : {});
+
+// Endless input, so a command cannot finish before the call is settled.
+const ENDLESS = ["-f", "lavfi", "-i", "testsrc=d=600:s=16x16", "-f", "null", "-"];
 
 // fetchFile()'s local-path and file: URL branches only run under Node.js,
 // so the browser test suite can't cover them; both core-variant commands
@@ -371,5 +374,149 @@ describe(genName("FFmpeg.terminate()"), function () {
     } finally {
       ffmpeg.terminate();
     }
+  });
+
+  const message = async (promise) => {
+    try {
+      await promise;
+    } catch (err) {
+      return String(err.message ?? err);
+    }
+    return undefined;
+  };
+
+  it("rejects pending calls with the terminate error", async () => {
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    const pending = ffmpeg.exec(ENDLESS);
+    ffmpeg.terminate();
+    expect(await message(pending)).to.match(/terminate/);
+  });
+
+  it("rejects calls made after terminate()", async () => {
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    ffmpeg.terminate();
+    expect(await message(ffmpeg.listDir("/"))).to.match(/not loaded/);
+  });
+
+  it("loads again with a fresh file system", async () => {
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    await ffmpeg.writeFile("/before", "x");
+    ffmpeg.terminate();
+    try {
+      expect(await load(ffmpeg)).to.be.true;
+      const names = (await ffmpeg.listDir("/")).map(({ name }) => name);
+      expect(names).to.not.include("before");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+
+  it("does nothing when never loaded", () => {
+    expect(() => new FFmpeg().terminate()).to.not.throw();
+  });
+});
+
+describe(genName("abort signal"), function () {
+  this.timeout(60000);
+
+  const abortName = async (call) => {
+    const controller = new AbortController();
+    const pending = call(controller.signal);
+    controller.abort();
+    try {
+      await pending;
+    } catch (err) {
+      return err.name;
+    }
+    return undefined;
+  };
+
+  it("rejects exec() and file calls with an AbortError", async () => {
+    const ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    try {
+      expect(
+        await abortName((signal) => ffmpeg.exec(ENDLESS, -1, { signal }))
+      ).to.equal("AbortError");
+      expect(
+        await abortName((signal) => ffmpeg.listDir("/", { signal }))
+      ).to.equal("AbortError");
+    } finally {
+      ffmpeg.terminate();
+    }
+  });
+});
+
+describe(genName("repeated calls and exit codes"), function () {
+  this.timeout(60000);
+
+  let ffmpeg;
+
+  before(async () => {
+    ffmpeg = new FFmpeg();
+    await load(ffmpeg);
+    await ffmpeg.writeFile("video.mp4", b64ToUint8Array(VIDEO_1S_MP4));
+  });
+
+  after(() => {
+    ffmpeg.terminate();
+  });
+
+  it("produces identical output across exec() runs", async () => {
+    const outputs = [];
+    for (let i = 0; i < 3; i++) {
+      const ret = await ffmpeg.exec([
+        "-f", "lavfi", "-i", "testsrc=d=0.3:s=32x24:r=10",
+        "-pix_fmt", "yuv420p", "-f", "yuv4mpegpipe", "repeat.y4m",
+      ]);
+      expect(ret).to.equal(0);
+      outputs.push(Buffer.from(await ffmpeg.readFile("repeat.y4m")));
+      await ffmpeg.deleteFile("repeat.y4m");
+    }
+    expect(outputs[0].length).to.not.equal(0);
+    for (const out of outputs) expect(out).to.deep.equal(outputs[0]);
+  });
+
+  it("does not keep ffprobe options between calls", async () => {
+    const streams = async (...args) => {
+      await ffmpeg.ffprobe([
+        "-v", "error", "-print_format", "json", ...args, "video.mp4", "-o", "p.json",
+      ]);
+      const json = JSON.parse(await ffmpeg.readFile("p.json", "utf8"));
+      await ffmpeg.deleteFile("p.json");
+      return json.streams;
+    };
+    expect(await streams("-show_streams", "-select_streams", "a")).to.have.lengthOf(0);
+    expect(await streams("-show_streams")).to.have.lengthOf(1);
+  });
+
+  it("returns non-zero for bad arguments, a missing input and an unknown encoder", async () => {
+    expect(await ffmpeg.exec(["-definitely-not-an-option"])).to.not.equal(0);
+    expect(await ffmpeg.exec(["-i", "missing.mp4", "missing.avi"])).to.not.equal(0);
+    expect(
+      await ffmpeg.exec([
+        "-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1", "-c:v", "no-such-encoder", "bad.mp4",
+      ])
+    ).to.not.equal(0);
+  });
+
+  it("runs again after a failure", async () => {
+    expect(await ffmpeg.exec(["-definitely-not-an-option"])).to.not.equal(0);
+    expect(await ffmpeg.exec(["-i", "video.mp4", "-f", "null", "-"])).to.equal(0);
+  });
+});
+
+describe(genName("core glue"), function () {
+  // emscripten glue in the same scope calls the global setTimeout, so
+  // bind.js must not declare its own (upstream #611).
+  it.skip("does not shadow the global setTimeout (upstream #611, bind.js declares function setTimeout)", async () => {
+    const bind = await readFile(
+      new URL("../src/bind/ffmpeg/bind.js", import.meta.url),
+      "utf8"
+    );
+    expect(bind).to.not.match(/^function setTimeout\(/m);
   });
 });

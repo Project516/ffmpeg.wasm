@@ -301,3 +301,109 @@ describe(genName("state between calls"), () => {
     core.FS.unlink("probe.json");
   });
 });
+
+describe(genName("exec() repeated calls"), () => {
+  beforeEach(reset);
+
+  it("should produce identical output across runs", () => {
+    const outputs = [];
+    for (let i = 0; i < 5; i++) {
+      expect(
+        core.exec(
+          "-f", "lavfi", "-i", "testsrc=d=0.3:s=32x24:r=10",
+          "-pix_fmt", "yuv420p", "-f", "yuv4mpegpipe", "repeat.y4m"
+        )
+      ).to.equal(0);
+      outputs.push(core.FS.readFile("repeat.y4m"));
+      core.FS.unlink("repeat.y4m");
+    }
+    const [first, ...rest] = outputs;
+    expect(first.length).to.not.equal(0);
+    rest.forEach((out) => expect(out).to.deep.equal(first));
+  });
+
+  it("should not carry inputs and outputs over to the next run", () => {
+    expect(core.exec("-f", "lavfi", "-i", "sine=d=0.2", "carry.wav")).to.equal(0);
+    expect(core.exec("-f", "lavfi", "-i", "testsrc=d=0.2:s=16x16:r=5", "carry.mp4")).to.equal(0);
+    expect(probe("carry.mp4").streams.map((s) => s.codec_type)).to.deep.equal(["video"]);
+    core.FS.unlink("carry.wav");
+    core.FS.unlink("carry.mp4");
+  });
+});
+
+describe(genName("ffprobe() repeated calls"), () => {
+  beforeEach(reset);
+
+  const probeStreams = (...args) => {
+    core.ffprobe("-v", "error", "-print_format", "json", ...args, "video.mp4", "-o", "probe.json");
+    const json = JSON.parse(new TextDecoder().decode(core.FS.readFile("probe.json")));
+    core.FS.unlink("probe.json");
+    return json;
+  };
+
+  it("should not keep -select_streams in a later call", () => {
+    expect(probeStreams("-show_streams", "-select_streams", "a").streams).to.have.lengthOf(0);
+    expect(probeStreams("-show_streams").streams).to.have.lengthOf(1);
+  });
+
+  it("should keep working when calls alternate with exec()", () => {
+    for (let i = 0; i < 3; i++) {
+      expect(probeStreams("-show_format").format.nb_streams).to.equal(1);
+      expect(core.exec("-f", "lavfi", "-i", "sine=d=0.1", "alt.wav")).to.equal(0);
+      core.FS.unlink("alt.wav");
+    }
+  });
+});
+
+describe(genName("exec() exit codes"), () => {
+  beforeEach(reset);
+
+  const run = (...args) => {
+    const logs = [];
+    core.setLogger(({ message }) => logs.push(message));
+    const ret = core.exec(...args);
+    return { ret, log: logs.join("\n") };
+  };
+
+  it("should return non-zero for an unknown option", () => {
+    const { ret, log } = run("-definitely-not-an-option");
+    expect(ret).to.not.equal(0);
+    expect(log).to.match(/Unrecognized option/);
+  });
+
+  it("should return non-zero when the input is missing", () => {
+    const { ret, log } = run("-i", "missing.mp4", "missing.avi");
+    expect(ret).to.not.equal(0);
+    expect(log).to.match(/No such file or directory/);
+  });
+
+  it("should return non-zero for an unknown encoder", () => {
+    const { ret } = run("-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1", "-c:v", "no-such-encoder", "bad.mp4");
+    expect(ret).to.not.equal(0);
+  });
+
+  it("should return non-zero when no output is given", () => {
+    expect(run("-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1").ret).to.not.equal(0);
+  });
+
+  it("should return the value left in core.ret", () => {
+    expect(core.exec("-definitely-not-an-option")).to.equal(core.ret);
+  });
+
+  it("should not throw when ffmpeg aborts", () => {
+    expect(() => core.exec("-i")).to.not.throw();
+  });
+});
+
+describe(genName("reset() handlers"), () => {
+  it("should keep the logger and progress handlers", () => {
+    const logger = () => {};
+    const progress = () => {};
+    core.setLogger(logger);
+    core.setProgress(progress);
+    core.reset();
+    expect(core.logger).to.equal(logger);
+    expect(core.progress).to.equal(progress);
+    reset();
+  });
+});
