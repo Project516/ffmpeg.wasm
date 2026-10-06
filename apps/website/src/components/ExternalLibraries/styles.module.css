@@ -24,13 +24,14 @@
 .textTile {
   display: flex;
   width: fit-content;
-  margin: 0 auto;
+  /* Same 64px box the logos fill inside their 16px padding. */
+  margin: 16px auto;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 96px;
-  min-width: 96px;
-  padding: 16px;
+  height: 64px;
+  min-width: 64px;
+  padding: 0 12px;
   border: 2px solid #1b1b1d;
   border-radius: 8px;
   font-size: 1.25rem;
