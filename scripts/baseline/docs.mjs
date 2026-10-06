@@ -74,7 +74,7 @@ function benchSection(bench) {
   const cases = Object.keys(bench.cores[cores[0]]);
   const lines = ["## Performance", ""];
   lines.push(
-    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. `vp8-720p-to-mp4` transcodes 10 seconds of 720p VP8 and is measured nightly only.`,
+    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured nightly only.`,
     "",
   );
   lines.push(`| case | native (ms) | ${cores.map((c) => `${c} (ms) | ${c} ratio | ${c} peak RSS (MB)`).join(" | ")} |`);
