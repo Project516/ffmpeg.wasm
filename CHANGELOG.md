@@ -36,6 +36,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `load({ classWorkerURL })` works from the UMD build. It resolves the URL
   against the page instead of failing with `Cannot find module`.
+- When the core traps during a call (a wasm `RuntimeError`, such as
+  `unreachable` or an out-of-bounds access), that call rejects with the
+  error, pending calls reject, and the `FFmpeg` instance is unloaded
+  (`loaded` is `false`) instead of running more commands on a broken core.
+  Call `load()` to start a new one (backport of upstream
+  ffmpegwasm/ffmpeg.wasm#979).
 - The core's `setTimeout()` no longer replaces the global `setTimeout` inside
   the core, which Emscripten's own timers (`poll()` and async callbacks) use.
 - The core reads the `wasmURL` hash only when locating the `.wasm` file, and
