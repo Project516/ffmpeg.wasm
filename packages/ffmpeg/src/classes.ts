@@ -27,6 +27,13 @@ declare const __FFMPEG_WORKER_TYPE__: WorkerType;
 const WORKER_TYPE: WorkerType =
   typeof __FFMPEG_WORKER_TYPE__ === "undefined" ? "module" : __FFMPEG_WORKER_TYPE__;
 
+// webpack turns `new URL(variable, import.meta.url)` into a module lookup, and
+// the UMD build has no module URL, so it resolves against the page instead.
+const resolveWorkerURL = (url: string): URL => {
+  const base = WORKER_TYPE === "classic" ? self.location.href : import.meta.url;
+  return new URL(url, base);
+};
+
 type FFMessageOptions = {
   signal?: AbortSignal;
 };
@@ -228,7 +235,7 @@ export class FFmpeg {
   ): Promise<IsFirst> => {
     if (!this.#worker) {
       this.#worker = classWorkerURL ?
-        new Worker(new URL(classWorkerURL, import.meta.url), {
+        new Worker(resolveWorkerURL(classWorkerURL), {
           type: WORKER_TYPE,
         }) :
         // We need to duplicated the code here to enable webpack
