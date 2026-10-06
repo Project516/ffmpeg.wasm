@@ -390,7 +390,7 @@ describe(genName("exec() exit codes"), () => {
     expect(core.exec("-definitely-not-an-option")).to.equal(core.ret);
   });
 
-  it("should not throw when ffmpeg aborts", () => {
+  it("should not throw when an option is missing its argument", () => {
     expect(() => core.exec("-i")).to.not.throw();
   });
 });
