@@ -118,6 +118,7 @@ CONF_FLAGS=(
   $LDFLAGS
   -sENVIRONMENT=web,worker,node             # web for loading the core directly on a page, worker for @project516/ffmpeg-wasm, node for running the worker under Node.js
   -sWASM_BIGINT                            # enable big int support
+  -fexceptions                             # catch zimg's exceptions; JS-based, so it works with Asyncify
   -sDEFAULT_TO_CXX                         # link libc++, which x265 needs
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library
