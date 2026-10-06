@@ -26,7 +26,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- When the core traps or aborts during a call, that call rejects with the
+- When the core traps during a call (a wasm `RuntimeError`, such as
+  `unreachable` or an out-of-bounds access), that call rejects with the
   error, pending calls reject, and the `FFmpeg` instance is unloaded
   (`loaded` is `false`) instead of running more commands on a broken core.
   Call `load()` to start a new one (backport of upstream

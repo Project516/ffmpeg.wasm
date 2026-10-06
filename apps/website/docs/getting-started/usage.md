@@ -448,11 +448,13 @@ Please check this PR: [abort signal](https://github.com/ffmpegwasm/ffmpeg.wasm/p
 
 ## Recover from a core crash
 
-If the core traps or aborts (a `RuntimeError`) during a call, that call
-rejects with the error, every pending call rejects, and the instance is
-unloaded: `ffmpeg.loaded` is `false` and later calls reject with a "not
-loaded" error. The core's memory may be corrupt after a trap, so call
-`load()` to start a new one.
+If the core traps (a wasm `RuntimeError`) during a call, that call rejects
+with the error, every pending call rejects, and the instance is unloaded:
+`ffmpeg.loaded` is `false` and later calls reject with a "not loaded" error.
+The core's memory may be corrupt after a trap, so call `load()` to start a
+new one. An `abort()` inside FFmpeg during `exec()` or `ffprobe()` is not
+treated as a trap: the call resolves with a nonzero exit code and the core
+stays loaded.
 
 ```ts
 try {
