@@ -16,12 +16,12 @@ Dev Build (multithread):
 $ make dev-mt
 ```
 
-Prodution Build (single thread):
+Production Build (single thread):
 ```bash
 $ make prd
 ```
 
-Prodution Build (multithread):
+Production Build (multithread):
 ```bash
 $ make prd-mt
 ```

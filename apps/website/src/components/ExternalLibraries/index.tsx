@@ -5,7 +5,7 @@ import styles from "./styles.module.css";
 interface LibraryItem {
   title: string;
   desc: string;
-  img: string;
+  img?: string;
   isBlackBackground?: boolean;
 }
 
@@ -53,13 +53,30 @@ const libs: LibraryItem[] = [
   },
   {
     title: "libass",
-    desc: "subtitle renderer",
-    img: require("@site/static/img/libs/freetype.png").default,
+    desc: "Subtitle renderer",
   },
   {
     title: "libwebp",
     desc: "WEBP codec",
     img: require("@site/static/img/libs/webp.png").default,
+  },
+  {
+    title: "dav1d",
+    desc: "AV1 decoder",
+    img: require("@site/static/img/libs/dav1d.svg").default,
+  },
+  {
+    title: "harfbuzz",
+    desc: "Text shaping",
+    img: require("@site/static/img/libs/harfbuzz.svg").default,
+  },
+  {
+    title: "fribidi",
+    desc: "Bidirectional text",
+  },
+  {
+    title: "zimg",
+    desc: "Scaling (zscale filter)",
   },
 ];
 
@@ -72,13 +89,17 @@ const Library: React.FC<LibraryItem> = ({
   return (
     <div className={clsx("col col--2")}>
       <div className="text--center">
-        <img
-          src={img}
-          className={clsx(
-            styles.libraryImg,
-            isBlackBackground && styles.blackBackground
-          )}
-        />
+        {img ? (
+          <img
+            src={img}
+            className={clsx(
+              styles.libraryImg,
+              isBlackBackground && styles.blackBackground
+            )}
+          />
+        ) : (
+          <div className={styles.textTile}>{title}</div>
+        )}
       </div>
       <div className="text--center padding-horiz--md">
         <h3>{title}</h3>

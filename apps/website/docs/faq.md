@@ -24,7 +24,8 @@ Ways to speed things up:
 
 - Use `@project516/ffmpeg-wasm-core-mt` on a cross-origin isolated page.
   Threads run FFmpeg's pipeline and the encoders in parallel, at the cost of
-  more memory and CPU.
+  more memory and CPU. FFmpeg sees at most 4 cores, and a command that needs
+  more threads than the pool has fails instead of hanging.
 - Pick a faster preset: `-preset ultrafast` for x264, `-deadline realtime`
   for VP9.
 - Remux with `-c copy` when you do not need to re-encode.
@@ -38,6 +39,11 @@ Ways to speed things up:
 No. Browsers do not give WebAssembly raw TCP or UDP sockets, so network
 protocols such as RTSP and RTMP cannot work. Fetch the input in JavaScript and
 write it to the file system, or use WebRTC or MediaRecorder for live streams.
+
+### Can ffmpeg.wasm decode AV1?
+
+Yes, from the release after 0.16.0, through libdav1d, which the `full`,
+`web` and `decode` presets link. There is no AV1 encoder.
 
 ### What is the license of ffmpeg.wasm?
 
