@@ -42,7 +42,7 @@ write it to the file system, or use WebRTC or MediaRecorder for live streams.
 
 ### Can ffmpeg.wasm decode AV1?
 
-Yes, from the release after 0.16.0, through libdav1d, which the `full`,
+Yes, from 0.17.0, through libdav1d, which the `full`,
 `web` and `decode` presets link. There is no AV1 encoder.
 
 ### What is the license of ffmpeg.wasm?

@@ -1,6 +1,6 @@
 {
   "name": "@project516/ffmpeg-wasm-types",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "ffmpeg.wasm types",
   "types": "types",
   "scripts": {

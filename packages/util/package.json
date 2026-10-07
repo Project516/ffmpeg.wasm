@@ -1,6 +1,6 @@
 {
   "name": "@project516/ffmpeg-wasm-util",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "browser utils for @project516/*",
   "main": "./dist/cjs/index.js",
   "type": "module",
