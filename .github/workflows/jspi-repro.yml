@@ -10,7 +10,7 @@ on:
     inputs:
       iterations:
         type: string
-        default: "60"
+        default: "250"
       procs:
         type: string
         default: "4"
@@ -47,15 +47,15 @@ jobs:
       - name: Round 1, jspi, process.exit
         if: always()
         timeout-minutes: 12
-        run: node scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 60 }} --mode proc --out repro/jspi-exit
+        run: node scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 250 }} --mode proc --out repro/jspi-exit
       - name: Round 2, jspi, no concurrent sparkplug
         if: always()
         timeout-minutes: 12
-        run: node --no-concurrent-sparkplug scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 60 }} --mode proc --out repro/jspi-nosp
+        run: node --no-concurrent-sparkplug scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 250 }} --mode proc --out repro/jspi-nosp
       - name: Round 3, jspi, natural exit
         if: always()
         timeout-minutes: 12
-        run: node scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 60 }} --mode proc --exit natural --out repro/jspi-natural
+        run: node scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 250 }} --mode proc --exit natural --out repro/jspi-natural
       - name: Download the st core
         if: always()
         env:
@@ -64,7 +64,7 @@ jobs:
       - name: Round 4, st core on Node 24, process.exit
         if: always()
         timeout-minutes: 12
-        run: node scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 60 }} --mode proc --core packages/core --out repro/st-exit
+        run: node scripts/jspi-repro.mjs --procs 4 --iterations ${{ inputs.iterations || 250 }} --mode proc --core packages/core --out repro/st-exit
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

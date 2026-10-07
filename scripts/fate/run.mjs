@@ -239,7 +239,10 @@ async function runChild(args) {
 
   const result = await runExec(createFFmpegCore, test, refDir, samplesDir, args.generatedDir);
   writeFileSync(args.result, JSON.stringify(result));
-  process.exit(0);
+  // process.exit() can deadlock Node 24's shutdown on a V8 compile job waiting
+  // for a GC. Only the mt core's workers need it, to end them.
+  if (args.core.endsWith("-mt")) process.exit(0);
+  process.exitCode = 0;
 }
 
 // Spawns this same script as `--index <n>` under a watchdog: detached, in
