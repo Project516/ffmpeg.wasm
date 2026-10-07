@@ -4,7 +4,7 @@
 //
 // Usage: node scripts/update-core-sizes.mjs <version> [--run <run-id>]
 // Default reads the published packages from the jsDelivr data API. --run
-// reads the ffmpeg-core and ffmpeg-core-mt artifacts of a CI run with gh
+// reads the ffmpeg-core, -core-mt and -core-jspi artifacts of a CI run with gh
 // instead, for a release PR whose version is not published yet. The cores
 // are built from the same inputs, so the sizes hold for the tag.
 import { execFileSync } from "node:child_process";
@@ -48,7 +48,7 @@ async function sizesFromJsdelivr(pkg) {
 const sizes = { version };
 const scratch = mkdtempSync(join(tmpdir(), "core-sizes-"));
 try {
-  for (const pkg of ["core", "core-mt"]) {
+  for (const pkg of ["core", "core-mt", "core-jspi"]) {
     sizes[pkg] = flag ? sizesFromRun(pkg, scratch) : await sizesFromJsdelivr(pkg);
   }
 } finally {

@@ -7,5 +7,9 @@
   "core-mt": {
     "ffmpeg-core.js": 113289,
     "ffmpeg-core.wasm": 32778819
+  },
+  "core-jspi": {
+    "ffmpeg-core.js": 97901,
+    "ffmpeg-core.wasm": 32412275
   }
 }
