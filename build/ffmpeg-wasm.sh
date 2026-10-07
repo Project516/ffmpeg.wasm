@@ -56,6 +56,24 @@ if [ -n "${FFMPEG_MT:-}" ]; then
   FFTOOLS+=(src/bind/ffmpeg/threads.c)
 fi
 PTHREAD_FIBER_FLAGS=()
+# How a thread switch is done. FFMPEG_JSPI is the opt-in core-jspi build: the
+# same shim, but a switch suspends the wasm stack with JSPI. exec() and
+# ffprobe() then return Promises; see runCommand in src/bind/ffmpeg/bind.js.
+if [ -n "${FFMPEG_JSPI:-}" ]; then
+  PTHREAD_FIBER_SWITCH_FLAGS=(
+    -sJSPI
+    -sJSPI_EXPORTS=ffmpeg,ffprobe,pfiber_enter
+    -DPFIBER_JSPI
+  )
+else
+  PTHREAD_FIBER_SWITCH_FLAGS=(
+    -sASYNCIFY
+    # Sizes the single module-wide asyncify stack, which only emscripten_sleep()
+    # uses and nothing here calls. Each fiber carries its own asyncify stack
+    # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
+    -sASYNCIFY_STACK_SIZE=65536
+  )
+fi
 
 if [ -n "${FFMPEG_ST:-}" ]; then
   FFTOOLS+=(src/pthread-fiber/pthread_fiber.c)
@@ -64,18 +82,14 @@ if [ -n "${FFMPEG_ST:-}" ]; then
   # mutex/cond calls are redirected to src/pthread-fiber's cooperative
   # scheduler built on Emscripten fibers.
   #
-  # ASYNCIFY is required, not optional: emscripten implements
+  # ASYNCIFY is required, not optional (core-jspi uses JSPI instead): emscripten implements
   # emscripten_fiber_swap itself in src/lib/libasync.js and a build without
   # ASYNCIFY only gets a stub that aborts. What the scheduler must not do is
   # call emscripten_sleep(), which would start a second asyncify operation
   # while a fiber swap is still rewinding; see pf_idle_wait in
   # src/pthread-fiber/pthread_fiber.c.
   PTHREAD_FIBER_FLAGS+=(
-    -sASYNCIFY
-    # Sizes the single module-wide asyncify stack, which only emscripten_sleep()
-    # uses and nothing here calls. Each fiber carries its own asyncify stack
-    # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
-    -sASYNCIFY_STACK_SIZE=65536
+    "${PTHREAD_FIBER_SWITCH_FLAGS[@]}"
     # ASSERTIONS also turns on emscripten's checkIncomingModuleAPI(), which
     # aborts at load when the caller supplies a Module property that is not in
     # INCOMING_MODULE_JS_API. @project516/ffmpeg-wasm always supplies

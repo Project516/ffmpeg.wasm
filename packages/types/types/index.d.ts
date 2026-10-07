@@ -162,6 +162,16 @@ export interface FFmpegCoreModule {
 }
 
 /**
+ * The experimental JSPI core (`@project516/ffmpeg-wasm-core-jspi`), whose
+ * exec() and ffprobe() return a Promise.
+ */
+export interface FFmpegCoreJspiModule
+  extends Omit<FFmpegCoreModule, "exec" | "ffprobe"> {
+  exec: (...args: string[]) => Promise<number>;
+  ffprobe: (...args: string[]) => Promise<number>;
+}
+
+/**
  * Factory of FFmpegCoreModule.
  */
 export type FFmpegCoreModuleFactory = (

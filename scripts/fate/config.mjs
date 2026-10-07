@@ -58,7 +58,7 @@ export const MAK_FILES = [
 // Tests that fail on a core for a known reason. They are reported as
 // skipped with that reason and never run, so a hang cannot cost the job its
 // per-test timeout. Remove an entry once the underlying bug is fixed.
-// Keys are test names without the "fate-" prefix; "cores" defaults to both.
+// Keys are test names without the "fate-" prefix; "cores" defaults to all of st, mt and jspi.
 //   "h264-conformance-foo": { reason: "why it fails", cores: ["st"] }
 export const KNOWN_FAILURES = {
   "matroska-prores-header-insertion-bz2": { reason: "needs bzip2, which the cores are built without" },

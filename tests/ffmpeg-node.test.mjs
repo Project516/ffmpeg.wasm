@@ -1,9 +1,9 @@
 // Node.js tests for the @project516/ffmpeg-wasm wrapper: load, every
 // FFMessageType the worker handles (exec, ffprobe, the filesystem calls,
 // mount/unmount, log/progress events), a timeout, and terminate, run
-// against both the st and the mt core. Select the core with a --mt
-// argument (defaults to st); see the test:node:ffmpeg:* scripts in the
-// root package.json. A CLI flag, not an environment variable, so the
+// against the st, mt and (experimental) jspi cores. Select the core with a
+// --mt or --jspi argument (defaults to st); see the test:node:ffmpeg:*
+// scripts in the root package.json. jspi needs Node.js 24. A CLI flag, not an environment variable, so the
 // scripts stay portable to Windows' default shell.
 //
 // worker.ts and worker-node-entry.mts each implement their own copy of the
@@ -26,7 +26,7 @@ import { fetchFile } from "@project516/ffmpeg-wasm-util";
 const require = createRequire(import.meta.url);
 const { VIDEO_1S_MP4, b64ToUint8Array } = require("./test-helper-browser.js");
 
-const FFMPEG_TYPE = process.argv.includes("--mt") ? "mt" : "st";
+const FFMPEG_TYPE = process.argv.includes("--mt") ? "mt" : process.argv.includes("--jspi") ? "jspi" : "st";
 const genName = (name) => `[ffmpeg][node:${FFMPEG_TYPE}] ${name}`;
 
 // The st core is resolved from node_modules by FFmpeg.load() itself when
@@ -34,14 +34,14 @@ const genName = (name) => `[ffmpeg][node:${FFMPEG_TYPE}] ${name}`;
 // such default, so it is pointed at explicitly; see the Node.js section
 // of the usage docs.
 const coreURL =
-  FFMPEG_TYPE === "mt" ?
-    new URL("../packages/core-mt/dist/esm/ffmpeg-core.js", import.meta.url)
-      .href :
-    undefined;
+  FFMPEG_TYPE === "st" ?
+    undefined :
+    new URL(`../packages/core-${FFMPEG_TYPE}/dist/esm/ffmpeg-core.js`, import.meta.url)
+      .href;
 
 const corePath = fileURLToPath(
   new URL(
-    `../packages/core${FFMPEG_TYPE === "mt" ? "-mt" : ""}/dist/esm/ffmpeg-core.js`,
+    `../packages/core${FFMPEG_TYPE === "st" ? "" : `-${FFMPEG_TYPE}`}/dist/esm/ffmpeg-core.js`,
     import.meta.url
   )
 );

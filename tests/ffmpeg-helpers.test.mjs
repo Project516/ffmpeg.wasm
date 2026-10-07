@@ -1,5 +1,5 @@
 // Runs probe(), transcode() and extractFrames() against a real core under
-// Node.js. Select the core with a --mt argument (defaults to st), like
+// Node.js. Select the core with a --mt or --jspi argument (defaults to st), like
 // tests/ffmpeg-node.test.mjs. tests/ffmpeg-helpers-args.test.mjs covers the
 // argument building without a core.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -13,13 +13,13 @@ import { FFmpeg, extractFrames, probe, transcode } from "@project516/ffmpeg-wasm
 const require = createRequire(import.meta.url);
 const { VIDEO_1S_MP4, b64ToUint8Array } = require("./test-helper-browser.js");
 
-const FFMPEG_TYPE = process.argv.includes("--mt") ? "mt" : "st";
+const FFMPEG_TYPE = process.argv.includes("--mt") ? "mt" : process.argv.includes("--jspi") ? "jspi" : "st";
 const genName = (name) => `[helpers][node:${FFMPEG_TYPE}] ${name}`;
 
 const coreURL =
-  FFMPEG_TYPE === "mt" ?
-    new URL("../packages/core-mt/dist/esm/ffmpeg-core.js", import.meta.url).href :
-    undefined;
+  FFMPEG_TYPE === "st" ?
+    undefined :
+    new URL(`../packages/core-${FFMPEG_TYPE}/dist/esm/ffmpeg-core.js`, import.meta.url).href;
 
 const videoStream = (info) => info.streams.find((s) => s.codec_type === "video");
 const isPng = (data) => data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47;

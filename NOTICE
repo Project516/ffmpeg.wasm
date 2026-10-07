@@ -17,10 +17,11 @@ the distribution; that is what LICENSES/MIT-ffmpegwasm.txt is for.
 Why the core packages are AGPL-3.0-or-later
 --------------------------------------------
 
-@project516/ffmpeg-wasm-core and @project516/ffmpeg-wasm-core-mt embed FFmpeg
-built with --enable-gpl, plus the third-party libraries listed below. FFmpeg's
-own project states that building with --enable-gpl changes its effective
-license from LGPL-2.1-or-later to GPL-2.0-or-later (https://ffmpeg.org/legal.html).
+@project516/ffmpeg-wasm-core, @project516/ffmpeg-wasm-core-mt and
+@project516/ffmpeg-wasm-core-jspi embed FFmpeg built with --enable-gpl, plus
+the third-party libraries listed below. FFmpeg's own project states that
+building with --enable-gpl changes its effective license from LGPL-2.1-or-later
+to GPL-2.0-or-later (https://ffmpeg.org/legal.html).
 Every GPL-licensed library this project links in is licensed "or later," not
 GPLv2-only, so combining them with this project's AGPL-3.0-or-later code is
 permitted: GPLv3 section 13 and AGPLv3 section 13 each grant explicit

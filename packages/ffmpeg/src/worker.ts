@@ -2,7 +2,7 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
+import type { FFmpegCoreJspiModule, FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
 import type {
   FFMessageEvent,
   FFMessageLoadConfig,
@@ -45,7 +45,7 @@ interface ImportedFFmpegCoreModuleFactory {
   default: FFmpegCoreModuleFactory;
 }
 
-let ffmpeg: FFmpegCoreModule;
+let ffmpeg: FFmpegCoreModule | FFmpegCoreJspiModule;
 // Set while a load() is in flight or done; see load().
 let loading: Promise<void> | null = null;
 
@@ -131,22 +131,44 @@ const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
   return true;
 };
 
-const exec = ({ args, timeout = -1, abortFlag }: FFMessageExecData): ExitCode => {
-  ffmpeg.setTimeout(timeout);
-  if (abortFlag) ffmpeg.setAbortFlag(abortFlag);
-  ffmpeg.exec(...args);
-  const ret = ffmpeg.ret;
-  ffmpeg.reset();
-  return ret;
+// The JSPI core returns a Promise from exec() and ffprobe(), and throws if a
+// command starts while another runs.
+let lastCommand: Promise<unknown> = Promise.resolve();
+const queueCommand = <T>(run: () => Promise<T>): Promise<T> => {
+  const next = lastCommand.then(run, run);
+  lastCommand = next.catch(() => {});
+  return next;
 };
 
-const ffprobe = ({ args, timeout = -1 }: FFMessageExecData): ExitCode => {
-  ffmpeg.setTimeout(timeout);
-  ffmpeg.ffprobe(...args);
-  const ret = ffmpeg.ret;
-  ffmpeg.reset();
-  return ret;
-};
+const exec = ({
+  args,
+  timeout = -1,
+  abortFlag,
+}: FFMessageExecData): Promise<ExitCode> =>
+  queueCommand(async () => {
+    ffmpeg.setTimeout(timeout);
+    if (abortFlag) ffmpeg.setAbortFlag(abortFlag);
+    try {
+      await ffmpeg.exec(...args);
+      return ffmpeg.ret;
+    } finally {
+      ffmpeg.reset();
+    }
+  });
+
+const ffprobe = ({
+  args,
+  timeout = -1,
+}: FFMessageExecData): Promise<ExitCode> =>
+  queueCommand(async () => {
+    ffmpeg.setTimeout(timeout);
+    try {
+      await ffmpeg.ffprobe(...args);
+      return ffmpeg.ret;
+    } finally {
+      ffmpeg.reset();
+    }
+  });
 
 const writeFile = ({ path, data }: FFMessageWriteFileData): OK => {
   ffmpeg.FS.writeFile(path, data);
@@ -244,10 +266,10 @@ self.onmessage = async ({
         data = await load(_data as FFMessageLoadConfig);
         break;
       case FFMessageType.EXEC:
-        data = exec(_data as FFMessageExecData);
+        data = await exec(_data as FFMessageExecData);
         break;
       case FFMessageType.FFPROBE:
-        data = ffprobe(_data as FFMessageExecData);
+        data = await ffprobe(_data as FFMessageExecData);
         break;
       case FFMessageType.OPEN:
         data = open(_data as FFMessageOpenData);

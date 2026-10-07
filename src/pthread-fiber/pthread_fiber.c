@@ -15,9 +15,17 @@
  * several of these names as plain strong symbols; wrapping redirects only
  * the symbols we actually replace and leaves the rest of that stub object
  * (pthread_rwlock_*, sem_*, barriers) untouched.
+ *
+ * With PFIBER_JSPI (the opt-in core-jspi build) the scheduler is the same but
+ * a switch suspends the wasm stack through JSPI instead of swapping Asyncify
+ * fibers, so there are no asyncify stacks. See src/bind/ffmpeg/bind.js.
  */
 
+#ifdef PFIBER_JSPI
+#include <emscripten/em_js.h>
+#else
 #include <emscripten/fiber.h>
+#endif
 #include <emscripten/emscripten.h>
 #include <emscripten/stack.h>
 
@@ -65,7 +73,12 @@
  * single module-wide stack that only emscripten_sleep() uses. Nothing here
  * calls that. */
 #define PFIBER_STACK_SIZE (8 * 1024 * 1024)
+#ifdef PFIBER_JSPI
+/* Suspended JSPI stacks live in the engine, not in this region. */
+#define PFIBER_ASYNCIFY_STACK_SIZE 0
+#else
 #define PFIBER_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
+#endif
 
 /* Both stacks come out of one allocation, asyncify stack last, with this much
  * slack after it.
@@ -85,7 +98,11 @@
  * damage onward. The slack is a megabyte because that is more unwinding than
  * any call in FFmpeg does; reaching the far end of it means something is
  * recursing without bound, which is worth knowing. */
+#ifdef PFIBER_JSPI
+#define PFIBER_GUARD_SIZE 0
+#else
 #define PFIBER_GUARD_SIZE (1 * 1024 * 1024)
+#endif
 /* The wasm C ABI requires a 16-byte aligned stack and the compiler relies on
  * it: musl's __stdio_write forms iov+1 as `iov | 8`, which is iov when the
  * stack is only 8-byte aligned, so it passes a zero-length iovec and loops
@@ -105,7 +122,11 @@
 #define PFIBER_MAIN_ASYNCIFY_STACK_SIZE (8 * 1024 * 1024)
 
 typedef struct pfiber {
+#ifdef PFIBER_JSPI
+    int started;                /* its stack has been entered at least once */
+#else
     emscripten_fiber_t ctx;
+#endif
     char *region;               /* the malloc block holding both stacks */
     char *c_stack;
     char *asyncify_stack;
@@ -174,7 +195,9 @@ static double g_rate_ms;
 static unsigned long long g_mutex_spins;
 /* g_main's stack bounds. Read during reset, because once a fiber has run they
  * report whichever fiber was last entered. */
+#ifndef PFIBER_JSPI
 static void *g_main_stack_base, *g_main_stack_limit;
+#endif
 
 /* Same epoch mechanism as pf_mutex_t, for the same reason: the block behind a
  * cond_var outlives the exec() that allocated it, because FFmpeg's cond_vars
@@ -441,6 +464,9 @@ static void pfiber_reset(void)
     free(g_main.asyncify_stack);
     memset(&g_main, 0, sizeof(g_main));
     g_main.state = PF_RUNNABLE;
+#ifdef PFIBER_JSPI
+    g_main.started = 1;
+#else
     /* See g_main_stack_base: this is the one moment they still describe it. */
     g_main_stack_base = (void *)emscripten_stack_get_base();
     g_main_stack_limit = (void *)emscripten_stack_get_end();
@@ -458,6 +484,7 @@ static void pfiber_reset(void)
     }
     emscripten_fiber_init_from_current_context(&g_main.ctx, g_main.asyncify_stack,
                                                 g_main.asyncify_stack_size);
+#endif
     g_current = &g_main;
     g_last_switch_ms = pf_now_ms();
     g_switches = 0;
@@ -515,6 +542,7 @@ static void pf_wake_waiters_on(void *ptr)
  * happened. It is a report, not prevention: the distance past the end is what
  * says whether the buffer is too small, which is the number needed to size it.
  */
+#ifndef PFIBER_JSPI
 static void pf_check_asyncify_stack(pfiber_t *f)
 {
     char *low = f->asyncify_stack;
@@ -533,6 +561,7 @@ static void pf_check_asyncify_stack(pfiber_t *f)
     pf_report_js(msg);
     abort();
 }
+#endif
 
 /*
  * The scheduler. Called from every blocking point. On each pass:
@@ -540,7 +569,7 @@ static void pf_check_asyncify_stack(pfiber_t *f)
  *     never inside the exiting fiber itself, since a fiber must not free
  *     its own currently-in-use stack).
  *  2. Round-robin to the next PF_RUNNABLE fiber other than the current one.
- *  3. If one exists, swap to it.
+ *  3. If one exists, switch to it.
  *  4. If none exists and the caller was only voluntarily yielding (still
  *     PF_RUNNABLE), just return.
  *  5. If none exists and the caller is genuinely blocked, spin until a
@@ -548,7 +577,7 @@ static void pf_check_asyncify_stack(pfiber_t *f)
  *     aborts if nothing is runnable and no deadline is pending, so a real
  *     deadlock fails loudly instead of hanging.
  */
-static void pfiber_reschedule(void)
+static pfiber_t *pfiber_pick(void)
 {
     for (;;) {
         pf_report_if_stalled(pf_now_ms());
@@ -603,34 +632,68 @@ static void pfiber_reschedule(void)
             }
         }
 
-        if (next) {
-            g_switches++;
-            g_last_switch_ms = pf_now_ms();
-            pfiber_t *prev = g_current;
-            g_current = next;
-            emscripten_fiber_swap(&prev->ctx, &next->ctx);
-            /* Only the way back needs fixing up, and only for g_main: it runs
-             * on the module stack, which
-             * emscripten_fiber_init_from_current_context does not record in
-             * g_main.ctx, so restoring from there leaves a fiber's bounds in
-             * force and bind.js's stackRestore aborts. */
-            if (prev == &g_main)
-                emscripten_stack_set_limits(g_main_stack_base,
-                                            g_main_stack_limit);
-            else
-                emscripten_stack_set_limits(prev->ctx.stack_base,
-                                            prev->ctx.stack_limit);
-            /* Control is back on prev, so prev's unwind has just finished and
-             * its asyncify stack pointer is where the unwind stopped. */
-            pf_check_asyncify_stack(prev);
-            return;
-        }
+        if (next)
+            return next;
 
         if (g_current->state == PF_RUNNABLE)
-            return;
+            return NULL;
 
         pf_idle_wait(0);
     }
+}
+
+#ifdef PFIBER_JSPI
+/* A thread is a suspended wasm stack. bind.js queues the next thread to
+ * start or resume once the current one has suspended or returned. */
+EM_JS(void, pf_jspi_run, (pfiber_t *next, int start, void *top), {
+  Module["pfiberRun"](next, start, top);
+});
+
+EM_ASYNC_JS(void, pf_jspi_switch,
+            (pfiber_t *self, pfiber_t *next, int start, void *top), {
+  await Module["pfiberSwitch"](self, next, start, top);
+});
+
+/* Starts or resumes next; a new thread starts on top of its own C stack. */
+static void pfiber_enter_next(pfiber_t *prev, pfiber_t *next)
+{
+    int start = !next->started;
+    void *top = next->c_stack + next->c_stack_size;
+    next->started = 1;
+    if (prev)
+        pf_jspi_switch(prev, next, start, top);
+    else
+        pf_jspi_run(next, start, top);
+}
+#endif
+
+static void pfiber_reschedule(void)
+{
+    pfiber_t *next = pfiber_pick();
+    if (!next)
+        return;
+
+    g_switches++;
+    g_last_switch_ms = pf_now_ms();
+    pfiber_t *prev = g_current;
+    g_current = next;
+#ifdef PFIBER_JSPI
+    pfiber_enter_next(prev, next);
+#else
+    emscripten_fiber_swap(&prev->ctx, &next->ctx);
+    /* Only the way back needs fixing up, and only for g_main: it runs
+     * on the module stack, which
+     * emscripten_fiber_init_from_current_context does not record in
+     * g_main.ctx, so restoring from there leaves a fiber's bounds in
+     * force and bind.js's stackRestore aborts. */
+    if (prev == &g_main)
+        emscripten_stack_set_limits(g_main_stack_base, g_main_stack_limit);
+    else
+        emscripten_stack_set_limits(prev->ctx.stack_base, prev->ctx.stack_limit);
+    /* Control is back on prev, so prev's unwind has just finished and
+     * its asyncify stack pointer is where the unwind stopped. */
+    pf_check_asyncify_stack(prev);
+#endif
 }
 
 /* Entry point for every worker fiber. Never returns: once a fiber's
@@ -649,6 +712,15 @@ static void pfiber_trampoline(void *arg)
         f->join_waiter = NULL;
     }
 
+#ifdef PFIBER_JSPI
+    /* Returning ends this thread's promise; the next one runs from a fresh
+     * task, since this stack is about to be reaped. */
+    pfiber_t *next = pfiber_pick();
+    g_switches++;
+    g_last_switch_ms = pf_now_ms();
+    g_current = next;
+    pfiber_enter_next(NULL, next);
+#else
     /* Never returns: a fiber that has finished has nothing to return to.
      * PF_DONE keeps the scheduler from selecting it again, so this loop only
      * runs while this fiber is still the current one, and the next pass hands
@@ -659,7 +731,16 @@ static void pfiber_trampoline(void *arg)
      * bounds the leak to one exec(), and ffmpeg_sched joins all of its tasks. */
     for (;;)
         pfiber_reschedule();
+#endif
 }
+
+#ifdef PFIBER_JSPI
+/* Called from bind.js as a promising export, on the thread's own C stack. */
+void pfiber_enter(pfiber_t *f)
+{
+    pfiber_trampoline(f);
+}
+#endif
 
 int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                            void *(*start_routine)(void *), void *arg)
@@ -706,8 +787,10 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
     f->start_routine = start_routine;
     f->arg = arg;
 
+#ifndef PFIBER_JSPI
     emscripten_fiber_init(&f->ctx, pfiber_trampoline, f, c_stack, PFIBER_STACK_SIZE,
                            asyncify_stack, PFIBER_ASYNCIFY_STACK_SIZE);
+#endif
     f->state = PF_RUNNABLE;
 
     /* Do not swap to it now; the caller (fftools sets up all its threads up

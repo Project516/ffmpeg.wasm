@@ -27,6 +27,7 @@ The fork publishes these packages on npm under the `@project516` scope:
 - [`@project516/ffmpeg-wasm-util`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-util): functions for fetching files and loading the core.
 - [`@project516/ffmpeg-wasm-core`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-core): the single-thread core.
 - [`@project516/ffmpeg-wasm-core-mt`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-core-mt): the multi-thread core.
+- [`@project516/ffmpeg-wasm-core-jspi`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-core-jspi): an experimental single-thread core that uses JSPI.
 - [`@project516/ffmpeg-wasm-types`](https://www.npmjs.com/package/@project516/ffmpeg-wasm-types): the TypeScript types.
 
 The packages are drop-in replacements for `@ffmpeg/ffmpeg`, `@ffmpeg/util`, `@ffmpeg/core`, and `@ffmpeg/core-mt`: change the import paths and keep the same API.

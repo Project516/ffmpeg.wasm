@@ -1,19 +1,21 @@
 // Runs the Mocha pages in tests/ in a Playwright browser and prints failing
 // test titles with their errors.
-// Usage: node scripts/test-browser.mjs <chromium|firefox|webkit> <isolated|plain>
+// Usage: node scripts/test-browser.mjs <chromium|firefox|webkit> <isolated|plain|jspi>
 // plain serves without COOP/COEP (no SharedArrayBuffer) and skips the mt page.
+// jspi serves isolated and runs only the experimental JSPI core's page.
 import { chromium, firefox, webkit } from "playwright";
 import { serve } from "./serve.mjs";
 
 const [browserName = "chromium", mode = "isolated"] = process.argv.slice(2);
 const launcher = { chromium, firefox, webkit }[browserName];
-if (!launcher || !["isolated", "plain"].includes(mode)) {
-  console.error("usage: test-browser.mjs <chromium|firefox|webkit> <isolated|plain>");
+if (!launcher || !["isolated", "plain", "jspi"].includes(mode)) {
+  console.error("usage: test-browser.mjs <chromium|firefox|webkit> <isolated|plain|jspi>");
   process.exit(2);
 }
-const isolated = mode === "isolated";
-const pages = ["ffmpeg-core-st", "ffmpeg-st", "ffmpeg-esm-fallback"];
-if (isolated) pages.push("ffmpeg-mt");
+const isolated = mode !== "plain";
+const pages =
+  mode === "jspi" ? ["ffmpeg-jspi"] : ["ffmpeg-core-st", "ffmpeg-st", "ffmpeg-esm-fallback"];
+if (mode === "isolated") pages.push("ffmpeg-mt");
 const PAGE_TIMEOUT_MS = 8 * 60 * 1000;
 
 // A page whose core spins natively never answers evaluate() or close().

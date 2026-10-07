@@ -45,3 +45,7 @@ jsdelivr. It is recommended to download it and host it on your server most of th
 :::note
 In the browser, `load()` fetches the core from a CDN by default, so `@project516/ffmpeg-wasm-core` does not need to be installed. In Node.js there is no CDN default: install `@project516/ffmpeg-wasm-core` (or `@project516/ffmpeg-wasm-core-mt` for the multithread core) yourself, or pass `coreURL` to `load()`. See [Usage](/docs/getting-started/usage#nodejs).
 :::
+
+:::note
+`@project516/ffmpeg-wasm-core-jspi` is an experimental single-thread core that uses JSPI. See [Usage](/docs/getting-started/usage#experimental-jspi-core).
+:::

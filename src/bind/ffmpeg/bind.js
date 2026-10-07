@@ -23,6 +23,7 @@ Module["ret"] = -1;
 const NO_TIMEOUT = -1;
 const POLL_ONLY_TIMEOUT = 2 ** 31 - 1;
 let timeoutMs = NO_TIMEOUT;
+let running = false;
 let abortFlag = null;
 Object.defineProperty(Module, "timeout", {
   get() {
@@ -112,49 +113,83 @@ function freeArgs(argc, argvPtr) {
  * stackRestore() and leaves the stack pointer wherever the failure landed, so
  * every later call starts from a corrupted stack.
  */
-function exec(..._args) {
-  const args = [...Module["DEFAULT_ARGS"], ..._args];
+function runCommand(fn, args) {
+  if (running) throw new Error("ffmpeg-core runs one command at a time");
+  running = true;
   const argc = args.length;
   const sp = stackSave();
   let argvPtr = 0;
-  try {
-    argvPtr = stringsToPtr(args);
-    // Only the st core has this: it runs FFmpeg's threaded scheduler on a
-    // cooperative fiber shim, and that shim captures the wasm stack pointer once
-    // per call. The stackSave()/stackRestore() pair above moves that pointer, so
-    // without this the second exec() in a process runs on a fiber context left
-    // over from the first and never returns.
-    Module["_pfiber_begin_call"]?.();
-    Module["_ffmpeg"](argc, argvPtr);
-  } catch (e) {
-    if (!e.message.startsWith("Aborted")) {
-      throw e;
-    }
-  } finally {
+  const cleanUp = () => {
+    running = false;
     if (argvPtr) freeArgs(argc, argvPtr);
     stackRestore(sp);
+  };
+  const ignoreAbort = (e) => {
+    if (!e.message.startsWith("Aborted")) throw e;
+  };
+  let call;
+  try {
+    argvPtr = stringsToPtr(args);
+    // Only the st core has this, see src/pthread-fiber. The stackSave()/
+    // stackRestore() pair above moves the stack pointer it captures per call,
+    // so without this the second exec() in a process runs on a context left
+    // over from the first and never returns.
+    Module["_pfiber_begin_call"]?.();
+    call = Module[fn](argc, argvPtr);
+  } catch (e) {
+    cleanUp();
+    ignoreAbort(e);
+    return Module["ret"];
   }
-  return Module["ret"];
+  if (!(call instanceof Promise)) {
+    cleanUp();
+    return Module["ret"];
+  }
+  // The JSPI core: a Promise, and a thread that aborts rejects its own promise
+  // instead of the one for the command.
+  const threadFailed = new Promise((_, reject) => {
+    Module["pfiberFail"] = reject;
+  });
+  return Promise.race([call, threadFailed]).then(
+    () => (cleanUp(), Module["ret"]),
+    (e) => (cleanUp(), ignoreAbort(e), Module["ret"])
+  );
+}
+
+function exec(..._args) {
+  return runCommand("_ffmpeg", [...Module["DEFAULT_ARGS"], ..._args]);
 }
 
 function ffprobe(..._args) {
-  const args = [...Module["DEFAULT_ARGS_FFPROBE"], ..._args];
-  const argc = args.length;
-  const sp = stackSave();
-  let argvPtr = 0;
-  try {
-    argvPtr = stringsToPtr(args);
-    Module["_pfiber_begin_call"]?.();
-    Module["_ffprobe"](argc, argvPtr);
-  } catch (e) {
-    if (!e.message.startsWith("Aborted")) {
-      throw e;
+  return runCommand("_ffprobe", [...Module["DEFAULT_ARGS_FFPROBE"], ..._args]);
+}
+
+/**
+ * The JSPI core runs each thread of src/pthread-fiber as a suspended wasm
+ * stack. A thread suspends on a promise that pfiberRun() resolves from a later
+ * task, once the stack that queued it has suspended or returned. A new thread
+ * starts as its own promising export on its own C stack.
+ */
+const pfiberResolvers = new Map();
+
+function pfiberRun(next, start, top) {
+  queueMicrotask(() => {
+    if (start) {
+      stackRestore(top);
+      Module["_pfiber_enter"](next).catch((e) => Module["pfiberFail"]?.(e));
+    } else {
+      pfiberResolvers.get(next)();
     }
-  } finally {
-    if (argvPtr) freeArgs(argc, argvPtr);
-    stackRestore(sp);
-  }
-  return Module["ret"];
+  });
+}
+
+async function pfiberSwitch(self, next, start, top) {
+  const sp = stackSave();
+  const resumed = new Promise((resolve) => pfiberResolvers.set(self, resolve));
+  pfiberRun(next, start, top);
+  await resumed;
+  pfiberResolvers.delete(self);
+  stackRestore(sp);
 }
 
 function setLogger(logger) {
@@ -216,6 +251,8 @@ Module["print"] = print;
 Module["printErr"] = printErr;
 Module["locateFile"] = _locateFile;
 
+Module["pfiberRun"] = pfiberRun;
+Module["pfiberSwitch"] = pfiberSwitch;
 Module["exec"] = exec;
 Module["ffprobe"] = ffprobe;
 Module["setLogger"] = setLogger;
