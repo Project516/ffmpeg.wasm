@@ -525,7 +525,13 @@ jobs:
       - name: Build packages
         run: pnpm build
       - name: Install native FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg time
+        # Retried for the same apt mirror stalls as the browser installs.
+        run: |
+          sudo apt-get update
+          for i in 1 2 3; do
+            sudo timeout 300 apt-get install -y --no-install-recommends ffmpeg time && exit 0
+          done
+          exit 1
       - name: Record native FFmpeg version
         run: ffmpeg -version | head -1
       - name: Benchmark native FFmpeg
