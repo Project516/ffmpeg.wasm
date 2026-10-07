@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
 
 function parse(argv) {
-  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, child: null, iter: 0, cases: "jpg,png,mp4" };
+  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, kill: 60000, child: null, iter: 0, cases: "jpg,png,mp4" };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === "--trace") a.trace = true;
@@ -34,6 +34,7 @@ function parse(argv) {
     else if (k === "--iterations") a.iterations = Number(argv[++i]);
     else if (k === "--mode") a.mode = argv[++i];
     else if (k === "--out") a.out = argv[++i];
+    else if (k === "--kill") a.kill = Number(argv[++i]);
     else if (k === "--stall") a.stall = Number(argv[++i]);
     else if (k === "--child") { const v = argv[++i]; a.child = v === "prep" ? "prep" : Number(v); }
     else if (k === "--iter") a.iter = Number(argv[++i]);
@@ -79,7 +80,22 @@ async function parent(args) {
         if (!(args.mode === "proc" && (line === "DONE" || line.startsWith("ok ")))) console.log(`[${tag}] ${line}`);
       }
     });
+    const killer = args.mode !== "proc" ? null : setTimeout(() => {
+      hangs++;
+      console.log(`[${tag}] HANG killed by parent after ${args.kill}ms`);
+      if (args.trace) {
+        try {
+          fs.copyFileSync(path.join(args.out, `proc-${extra[1]}.trace`), path.join(args.out, `parent-kill-${tag.replace(":", "-")}.trace`));
+          const lines = fs.readFileSync(path.join(args.out, `proc-${extra[1]}.trace`), "utf8").split("\n");
+          console.log(`[${tag}] trace ${lines.length} lines, last 60:\n${lines.slice(-60).join("\n")}`);
+        } catch (e) {
+          console.log(`[${tag}] no trace: ${e.message}`);
+        }
+      }
+      p.kill("SIGKILL");
+    }, args.kill);
     p.on("exit", (code, sig) => {
+      if (killer) clearTimeout(killer);
       if (code !== 0 || args.mode !== "proc") console.log(`[${tag}] child exit code=${code} signal=${sig}`);
       resolve();
     });
@@ -200,7 +216,7 @@ async function watchdog({ hb, stall, id, out, traceFile, stallFile }) {
   try {
     const session = new inspector.Session();
     session.connectToMainThread();
-    const post = (method, params) => new Promise((resolve, reject) => session.post(method, params, (e, r) => (e ? reject(e) : resolve(r))));
+    const post = (method, params) => Promise.race([new Promise((resolve, reject) => session.post(method, params, (e, r) => (e ? reject(e) : resolve(r)))), new Promise((_, reject) => setTimeout(() => reject(new Error(`${method} timed out`)), 8000))]);
     await post("Debugger.enable");
     await post("Profiler.enable");
     await post("Profiler.start");
