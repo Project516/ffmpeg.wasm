@@ -611,13 +611,11 @@ return a Promise instead of a number, so `await` them.
   while a command runs, because the worker is no longer blocked. With the other
   cores those calls wait for the command to end. Do not touch a file the
   running command is reading or writing.
-- A command can hang intermittently. In two full FATE runs, 10 and 13 of 1055
-  tests (about 1%) never finished and were killed after 80 seconds. Each
-  passed when rerun alone, and each hung after FFmpeg printed its final
-  statistics line, mostly on single-frame image inputs. The default and
-  multi-thread cores had no such failures. The cause is not known. `timeout`
-  cannot interrupt it, because FFmpeg only checks it in the transcode loop.
-  Do not use this core where a hung command is unacceptable.
+- Node.js 24 can hang at `process.exit()` after a command has finished, with
+  any core. V8 can deadlock at shutdown when a background compile job is
+  waiting for a garbage collection, which was about 2% of short runs on a
+  busy CI runner. Let the process end on its own (`process.exitCode = 0`)
+  instead of calling `process.exit()`.
 - Abort and `timeout` work, in Node.js and in Chromium, Firefox and WebKit
   tests, and they behave as on the other cores. FFmpeg checks for them in its
   transcode loop, so a command stuck inside one decoder call, or before the
