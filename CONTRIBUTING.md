@@ -20,7 +20,8 @@ All six packages share one version. To release:
 1. Open a PR that sets `version` in every `packages/*/package.json` and
    `CORE_VERSION` in `packages/ffmpeg/src/const.ts` to the new version.
    It also sets `CORE_VERSION` in
-   `apps/website/src/components/Playground/const.ts`.
+   `apps/website/src/components/Playground/const.ts` and the version in the
+   CDN URLs under `apps/website/docs`.
 2. On that PR, dispatch a nightly-mode CI run with `gh workflow run CI.yml
    --ref <branch> -f subset=full` and wait for it. With that run's id, run
    `node scripts/update-core-sizes.mjs <version> --run <run-id>` and

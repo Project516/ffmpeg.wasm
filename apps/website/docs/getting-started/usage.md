@@ -587,7 +587,7 @@ Install the package and point `coreURL` and `wasmURL` at it. `FFmpeg` works the
 same as with the other cores:
 
 ```ts
-const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.16.0/dist/umd";
+const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.17.0/dist/umd";
 await ffmpeg.load({
   coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
   wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
