@@ -574,9 +574,9 @@ Asyncify, which rewrites the wasm code. The JSPI core does the same job with
 [JavaScript Promise Integration](https://github.com/WebAssembly/js-promise-integration),
 a feature of the browser and Node.js. It runs the same FFmpeg and the same
 `src/pthread-fiber` scheduler, so it needs no `SharedArrayBuffer`. Its wasm
-file is about 19% smaller than the default core's (32.4 MB against 40.1 MB,
-before compression), and the CI benchmark cases ran faster and used less
-memory.
+file is about {Math.round((1 - coreSizes["core-jspi"]["ffmpeg-core.wasm"] / coreSizes.core["ffmpeg-core.wasm"]) * 100)}% smaller than the default core's
+({(coreSizes["core-jspi"]["ffmpeg-core.wasm"] / 1e6).toFixed(1)} MB against {(coreSizes.core["ffmpeg-core.wasm"] / 1e6).toFixed(1)} MB, before compression), and the CI
+benchmark cases ran faster and used less memory.
 
 It needs a runtime with JSPI: Chrome 137 or later, Firefox 153 or later,
 Safari 27 or later, or Node.js 24 or later (tested on 24.21.0, and an older
@@ -626,7 +626,7 @@ return a Promise instead of a number, so `await` them.
 - It has only been tested on short clips in CI, the wrapper test suites and
   FFmpeg's FATE tests. It has had no long-running or large-file testing, and
   no memory-leak testing over many commands.
-- It is not on the Playground, and its size is not in `core-sizes.json`.
+- It is not on the Playground.
 
 ## Node.js
 
