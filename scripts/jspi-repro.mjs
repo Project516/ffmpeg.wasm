@@ -43,6 +43,7 @@ function parse(argv) {
   return a;
 }
 
+let gdbBudget = 3;
 const FATE_PREFIX = ["-nostdin", "-nostats", "-noauto_conversion_filters", "-cpuflags", "all"];
 const CASES = {
   jpg: [...FATE_PREFIX, "-hwaccel", "none", "-threads", "1", "-thread_type", "frame+slice", "-i", "f.jpg", "-bitexact", "-f", "framecrc", "-y", "/out"],
@@ -59,8 +60,6 @@ if (!isMainThread) {
   else if (args.child === "prep") await prep(args);
   else await child(args);
 }
-
-let gdbBudget = 3;
 
 async function parent(args) {
   fs.mkdirSync(args.out, { recursive: true });
