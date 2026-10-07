@@ -217,7 +217,12 @@ jobs:
       - name: Build packages
         run: pnpm build
       - name: Install ${{ matrix.browser }}
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+        # apt mirrors sometimes stall; retry instead of hitting the job timeout.
+        run: |
+          for i in 1 2 3; do
+            timeout 300 pnpm exec playwright install --with-deps ${{ matrix.browser }} && exit 0
+          done
+          exit 1
       - name: Run tests
         run: pnpm run test:browser:playwright ${{ matrix.browser }} ${{ matrix.mode }}
 
@@ -344,7 +349,12 @@ jobs:
       - name: Build packages
         run: pnpm build
       - name: Install ${{ matrix.browser }}
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+        # apt mirrors sometimes stall; retry instead of hitting the job timeout.
+        run: |
+          for i in 1 2 3; do
+            timeout 300 pnpm exec playwright install --with-deps ${{ matrix.browser }} && exit 0
+          done
+          exit 1
       - name: Run tests
         run: pnpm run test:browser:playwright ${{ matrix.browser }} jspi
 
