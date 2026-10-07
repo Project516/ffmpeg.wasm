@@ -607,10 +607,6 @@ return a Promise instead of a number, so `await` them.
 - `exec()` and `ffprobe()` on the core return a Promise, and the core throws
   if you start a command while another runs. `FFmpeg` queues commands, so
   it is only a problem when you drive the core yourself.
-- `FFmpeg` keeps answering file calls (`readFile`, `writeFile`, `listDir`)
-  while a command runs, because the worker is no longer blocked. With the other
-  cores those calls wait for the command to end. Do not touch a file the
-  running command is reading or writing.
 - Node.js 24 can hang at `process.exit()` after a command has finished, with
   any core. V8 can deadlock at shutdown when a background compile job is
   waiting for a garbage collection, which was about 2% of short runs on a

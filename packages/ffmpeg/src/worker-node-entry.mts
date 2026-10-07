@@ -143,9 +143,8 @@ const load = async (config: FFMessageLoadConfig): Promise<IsFirst> => {
   return true;
 };
 
-// The JSPI core returns a Promise from exec() and ffprobe(), and the worker
-// then handles other messages while one runs. Commands are queued so they
-// still run one at a time.
+// The JSPI core returns a Promise from exec() and ffprobe(), and throws if a
+// command starts while another runs.
 let lastCommand: Promise<unknown> = Promise.resolve();
 const queueCommand = <T,>(run: () => Promise<T>): Promise<T> => {
   const next = lastCommand.then(run, run);
