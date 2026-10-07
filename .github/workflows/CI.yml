@@ -233,7 +233,7 @@ jobs:
 
   node-tests:
     runs-on: ubuntu-latest
-    # Same reason as the tests job: a core spinning natively cannot be
+    # Same reason as tests-browsers: a core spinning natively cannot be
     # interrupted, and mocha --exit only helps when it gets control back.
     timeout-minutes: 20
     needs:
