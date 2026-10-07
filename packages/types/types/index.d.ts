@@ -150,8 +150,8 @@ export interface FFmpegCoreModule {
   timeout: number;
   mainScriptUrlOrBlob: string;
 
-  exec: (...args: string[]) => number | Promise<number>;
-  ffprobe: (...args: string[]) => number | Promise<number>;
+  exec: (...args: string[]) => number;
+  ffprobe: (...args: string[]) => number;
   reset: () => void;
   setLogger: (logger: (log: Log) => void) => void;
   setTimeout: (timeout: number) => void;
@@ -159,6 +159,16 @@ export interface FFmpegCoreModule {
   setProgress: (handler: (progress: Progress) => void) => void;
 
   locateFile: (path: string, prefix: string) => string;
+}
+
+/**
+ * The experimental JSPI core (`@project516/ffmpeg-wasm-core-jspi`), whose
+ * exec() and ffprobe() return a Promise.
+ */
+export interface FFmpegCoreJspiModule
+  extends Omit<FFmpegCoreModule, "exec" | "ffprobe"> {
+  exec: (...args: string[]) => Promise<number>;
+  ffprobe: (...args: string[]) => Promise<number>;
 }
 
 /**

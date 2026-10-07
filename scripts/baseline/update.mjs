@@ -46,7 +46,8 @@ function main() {
     });
 
     const files = dirs.flatMap(jsonFiles);
-    const fateReports = files.filter((f) => /fate-results-.*\.json$/.test(f)).map((f) => JSON.parse(readFileSync(f, "utf8")));
+    const fateReports = files.filter((f) => /fate-results-.*\.json$/.test(f)).map((f) => JSON.parse(readFileSync(f, "utf8")))
+      .filter((r) => r.core === "st" || r.core === "mt");
     const benchFile = files.filter((f) => f.endsWith("bench-report.json")).at(-1);
 
     if (fateReports.length > 0) {

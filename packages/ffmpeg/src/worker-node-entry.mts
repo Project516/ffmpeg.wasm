@@ -5,7 +5,7 @@
 // is kept as its own copy instead of importing from worker.ts.
 import { parentPort } from "node:worker_threads";
 import { pathToFileURL } from "node:url";
-import type { FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
+import type { FFmpegCoreJspiModule, FFmpegCoreModule, FFmpegCoreModuleFactory } from "@project516/ffmpeg-wasm-types";
 import type {
   FFMessage,
   FFMessageLoadConfig,
@@ -43,7 +43,7 @@ if (!parentPort) {
   );
 }
 
-let ffmpeg: FFmpegCoreModule;
+let ffmpeg: FFmpegCoreModule | FFmpegCoreJspiModule;
 // Set while a load() is in flight or done; see load().
 let loading: Promise<void> | null = null;
 

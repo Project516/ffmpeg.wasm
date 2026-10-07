@@ -119,7 +119,8 @@ jobs:
   build-core-jspi:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    continue-on-error: true
+    # Strict on tags so a release never publishes a core that failed its smoke test.
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
