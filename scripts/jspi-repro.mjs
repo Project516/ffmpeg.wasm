@@ -12,7 +12,7 @@
 // writes the paused frames, then kills the child. With --trace the core's
 // Module.pfiberTrace appends one line per scheduler event to a file that
 // is truncated at every iteration, so after a hang it holds that iteration.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { Worker, isMainThread, workerData } from "node:worker_threads";
 import inspector from "node:inspector";
@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
 
 function parse(argv) {
-  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, kill: 60000, child: null, iter: 0, cases: "jpg,png,mp4" };
+  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, kill: 30000, child: null, iter: 0, cases: "jpg,png,mp4" };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === "--trace") a.trace = true;
@@ -60,6 +60,8 @@ if (!isMainThread) {
   else await child(args);
 }
 
+let gdbBudget = 3;
+
 async function parent(args) {
   fs.mkdirSync(args.out, { recursive: true });
   let hangs = 0;
@@ -68,6 +70,7 @@ async function parent(args) {
   const run = (extra, tag) => new Promise((resolve) => {
     const p = spawn(process.execPath, [...process.execArgv, scriptPath, ...process.argv.slice(2), ...extra], { stdio: ["ignore", "pipe", "inherit"] });
     let buf = "";
+    let doneSeen = false;
     p.stdout.on("data", (d) => {
       buf += d;
       let nl;
@@ -75,14 +78,18 @@ async function parent(args) {
         const line = buf.slice(0, nl);
         buf = buf.slice(nl + 1);
         if (line.startsWith("HANG recorded")) hangs++;
-        if (line.startsWith("DONE")) done++;
+        if (line.startsWith("DONE")) (done++, (doneSeen = true));
         if (line.startsWith("BAD")) bad++;
         if (!(args.mode === "proc" && (line === "DONE" || line.startsWith("ok ")))) console.log(`[${tag}] ${line}`);
       }
     });
     const killer = args.mode !== "proc" ? null : setTimeout(() => {
       hangs++;
-      console.log(`[${tag}] HANG killed by parent after ${args.kill}ms`);
+      console.log(`[${tag}] HANG killed by parent after ${args.kill}ms, DONE printed: ${doneSeen}`);
+      const pid = p.pid;
+      const sh = `for t in /proc/${pid}/task/*; do echo "$(cat $t/comm) state=$(awk '{print $3}' $t/stat) utime=$(awk '{print $14}' $t/stat) wchan=$(cat $t/wchan 2>/dev/null)"; done; command -v gdb >/dev/null && timeout 60 gdb -p ${pid} -batch -ex "set pagination off" -ex "thread apply all bt 25" 2>&1 | grep -v "^\\[New\\|^warning\\|^Download" | head -150`;
+      const r = spawnSync("bash", ["-c", gdbBudget-- > 0 ? sh : "true"], { encoding: "utf8", timeout: 90000 });
+      console.log(`[${tag}] process state:\n${r.stdout}${r.stderr}`);
       if (args.trace) {
         try {
           fs.copyFileSync(path.join(args.out, `proc-${extra[1]}.trace`), path.join(args.out, `parent-kill-${tag.replace(":", "-")}.trace`));

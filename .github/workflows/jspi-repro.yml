@@ -37,6 +37,8 @@ jobs:
         run: sed -i 's/^emcc "/emcc --profiling-funcs "/' build/ffmpeg-wasm.sh && tail -1 build/ffmpeg-wasm.sh
       - name: Build ffmpeg-core-jspi
         run: make prd-jspi EXTRA_ARGS="--cache-from=type=gha,scope=st"
+      - name: Install gdb for hung processes
+        run: sudo apt-get install -y gdb >/dev/null && sudo sysctl kernel.yama.ptrace_scope=0
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
