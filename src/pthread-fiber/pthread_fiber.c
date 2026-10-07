@@ -268,8 +268,7 @@ static void pf_unblock(pfiber_t *f)
  *
  * console.error alone is not enough to diagnose a hang. The runners that
  * matter here capture Module.logger, not the console: scripts/fate/run.mjs
- * keeps the last 200 logger lines and puts them in the results JSON, and
- * scripts/dump-test-page.mjs attaches to worker console output. console.error
+ * keeps the last 200 logger lines and puts them in the results JSON. console.error
  * to a pipe is written asynchronously in Node, so a report written while the
  * process is being SIGKILLed at a watchdog can be lost, and a hang produces its
  * reports exactly during that window. Module.logger is collected in-process, so
