@@ -1,6 +1,6 @@
 import coreSizes from "../../data/core-sizes.json";
 
-export const CORE_VERSION = "0.16.0";
+export const CORE_VERSION = "0.17.0";
 
 export const CORE_URL = `https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@${CORE_VERSION}/dist/umd/ffmpeg-core.js`;
 export const CORE_MT_URL = `https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@${CORE_VERSION}/dist/umd/ffmpeg-core.js`;

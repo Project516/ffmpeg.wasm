@@ -93,8 +93,8 @@ Median of five runs on one GitHub Actions runner, against native ffmpeg version 
 
 | case | native (ms) | st (ms) | st ratio | st peak RSS (MB) | mt (ms) | mt ratio | mt peak RSS (MB) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| h264-to-vp9 | 120 | 510 | 4.25x | 215 | 1040 | 8.67x | 697 |
-| h264-to-mpeg4 | 90 | 360 | 4.00x | 187 | 930 | 10.33x | 680 |
-| scale-half | 90 | 1120 | 12.44x | 371 | 970 | 10.78x | 729 |
-| vp8-720p-to-mp4 | 5210 | 81970 | 15.73x | 496 | 35110 | 6.74x | 1033 |
-| h264-remux-mkv | 60 | 160 | 2.67x | 169 | 670 | 11.17x | 638 |
+| h264-to-vp9 | 130 | 480 | 3.69x | 258 | 1040 | 8.00x | 698 |
+| h264-to-mpeg4 | 90 | 370 | 4.11x | 226 | 960 | 10.67x | 683 |
+| scale-half | 100 | 1120 | 11.20x | 370 | 970 | 9.70x | 733 |
+| h264-remux-mkv | 80 | 210 | 2.63x | 170 | 920 | 11.50x | 638 |
+| vp8-720p-to-mp4 | 5190 | 83490 | 16.09x | 481 | 35520 | 6.84x | 1023 |
