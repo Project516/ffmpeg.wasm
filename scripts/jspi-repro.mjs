@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 const scriptPath = fileURLToPath(import.meta.url);
 
 function parse(argv) {
-  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, kill: 30000, child: null, iter: 0, cases: "jpg,png,mp4" };
+  const a = { core: "packages/core-jspi", procs: 2, iterations: 200, mode: "fresh", out: "repro-out", trace: false, stall: 15000, kill: 30000, exit: "exit", child: null, iter: 0, cases: "jpg,png,mp4" };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === "--trace") a.trace = true;
@@ -34,6 +34,7 @@ function parse(argv) {
     else if (k === "--iterations") a.iterations = Number(argv[++i]);
     else if (k === "--mode") a.mode = argv[++i];
     else if (k === "--out") a.out = argv[++i];
+    else if (k === "--exit") a.exit = argv[++i];
     else if (k === "--kill") a.kill = Number(argv[++i]);
     else if (k === "--stall") a.stall = Number(argv[++i]);
     else if (k === "--child") { const v = argv[++i]; a.child = v === "prep" ? "prep" : Number(v); }
@@ -200,6 +201,11 @@ async function child(args) {
     if ((i + 1) % 50 === 0) console.log(`ok ${i + 1}/${args.iterations} ${((Date.now() - start) / 1000).toFixed(0)}s`);
   }
   console.log("DONE");
+  if (args.exit === "natural") {
+    Atomics.store(hb, 2, 1);
+    process.exitCode = 0;
+    return;
+  }
   process.exit(0);
 }
 
@@ -207,6 +213,7 @@ async function watchdog({ hb, stall, id, out, traceFile, stallFile }) {
   let last = Atomics.load(hb, 0);
   let since = Date.now();
   while (true) {
+    if (Atomics.load(hb, 2)) return;
     await new Promise((r) => setTimeout(r, 500));
     const now = Atomics.load(hb, 0);
     if (now !== last) {
