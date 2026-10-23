@@ -18,8 +18,9 @@ CI runs only the jobs a change can affect. The `changes` job in
 benchmark run when a change touches a core (any path outside the wrapper,
 tests, FATE, benchmark and baseline scripts, and docs), the FATE, benchmark
 or baseline scripts, `baseline/`, or the benchmark's input clip in
-`tests/test-helper-browser.js`. On a pull request they use the full subset; on a push to master, the
-fast subset. A manual dispatch runs every job with the subset you pick.
+`tests/test-helper-browser.js`. On a pull request they use the full subset;
+on a push to master, the fast subset. A manual dispatch runs every job with
+the subset you pick.
 
 The `fate` and `benchmark` jobs are **not required checks**. A failing FATE
 test does not fail them. The `baseline-check` job compares each run with the

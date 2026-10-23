@@ -29,7 +29,7 @@ on:
 # A push run is diffed against the push before it, so it gets its own group
 # and is never cancelled; otherwise a later push would skip its changes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || '' }}
   cancel-in-progress: true
 
 permissions:
