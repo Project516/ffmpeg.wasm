@@ -68,14 +68,14 @@ export const KNOWN_FAILURES = {
 };
 
 export const SUBSETS = {
-  // Runs on every pull request: synthetic tests only (lavfi sources etc.),
+  // Runs on pushes to master: synthetic tests only (lavfi sources etc.),
   // so it needs no sample download and stays fast and network-free.
   fast: {
     syntheticOnly: true,
     maxTests: 40,
   },
-  // Manual full-subset runs add sample-backed tests, fetched
-  // over rsync from the FATE samples mirror.
+  // Pull requests and manual full-subset runs add sample-backed tests,
+  // fetched over rsync from the FATE samples mirror.
   full: {
     syntheticOnly: false,
     maxTests: 2000,

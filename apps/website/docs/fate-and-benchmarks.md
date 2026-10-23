@@ -11,8 +11,14 @@ pass/fail/skip and wasm/native ratio framing come from
 The current numbers are on [FATE and benchmark results](./results.md), a page
 generated from the committed baseline. The baseline is refreshed at each
 release (see "Releasing" in `CONTRIBUTING.md`). CI compares against the
-baseline and does not update it. Pushes and pull requests run the fast subset;
-dispatch the full subset manually when needed. CI has no scheduled runs.
+baseline and does not update it.
+
+CI runs only the jobs a change can affect. The `changes` job in
+`.github/workflows/CI.yml` picks them from the changed paths. FATE and the
+benchmark run when a change touches a core (any path outside the wrapper,
+tests, FATE and benchmark scripts, and docs) or the FATE and benchmark
+scripts. On a pull request they use the full subset; on a push to master, the
+fast subset. A manual dispatch runs every job with the subset you pick.
 
 The `fate` and `benchmark` jobs are **not required checks**. A failing FATE
 test does not fail them. The `baseline-check` job compares each run with the
@@ -44,7 +50,7 @@ small, from-scratch reader of that convention, not a port of FFmpeg's
 Two subsets exist:
 
 - **fast**: 40 tests that need no samples from the FATE samples mirror, run
-  on every pull request. Most of these tests need an input file FFmpeg itself generates
+  on pushes to master. Most of these tests need an input file FFmpeg itself generates
   for FATE, e.g. a synthetic WAV via `tests/audiogen.c`.
   `scripts/fate/lib/gen.mjs` compiles that tool (and `tests/videogen.c`, for
   tests that need it) with the host C compiler and runs it into the core's
@@ -54,7 +60,8 @@ Two subsets exist:
   checkout), so it is not network-free.
 - **full**: every selected test, including the sample-backed ones, fetched
   over rsync from the FATE samples mirror (`fate-suite.ffmpeg.org`), limited
-  to exactly the samples those tests reference. Runs on manual dispatch with
+  to exactly the samples those tests reference. Runs on pull requests that
+  change a core or the FATE scripts, and on manual dispatch with
   `subset=full`.
 
 A test that is known to fail on a core is listed with a reason in
@@ -214,6 +221,6 @@ node scripts/baseline/check.mjs --fate results.json --bench bench-report.json
 - [FATE and benchmark results](./results.md): the committed baseline, as a page.
 - Each workflow run: the `fate`, `benchmark` and `baseline-check` step
   summaries, and the `fate-results-*` and `bench-results` artifacts.
-- Manual runs with `subset=full` use the full subset. Pull request runs use the fast subset,
-  which needs no FATE samples mirror access but still fetches FFmpeg's test
-  definitions from GitHub.
+- Pull requests and manual runs with `subset=full` use the full subset.
+  Pushes to master use the fast subset, which needs no FATE samples mirror
+  access but still fetches FFmpeg's test definitions from GitHub.
