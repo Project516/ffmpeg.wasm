@@ -10,8 +10,9 @@ pass/fail/skip and wasm/native ratio framing come from
 
 The current numbers are on [FATE and benchmark results](./results.md), a page
 generated from the committed baseline. The baseline is refreshed at each
-release (see "Releasing" in `CONTRIBUTING.md`). The nightly run is a
-regression watchdog: it compares against the baseline and does not update it.
+release (see "Releasing" in `CONTRIBUTING.md`). CI compares against the
+baseline and does not update it. Pushes and pull requests run the fast subset;
+dispatch the full subset manually when needed. CI has no scheduled runs.
 
 The `fate` and `benchmark` jobs are **not required checks**. A failing FATE
 test does not fail them. The `baseline-check` job compares each run with the
@@ -53,8 +54,8 @@ Two subsets exist:
   checkout), so it is not network-free.
 - **full**: every selected test, including the sample-backed ones, fetched
   over rsync from the FATE samples mirror (`fate-suite.ffmpeg.org`), limited
-  to exactly the samples those tests reference. Runs nightly and on manual
-  dispatch.
+  to exactly the samples those tests reference. Runs on manual dispatch with
+  `subset=full`.
 
 A test that is known to fail on a core is listed with a reason in
 `KNOWN_FAILURES` in `scripts/fate/config.mjs`. It is reported as skipped
@@ -104,9 +105,9 @@ report with a wasm/native time ratio per case, written as JSON
 A fourth case, `vp8-720p-to-mp4`, runs `-i input.webm output.mp4` on 10
 seconds of 720p VP8 (Big Buck Bunny from test-videos.co.uk, pinned by
 SHA-256, downloaded at run time). It takes minutes on the st core, so it runs
-only in nightly mode (the schedule, or a manual dispatch with `subset=full`),
+only on manual dispatch with `subset=full`,
 through `--include-long`. Pull request runs skip it, and `check.mjs` only
-compares the cases a run has. Refresh the baseline from a nightly run, or the
+compares the cases a run has. Refresh the baseline from a full-subset run, or the
 case is dropped from `baseline/bench.json`.
 
 Each sample is run five times and the median is reported, so one slow run on
@@ -213,6 +214,6 @@ node scripts/baseline/check.mjs --fate results.json --bench bench-report.json
 - [FATE and benchmark results](./results.md): the committed baseline, as a page.
 - Each workflow run: the `fate`, `benchmark` and `baseline-check` step
   summaries, and the `fate-results-*` and `bench-results` artifacts.
-- Nightly runs use the full subset. Pull request runs use the fast subset,
+- Manual runs with `subset=full` use the full subset. Pull request runs use the fast subset,
   which needs no FATE samples mirror access but still fetches FFmpeg's test
   definitions from GitHub.

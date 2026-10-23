@@ -6,8 +6,8 @@ workload so you can decide whether ffmpeg.wasm fits your use case.
 
 The numbers are measured by the CI benchmark job, which runs in Node on a
 GitHub Actions runner, not in a browser. Browser results will differ. They are
-refreshed at each release. The nightly run compares against them as a
-regression watchdog and does not update them. See
+refreshed at each release. CI compares against them for regressions and does
+not update them. See
 [FATE and benchmarks](./fate-and-benchmarks.md) for how they are produced and
 [FATE and benchmark results](./results.md) for the short 1 second cases.
 
@@ -30,7 +30,7 @@ Setup:
 - Each command runs 5 times, each in a fresh `node` process, and the median
   wall time is reported. The time includes process and core startup, which is
   small next to the transcode here.
-- This case is measured nightly, not on every pull request.
+- This case is measured on manual CI runs with `subset=full`, not on every pull request.
 
 |                | native FFmpeg | core (st) | core-mt |
 | -------------- | ------------- | --------- | ------- |
