@@ -171,7 +171,7 @@ changes the FFmpeg tag, or moves a benchmark on purpose.
    ```
 
    Runs of one workflow on one ref cancel each other, so start the second
-   after the first finishes. A pull request run also counts as a fast run.
+   after the first finishes.
 
 2. Write the baseline and regenerate the results page from those runs.
 

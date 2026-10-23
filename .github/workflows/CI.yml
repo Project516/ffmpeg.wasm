@@ -73,7 +73,7 @@ jobs:
             base=$BEFORE
           fi
           if [ -n "$base" ]; then
-            files=$(git diff --name-only "$base" HEAD)
+            files=$(git diff --no-renames --name-only "$base" HEAD)
             echo "$files"
             any() { printf '%s\n' "$files" | grep -E "$@" | grep -q . && echo true || echo false; }
             js=$(any "$JS_PATHS")
