@@ -74,7 +74,7 @@ export const SUBSETS = {
     syntheticOnly: true,
     maxTests: 40,
   },
-  // Runs nightly and on workflow_dispatch: adds sample-backed tests, fetched
+  // Manual full-subset runs add sample-backed tests, fetched
   // over rsync from the FATE samples mirror.
   full: {
     syntheticOnly: false,

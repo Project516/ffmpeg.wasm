@@ -35,7 +35,7 @@ function fateSection(fate) {
   for (const subset of SUBSETS) {
     const perCore = CORES.filter((core) => fate.cores[core]?.[subset]);
     if (perCore.length === 0) continue;
-    lines.push(`### ${subset === "full" ? "Full subset (nightly)" : "Fast subset (every pull request)"}`, "");
+    lines.push(`### ${subset === "full" ? "Full subset (manual dispatch)" : "Fast subset (every pull request)"}`, "");
     lines.push("| core | pass | fail | skip | total | pass rate |", "| --- | --- | --- | --- | --- | --- |");
     for (const core of perCore) {
       const c = counts(fate.cores[core][subset]);
@@ -74,7 +74,7 @@ function benchSection(bench) {
   const cases = Object.keys(bench.cores[cores[0]]);
   const lines = ["## Performance", ""];
   lines.push(
-    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured nightly only.`,
+    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full.`,
     "",
   );
   lines.push(`| case | native (ms) | ${cores.map((c) => `${c} (ms) | ${c} ratio | ${c} peak RSS (MB)`).join(" | ")} |`);
