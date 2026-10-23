@@ -26,14 +26,80 @@ on:
         type: string
         default: ""
 
+# A push run is diffed against the push before it, so it gets its own group
+# and is never cancelled; otherwise a later push would skip its changes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || '' }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  # Picks the jobs a change can affect. Pull requests and pushes to master are
+  # diffed; other runs get every job. A path not matched below counts as core
+  # and runs everything. A skipped job passes as a required check.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.pick.outputs.build }}
+      tests: ${{ steps.pick.outputs.tests }}
+      fate: ${{ steps.pick.outputs.fate }}
+      presets: ${{ steps.pick.outputs.presets }}
+      subset: ${{ steps.pick.outputs.subset }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - name: Pick jobs
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          INPUT_SUBSET: ${{ inputs.subset }}
+          # The wrapper, its tests and their tooling.
+          JS_PATHS: '^(packages/(ffmpeg|util|types)/|tests/|testdata/|scripts/(check-doc-versions|copy-license|emit-dist-package-json|serve|test-browser|update-core-sizes)\.mjs$|package\.json$|pnpm-(lock|workspace)\.yaml$|tsconfig\.json$|eslint\.config\.mjs$|\.nvmrc$)'
+          FATE_PATHS: '^(scripts/(fate|bench|baseline)/|baseline/|tests/test-helper-browser\.js$)'
+          # Only the js job, which always runs, checks these.
+          DOCS_PATHS: '^(apps/|LICENSES/|\.github/(ISSUE_TEMPLATE/|SECURITY\.md$|dependabot\.yml$|workflows/(release|website)\.yml$)|[^/]+\.md$|LICENSE$|NOTICE$|\.gitignore$)'
+        run: |
+          core=true js=true fate=true
+          base=
+          if [ "$EVENT" = pull_request ]; then
+            # The merge commit's first parent is the base branch.
+            base=HEAD^1
+          elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/master ] && git fetch -q --depth=1 origin "$BEFORE"; then
+            base=$BEFORE
+          fi
+          if [ -n "$base" ]; then
+            files=$(git diff --no-renames --name-only "$base" HEAD)
+            echo "$files"
+            any() { printf '%s\n' "$files" | grep -E "$@" | grep -q . && echo true || echo false; }
+            js=$(any "$JS_PATHS")
+            fate=$(any "$FATE_PATHS")
+            core=$(any -v "$JS_PATHS|$FATE_PATHS|$DOCS_PATHS")
+          fi
+          tests=false run_fate=false build=false
+          if [ "$core" = true ] || [ "$js" = true ]; then tests=true; fi
+          if [ "$core" = true ] || [ "$fate" = true ]; then run_fate=true; fi
+          if [ "$tests" = true ] || [ "$run_fate" = true ]; then build=true; fi
+          subset=fast
+          if [ "$EVENT" = workflow_dispatch ]; then
+            subset=$INPUT_SUBSET
+          elif [ "$EVENT" = pull_request ] && [ "$run_fate" = true ]; then
+            subset=full
+          fi
+          {
+            echo "build=$build"
+            echo "tests=$tests"
+            echo "fate=$run_fate"
+            echo "presets=$core"
+            echo "subset=$subset"
+          } | tee -a "$GITHUB_OUTPUT"
+
   js:
     runs-on: ubuntu-latest
     steps:
@@ -61,6 +127,8 @@ jobs:
 
   build-core:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.build == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,6 +155,8 @@ jobs:
 
   build-core-mt:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.build == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -116,6 +186,8 @@ jobs:
   build-core-jspi:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    needs: changes
+    if: ${{ needs.changes.outputs.build == 'true' }}
     # Strict on tags so a release never publishes a core that failed its smoke test.
     continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
     steps:
@@ -151,6 +223,8 @@ jobs:
   build-preset:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    needs: changes
+    if: ${{ needs.changes.outputs.presets == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -186,9 +260,11 @@ jobs:
         browser: [chromium, firefox, webkit]
         mode: [isolated, plain]
     needs:
+      - changes
       - js
       - build-core
       - build-core-mt
+    if: ${{ needs.changes.outputs.tests == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -224,11 +300,15 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: tests-browsers
+    needs:
+      - changes
+      - tests-browsers
     if: ${{ always() }}
     steps:
       - name: Require every browser job to pass
-        run: test "${{ needs.tests-browsers.result }}" = success
+        run: |
+          test "${{ needs.changes.result }}" = success
+          [ "${{ needs.changes.outputs.tests }}" != true ] || test "${{ needs.tests-browsers.result }}" = success
 
   node-tests:
     runs-on: ubuntu-latest
@@ -236,9 +316,11 @@ jobs:
     # interrupted, and mocha --exit only helps when it gets control back.
     timeout-minutes: 20
     needs:
+      - changes
       - js
       - build-core
       - build-core-mt
+    if: ${{ needs.changes.outputs.tests == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -280,8 +362,10 @@ jobs:
     continue-on-error: true
     timeout-minutes: 30
     needs:
+      - changes
       - js
       - build-core-jspi
+    if: ${{ needs.changes.outputs.tests == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -321,8 +405,10 @@ jobs:
       matrix:
         browser: [chromium, firefox, webkit]
     needs:
+      - changes
       - js
       - build-core-jspi
+    if: ${{ needs.changes.outputs.tests == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -358,10 +444,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     needs:
+      - changes
       - build-core
       - build-core-mt
       - build-core-jspi
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.fate == 'true' }}
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -370,14 +457,6 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Determine subset
-        id: subset
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "subset=${{ inputs.subset }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "subset=fast" >> "$GITHUB_OUTPUT"
-          fi
       - name: Read pinned FFmpeg tag for the ${{ matrix.core }} core
         id: tag
         run: |
@@ -424,7 +503,7 @@ jobs:
       - name: Fetch FATE test definitions
         run: node scripts/fate/fetch-defs.mjs --tag ${{ steps.tag.outputs.tag }}
       - name: Select subset
-        run: node scripts/fate/select.mjs --tag ${{ steps.tag.outputs.tag }} --subset ${{ steps.subset.outputs.subset }} --out manifest-${{ matrix.core }}.json
+        run: node scripts/fate/select.mjs --tag ${{ steps.tag.outputs.tag }} --subset ${{ needs.changes.outputs.subset }} --out manifest-${{ matrix.core }}.json
       - name: Fetch samples
         run: node scripts/fate/fetch-samples.mjs --manifest manifest-${{ matrix.core }}.json --tag ${{ steps.tag.outputs.tag }}
       - name: Run FATE subset against the ${{ matrix.core }} core
@@ -451,7 +530,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: fate
-    if: ${{ always() && !startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ always() && !startsWith(github.ref, 'refs/tags/') && needs.fate.result != 'skipped' }}
     continue-on-error: true
     steps:
       - name: Checkout Source Code
@@ -475,10 +554,11 @@ jobs:
     env:
       BENCH_FLAGS: ${{ (github.event_name == 'workflow_dispatch' && inputs.subset == 'full') && '--include-long' || '' }}
     needs:
+      - changes
       - build-core
       - build-core-mt
       - build-core-jspi
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.fate == 'true' }}
     continue-on-error: true
     steps:
       - name: Checkout Source Code

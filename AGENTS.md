@@ -102,7 +102,10 @@ Lessons from the shim, so they are not rediscovered:
 ## Review
 
 PRs target `master` and squash merge. The CI jobs `js`, `build-core`,
-`build-core-mt`, and `tests` are required checks.
+`build-core-mt`, and `tests` are required checks. CI's `changes` job skips
+jobs a change cannot affect; a skipped required check counts as passing. Add
+a new top-level path to its path lists, or it counts as core and runs
+everything.
 
 Review happens before merge, on the head commit:
 

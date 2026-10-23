@@ -6,7 +6,7 @@ This page is generated from `baseline/fate.json` and `baseline/bench.json` by `n
 
 FFmpeg n9.0.2. The pass rate is pass divided by pass plus fail. A skipped test is one the runner could not run: its sample is missing from the FATE mirror, or it is a known failure listed below.
 
-### Full subset (manual dispatch)
+### Full subset (pull requests)
 
 | core | pass | fail | skip | total | pass rate |
 | --- | --- | --- | --- | --- | --- |
@@ -67,7 +67,7 @@ FFmpeg n9.0.2. The pass rate is pass divided by pass plus fail. A skipped test i
 - `fate-filter-frei0r-source` skipped: known failure: frei0r is not built into the cores
 - `fate-matroska-prores-header-insertion-bz2` skipped: known failure: needs bzip2, which the cores are built without
 
-### Fast subset (every pull request)
+### Fast subset (pushes to master)
 
 | core | pass | fail | skip | total | pass rate |
 | --- | --- | --- | --- | --- | --- |

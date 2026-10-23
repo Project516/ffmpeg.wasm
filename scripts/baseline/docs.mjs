@@ -35,7 +35,7 @@ function fateSection(fate) {
   for (const subset of SUBSETS) {
     const perCore = CORES.filter((core) => fate.cores[core]?.[subset]);
     if (perCore.length === 0) continue;
-    lines.push(`### ${subset === "full" ? "Full subset (manual dispatch)" : "Fast subset (every pull request)"}`, "");
+    lines.push(`### ${subset === "full" ? "Full subset (pull requests)" : "Fast subset (pushes to master)"}`, "");
     lines.push("| core | pass | fail | skip | total | pass rate |", "| --- | --- | --- | --- | --- | --- |");
     for (const core of perCore) {
       const c = counts(fate.cores[core][subset]);
