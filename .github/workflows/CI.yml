@@ -26,8 +26,10 @@ on:
         type: string
         default: ""
 
+# A push run is diffed against the push before it, so it gets its own group
+# and is never cancelled; otherwise a later push would skip its changes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -60,7 +62,7 @@ jobs:
           INPUT_SUBSET: ${{ inputs.subset }}
           # The wrapper, its tests and their tooling.
           JS_PATHS: '^(packages/(ffmpeg|util|types)/|tests/|testdata/|scripts/(check-doc-versions|copy-license|emit-dist-package-json|serve|test-browser|update-core-sizes)\.mjs$|package\.json$|pnpm-(lock|workspace)\.yaml$|tsconfig\.json$|eslint\.config\.mjs$|\.nvmrc$)'
-          FATE_PATHS: '^(scripts/(fate|bench|baseline)/|baseline/)'
+          FATE_PATHS: '^(scripts/(fate|bench|baseline)/|baseline/|tests/test-helper-browser\.js$)'
           # Only the js job, which always runs, checks these.
           DOCS_PATHS: '^(apps/|LICENSES/|\.github/(ISSUE_TEMPLATE/|SECURITY\.md$|dependabot\.yml$|workflows/(release|website)\.yml$)|[^/]+\.md$|LICENSE$|NOTICE$|\.gitignore$)'
         run: |

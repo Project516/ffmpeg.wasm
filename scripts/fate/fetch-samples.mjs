@@ -2,7 +2,7 @@
 // Rsyncs the sample files a manifest's sample-backed tests need from the
 // FATE samples mirror, limited strictly to what those tests reference. Does
 // nothing (and needs no network) for a manifest that only has synthetic
-// tests, e.g. the "fast" subset used on pull requests.
+// tests, e.g. the "fast" subset used on pushes to master.
 //
 // Usage: node scripts/fate/fetch-samples.mjs --manifest manifest.json --tag n9.0.2
 import { execFileSync } from "node:child_process";

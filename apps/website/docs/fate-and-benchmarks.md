@@ -16,8 +16,9 @@ baseline and does not update it.
 CI runs only the jobs a change can affect. The `changes` job in
 `.github/workflows/CI.yml` picks them from the changed paths. FATE and the
 benchmark run when a change touches a core (any path outside the wrapper,
-tests, FATE and benchmark scripts, and docs) or the FATE and benchmark
-scripts. On a pull request they use the full subset; on a push to master, the
+tests, FATE, benchmark and baseline scripts, and docs), the FATE, benchmark
+or baseline scripts, `baseline/`, or the benchmark's input clip in
+`tests/test-helper-browser.js`. On a pull request they use the full subset; on a push to master, the
 fast subset. A manual dispatch runs every job with the subset you pick.
 
 The `fate` and `benchmark` jobs are **not required checks**. A failing FATE
