@@ -113,7 +113,8 @@ export interface FS {
     position?: number
   ) => number;
   close: (stream: FSStream) => void;
-  filesystems: FSFilesystems;
+  /** Only on cores built with emsdk before 6.0.13. */
+  filesystems?: FSFilesystems;
 }
 
 /**
@@ -138,7 +139,7 @@ export interface Progress {
 /**
  * FFmpeg core module, an object to interact with ffmpeg.
  */
-export interface FFmpegCoreModule {
+export interface FFmpegCoreModule extends Partial<FSFilesystems> {
   /** default arguments prepend when running exec() */
   DEFAULT_ARGS: string[];
   FS: FS;

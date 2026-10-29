@@ -239,9 +239,11 @@ const deleteDir = ({ path }: FFMessageDeleteDirData): OK => {
 };
 
 const mount = ({ fsType, options, mountPoint }: FFMessageMountData): OK => {
-  const str = fsType as keyof typeof ffmpeg.FS.filesystems;
-  if (!Object.hasOwn(ffmpeg.FS.filesystems, str)) return false;
-  const fs = ffmpeg.FS.filesystems[str];
+  const name = fsType as string;
+  if (name !== "MEMFS" && name !== "WORKERFS") return false;
+  // Cores built with emsdk before 6.0.13 only have FS.filesystems.
+  const fs = ffmpeg[name] ?? ffmpeg.FS.filesystems?.[name];
+  if (!fs) return false;
   ffmpeg.FS.mount(fs, options, mountPoint);
   return true;
 };
