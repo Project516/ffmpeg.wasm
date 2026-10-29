@@ -1,4 +1,6 @@
+import adapter from '@sveltejs/adapter-auto';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config';
 
@@ -18,7 +20,7 @@ const viteServerConfig = {
 
 
 export default defineConfig({
-	plugins: [sveltekit(), viteServerConfig],
+	plugins: [sveltekit({ adapter: adapter(), preprocess: vitePreprocess() }), viteServerConfig],
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}']
 	},
