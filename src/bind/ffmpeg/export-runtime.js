@@ -1,5 +1,7 @@
 const EXPORTED_RUNTIME_METHODS = [
   "FS",
+  "MEMFS",
+  "WORKERFS",
   "setValue",
   "getValue",
   "UTF8ToString",
