@@ -19,7 +19,7 @@
 		"@project516/ffmpeg-wasm-util": "*",
 		"@playwright/test": "^1.41.2",
 		"@sveltejs/adapter-auto": "^3.1.1",
-		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/kit": "^3.1.0",
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@tsconfig/node18": "^18.2.2",
 		"@types/eslint": "8.56.2",
