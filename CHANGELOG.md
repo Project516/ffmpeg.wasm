@@ -14,6 +14,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `FS.filesystems` from a core directly should read `MEMFS` and `WORKERFS`
   from the module instead.
 
+### Fixed
+
+- Vite can bundle `@project516/ffmpeg-wasm`. The ESM build passed the
+  worker type as a variable, and Vite's build fails with "Expected worker
+  options type property to be a literal value."
+
 ## 0.17.0
 
 ### Added

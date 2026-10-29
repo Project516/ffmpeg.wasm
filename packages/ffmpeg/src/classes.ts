@@ -249,10 +249,10 @@ export class FFmpeg {
         new Worker(resolveWorkerURL(classWorkerURL), {
           type: WORKER_TYPE,
         }) :
-        // We need to duplicated the code here to enable webpack
-        // to bundle worker.js here.
+        // Duplicated so bundlers find and bundle worker.js. Vite needs a
+        // literal type; webpack turns it into a classic worker for UMD.
         new Worker(new URL("./worker.js", import.meta.url), {
-          type: WORKER_TYPE,
+          type: "module",
         });
       this.#registerHandlers();
     }
