@@ -3,6 +3,17 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Changed
+
+- The cores are built with Emscripten 6.0.13, which removed `FS.filesystems`.
+  The cores now export `MEMFS` and `WORKERFS` on the module, and
+  `FS.filesystems` is optional in `@project516/ffmpeg-wasm-types`. `mount()`
+  works with cores built before and after this change. Code that reads
+  `FS.filesystems` from a core directly should read `MEMFS` and `WORKERFS`
+  from the module instead.
+
 ## 0.17.0
 
 ### Added
