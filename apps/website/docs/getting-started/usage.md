@@ -17,7 +17,7 @@ single-thread core is about {Math.round(coreSizes.core["ffmpeg-core.wasm"] / 1e6
 :::caution
 If you are a [vite](https://vitejs.dev/) user, use `esm` in **baseURL** instead of `umd`:
 
-~~https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd~~ => https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/esm
+~~https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd~~ => https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/esm
 :::
 
 ```jsx live
@@ -30,7 +30,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -91,7 +91,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-mt@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -143,7 +143,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -203,7 +203,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         // Listen to progress event instead of log.
         ffmpeg.on('progress', ({ progress, time }) => {
@@ -254,7 +254,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -324,7 +324,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -383,7 +383,7 @@ function() {
     const messageRef = useRef(null);
 
     const load = async () => {
-        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.0/dist/umd'
+        const baseURL = 'https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@0.17.1/dist/umd'
         const ffmpeg = ffmpegRef.current;
         ffmpeg.on('log', ({ message }) => {
             messageRef.current.innerHTML = message;
@@ -587,7 +587,7 @@ Install the package and point `coreURL` and `wasmURL` at it. `FFmpeg` works the
 same as with the other cores:
 
 ```ts
-const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.17.0/dist/umd";
+const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.17.1/dist/umd";
 await ffmpeg.load({
   coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
   wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
