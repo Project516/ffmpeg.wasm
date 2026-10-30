@@ -9,13 +9,15 @@ export interface FFMessageLoadConfig {
   /**
    * `ffmpeg-core.js` URL.
    *
-   * @defaultValue `https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@${CORE_VERSION}/dist/umd/ffmpeg-core.js`;
+   * @defaultValue `CORE_JSPI_URL` on a runtime with JSPI, else `CORE_URL`.
+   * Under Node.js, the installed `@project516/ffmpeg-wasm-core-jspi` or
+   * `@project516/ffmpeg-wasm-core`.
    */
   coreURL?: string;
   /**
    * `ffmpeg-core.wasm` URL.
    *
-   * @defaultValue `https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core@${CORE_VERSION}/dist/umd/ffmpeg-core.wasm`;
+   * @defaultValue `coreURL` with `.js` replaced by `.wasm`.
    */
   wasmURL?: string;
   /**

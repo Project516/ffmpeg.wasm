@@ -561,20 +561,23 @@ A `file:` URL input needs Node.js 20.16 or later under Node.js.
 `extractFrames()` writes `png`, `jpg` or `webp` images. `webp` needs a core
 built with libwebp, which the default core has.
 
-## Experimental: JSPI core
+## JSPI core
 
-:::warning
-`@project516/ffmpeg-wasm-core-jspi` is experimental. It is not part of the
-default install, and its behavior can change between releases. Use
-`@project516/ffmpeg-wasm-core` unless you have a reason to try it.
+:::note
+When you call `load()` without `coreURL`, `@project516/ffmpeg-wasm` loads
+`@project516/ffmpeg-wasm-core-jspi` if the runtime has JSPI, and
+`@project516/ffmpeg-wasm-core` if it does not. Under Node.js it picks the JSPI
+core only when that package is installed. To keep the Asyncify core, pass its
+`coreURL`. This core is newer than the others; see its
+[known issues](#jspi-core-known-issues).
 :::
 
-The default single-thread core switches between FFmpeg's threads with
-Asyncify, which rewrites the wasm code. The JSPI core does the same job with
+The Asyncify single-thread core, `@project516/ffmpeg-wasm-core`, switches
+between FFmpeg's threads with Asyncify, which rewrites the wasm code. The JSPI core does the same job with
 [JavaScript Promise Integration](https://github.com/WebAssembly/js-promise-integration),
 a feature of the browser and Node.js. It runs the same FFmpeg and the same
 `src/pthread-fiber` scheduler, so it needs no `SharedArrayBuffer`. Its wasm
-file is about {Math.round((1 - coreSizes["core-jspi"]["ffmpeg-core.wasm"] / coreSizes.core["ffmpeg-core.wasm"]) * 100)}% smaller than the default core's
+file is about {Math.round((1 - coreSizes["core-jspi"]["ffmpeg-core.wasm"] / coreSizes.core["ffmpeg-core.wasm"]) * 100)}% smaller than the Asyncify core's
 ({(coreSizes["core-jspi"]["ffmpeg-core.wasm"] / 1e6).toFixed(1)} MB against {(coreSizes.core["ffmpeg-core.wasm"] / 1e6).toFixed(1)} MB, before compression), and the CI
 benchmark cases ran faster and used less memory.
 
@@ -583,8 +586,8 @@ Safari 27 or later, or Node.js 24 or later (tested on 24.21.0, and an older
 24.x may need `--experimental-wasm-jspi`). On any other runtime the core
 fails to load.
 
-Install the package and point `coreURL` and `wasmURL` at it. `FFmpeg` works the
-same as with the other cores:
+To load it from your own copy instead of the CDN, point `coreURL` and
+`wasmURL` at it. `FFmpeg` works the same as with the other cores:
 
 ```ts
 const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.17.1/dist/umd";
@@ -600,10 +603,11 @@ as `coreURL`, as for [the multithread core](#multithread-core).
 If you call the core directly without `FFmpeg`, `exec()` and `ffprobe()`
 return a Promise instead of a number, so `await` them.
 
-### Experimental: known issues
+### JSPI core: known issues
 
-- Only a runtime with JSPI can load it. There is no fallback to the default
-  core, so choose the core yourself.
+- Only a runtime with JSPI can load it. The JSPI check only runs when you
+  leave out `coreURL`, so a `coreURL` that points at this core fails on any
+  other runtime.
 - `exec()` and `ffprobe()` on the core return a Promise, and the core throws
   if you start a command while another runs. `FFmpeg` queues commands, so
   it is only a problem when you drive the core yourself.
@@ -633,7 +637,9 @@ return a Promise instead of a number, so `await` them.
 `@project516/ffmpeg-wasm` runs the same code in Node.js, using a
 `worker_threads` Worker instead of a browser Worker. In the browser,
 `load()` fetches the core from a CDN by default; in Node.js there is no
-CDN default, so install `@project516/ffmpeg-wasm-core` yourself:
+CDN default, so install `@project516/ffmpeg-wasm-core` yourself (and
+`@project516/ffmpeg-wasm-core-jspi` too for the [JSPI core](#jspi-core) on a
+runtime with JSPI):
 
 ```bash
 pnpm add @project516/ffmpeg-wasm-core

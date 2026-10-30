@@ -27,13 +27,14 @@ import type {
   FSNode,
   FileData,
 } from "./types";
-import { CORE_URL, FFMessageType } from "./const.js";
+import { CORE_JSPI_URL, CORE_URL, FFMessageType } from "./const.js";
 import {
   ERROR_UNKNOWN_MESSAGE_TYPE,
   ERROR_NOT_LOADED,
   ERROR_IMPORT_FAILURE,
   wasmLoadError,
 } from "./errors.js";
+import { supportsJSPI } from "./utils.js";
 
 // Set by importScripts() of the UMD core, or assigned from the ESM core's
 // default export.
@@ -49,21 +50,26 @@ let ffmpeg: FFmpegCoreModule | FFmpegCoreJspiModule;
 // Set while a load() is in flight or done; see load().
 let loading: Promise<void> | null = null;
 
+// The JSPI core runs the same FFmpeg faster than the Asyncify core, so it is
+// the default wherever the runtime can load it.
+const defaultCoreURL = (): string =>
+  supportsJSPI() ? CORE_JSPI_URL : CORE_URL;
+
 const doLoad = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
 }: FFMessageLoadConfig): Promise<void> => {
   try {
-    if (!_coreURL) _coreURL = CORE_URL;
+    if (!_coreURL) _coreURL = defaultCoreURL();
     // when web worker type is `classic`.
     importScripts(_coreURL);
   } catch (importScriptsError) {
     try {
       // A UMD coreURL (default or caller-supplied) fails to parse as an ES
       // module; retry any /umd/ URL under /esm/ instead of only the
-      // default CORE_URL. Re-defaulted here (already done above) because
-      // TS can't carry the narrowing across the try/catch boundary.
-      _coreURL = _coreURL || CORE_URL;
+      // default. Re-defaulted here (already done above) because TS can't
+      // carry the narrowing across the try/catch boundary.
+      _coreURL = _coreURL || defaultCoreURL();
       if (_coreURL.includes("/umd/")) _coreURL = _coreURL.replace('/umd/', '/esm/');
       // when web worker type is `module`.
       self.createFFmpegCore = (
