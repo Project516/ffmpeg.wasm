@@ -9,8 +9,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The multi-thread core starts 24 pool threads instead of 32, so it loads
   faster and uses less memory. A command that needs more than 24 threads at
-  once fails, as before for more than 32. A command with two encoded outputs
-  peaks at 21.
+  once fails, as before for more than 32. With default thread settings, one
+  input encoded to x264 and VP9 outputs peaks at 21; `-threads` raises it.
 - Under Node.js, the cores pass the wasm file to `WebAssembly.instantiate`
   without copying it first, which takes about 50 ms off loading a core.
 
