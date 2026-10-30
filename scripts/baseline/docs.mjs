@@ -75,7 +75,7 @@ function benchSection(bench) {
   const cases = [...new Set(cores.flatMap((c) => Object.keys(bench.cores[c])))];
   const lines = ["## Performance", ""];
   lines.push(
-    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full. The jspi core runs on Node.js 24, which JSPI needs; st and mt run on Node.js 22. A "-" means the case has no result for that core yet.`,
+    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full. A "-" means the case has no result for that core yet.`,
     "",
   );
   lines.push(`| case | native (ms) | ${cores.map((c) => `${c} (ms) | ${c} ratio | ${c} peak RSS (MB)`).join(" | ")} |`);
