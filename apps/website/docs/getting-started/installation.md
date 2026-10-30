@@ -47,5 +47,5 @@ In the browser, `load()` fetches the core from a CDN by default, so `@project516
 :::
 
 :::note
-`@project516/ffmpeg-wasm-core-jspi` is an experimental single-thread core that uses JSPI. See [Usage](/docs/getting-started/usage#experimental-jspi-core).
+`@project516/ffmpeg-wasm-core-jspi` is a faster single-thread core that uses JSPI. `load()` uses it by default on a runtime with JSPI. See [Usage](/docs/getting-started/usage#jspi-core).
 :::
