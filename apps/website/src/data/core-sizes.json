@@ -1,15 +1,15 @@
 {
-  "version": "0.17.1",
+  "version": "0.18.0",
   "core": {
-    "ffmpeg-core.js": 101869,
-    "ffmpeg-core.wasm": 40078258
+    "ffmpeg-core.js": 101831,
+    "ffmpeg-core.wasm": 39807591
   },
   "core-mt": {
-    "ffmpeg-core.js": 111123,
+    "ffmpeg-core.js": 111112,
     "ffmpeg-core.wasm": 32783782
   },
   "core-jspi": {
-    "ffmpeg-core.js": 93588,
+    "ffmpeg-core.js": 93550,
     "ffmpeg-core.wasm": 32417267
   }
 }
