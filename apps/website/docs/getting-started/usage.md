@@ -71,11 +71,11 @@ function() {
 ```
 
 :::tip
-Load the core from its URL when its host sends CORS headers, as jsDelivr
-does. The browser can then reuse the compiled wasm on later visits, and the
-page does not re-read the 32 to 40 MB core into a new blob on every load,
-which `toBlobURL()` does. Use `toBlobURL()` for a host without CORS headers,
-and for the multithread core below.
+Load the core from its URL. The browser can then reuse the compiled wasm on
+later visits, and the page does not re-read the 32 to 40 MB core into a new
+blob on every load, which `toBlobURL()` does. A host on another origin must
+send CORS headers either way, as jsDelivr does, since `toBlobURL()` fetches
+the files too. Use `toBlobURL()` only for the multithread core below.
 :::
 
 ## Transcode webm to mp4 video (multi-thread)
