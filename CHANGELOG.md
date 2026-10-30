@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- `load({ pthreadPoolSize })` sets how many threads the multithread core
+  starts when it loads. The default stays 32. A smaller pool loads faster and
+  uses less memory, and a command that needs more threads than the pool fails.
+
 ### Changed
 
 - `load()` without `coreURL` loads the JSPI core where the runtime has JSPI

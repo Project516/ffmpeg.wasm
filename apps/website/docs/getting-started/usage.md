@@ -131,6 +131,22 @@ function() {
 }
 ```
 
+### Thread pool size
+
+The multithread core starts 32 threads when it loads, which takes time and
+memory. If your commands need fewer, pass `pthreadPoolSize` to `load()`:
+
+```js
+await ffmpeg.load({ coreURL, wasmURL, pthreadPoolSize: 8 });
+```
+
+A command that needs more threads than the pool has fails instead of hanging.
+Peak threads per command, for a 1-second H.264 input with the default
+`-threads`: remux 2, VP9 encode 14, MPEG-4 16, scale 18, x265 19, x264 and VP9
+outputs 21, x265 and x264 outputs 26, three x264 outputs 28, two x265 outputs
+31. A pool of 8 loaded in about half the time and memory of 32 in our
+measurements. The other cores ignore the option.
+
 ## Transcode video with timeout
 
 ```jsx live
