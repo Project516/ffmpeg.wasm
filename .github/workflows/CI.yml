@@ -623,8 +623,13 @@ jobs:
           # V8 before 13.7 needs the flag; later ones no longer list it.
           flag=$(node --v8-options | grep -o -m1 -e '--experimental-wasm-jspi' || true)
           node $flag scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json $BENCH_FLAGS
+      # jspi is optional: a failed jspi run leaves no file, and the report
+      # then covers st and mt only.
       - name: Combine into a ratio report
-        run: node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-mt.json --out bench-report.json --markdown-out bench-report.md
+        run: |
+          cores="--core bench-st.json --core bench-mt.json"
+          if [ -f bench-jspi.json ]; then cores="$cores --core bench-jspi.json"; fi
+          node scripts/bench/report.mjs --native bench-native.json $cores --out bench-report.json --markdown-out bench-report.md
       - name: Compare jspi with st
         if: steps.bench-jspi.outcome == 'success'
         run: node scripts/bench/report.mjs --native bench-native.json --core bench-st-node24.json --core bench-jspi.json --out bench-report-jspi.json --markdown-out bench-report-jspi.md

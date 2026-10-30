@@ -99,6 +99,7 @@ FFmpeg and on each core, on the same GitHub Actions runner, using the same
 is:
 
 - H.264 to VP9 (`libvpx-vp9`)
+- H.264 to H.264 with `libx264`, the default MP4 encoder
 - H.264 to MPEG-4 (container remux to a different codec)
 - a `scale` filter pass
 
@@ -111,7 +112,13 @@ same external tool, rather than the core's own `process.hrtime`/
 report with a wasm/native time ratio per case, written as JSON
 (`bench-report.json`) and as a markdown table in the step summary.
 
-A fourth case, `vp8-720p-to-mp4`, runs `-i input.webm output.mp4` on 10
+The jspi core (`packages/core-jspi`) runs on Node.js 24, since JSPI needs it,
+and joins `bench-report.json` when its run finishes. The st core also runs on
+Node.js 24 as a control, and that like-for-like comparison is a separate table
+in the step summary. The jspi run is optional, so a failed jspi run leaves the
+report with st and mt only.
+
+A last case, `vp8-720p-to-mp4`, runs `-i input.webm output.mp4` on 10
 seconds of 720p VP8 (Big Buck Bunny from test-videos.co.uk, pinned by
 SHA-256, downloaded at run time). It takes minutes on the st core, so it runs
 only on manual dispatch with `subset=full`,
@@ -151,8 +158,10 @@ It fails when:
 - a benchmark case has no successful run, or its time ratio or peak memory is
   more than 50% above the baseline.
 
-It warns, without failing, when a passing test is skipped or not run, and when
-a benchmark metric is more than 20% above the baseline. The benchmark compares
+It warns, without failing, when a passing test is skipped or not run, when
+a benchmark metric is more than 20% above the baseline, and when a benchmark
+case or core is not in the baseline yet (for example a new case, or jspi
+before its first baseline refresh). The benchmark compares
 the ratio to native, not milliseconds, so a faster or slower runner moves both
 sides. The thresholds are `BENCH_WARN` and `BENCH_FAIL` in
 `scripts/baseline/compare.mjs`. Native FFmpeg takes about 100 ms in these
@@ -212,7 +221,8 @@ node scripts/fate/run.mjs --core packages/core --label st --manifest manifest.js
 # Benchmarks: native, then each core, then combine.
 node scripts/bench/run.mjs --native --out bench-native.json
 node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
-node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --out bench-report.json --markdown-out bench-report.md
+node scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json   # Node.js 24
+node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-jspi.json --out bench-report.json --markdown-out bench-report.md
 
 # Compare with the committed baseline.
 node scripts/baseline/check.mjs --fate results.json --bench bench-report.json

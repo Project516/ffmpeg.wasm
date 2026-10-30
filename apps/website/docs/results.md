@@ -89,7 +89,7 @@ FFmpeg n9.0.2. The pass rate is pass divided by pass plus fail. A skipped test i
 
 ## Performance
 
-Median of five runs on one GitHub Actions runner, against native ffmpeg version 6.1.1-3ubuntu5 from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full.
+Median of five runs on one GitHub Actions runner, against native ffmpeg version 6.1.1-3ubuntu5 from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full. The jspi core runs on Node.js 24, which JSPI needs; st and mt run on Node.js 22. A "-" means the case has no result for that core yet.
 
 | case | native (ms) | st (ms) | st ratio | st peak RSS (MB) | mt (ms) | mt ratio | mt peak RSS (MB) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
