@@ -72,6 +72,11 @@ else
     # uses and nothing here calls. Each fiber carries its own asyncify stack
     # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
     -sASYNCIFY_STACK_SIZE=65536
+    # x264 is built without threads for this core and only calls back into
+    # FFmpeg to log, so no fiber switch happens with its frames on the stack.
+    # Asyncify would still instrument it for its indirect calls, which slows
+    # x264 encodes by about a third.
+    "-sASYNCIFY_REMOVE=['x264_*']"
   )
 fi
 
