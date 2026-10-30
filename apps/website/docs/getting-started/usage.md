@@ -566,8 +566,8 @@ built with libwebp, which the default core has.
 :::note
 When you call `load()` without `coreURL`, `@project516/ffmpeg-wasm` loads
 `@project516/ffmpeg-wasm-core-jspi` if the runtime has JSPI, and
-`@project516/ffmpeg-wasm-core` if it does not. Under Node.js it picks the JSPI
-core only when that package is installed. To keep the Asyncify core, pass its
+`@project516/ffmpeg-wasm-core` if it does not or the JSPI core fails to load.
+Under Node.js it picks the JSPI core only when that package is installed. To keep the Asyncify core, pass its
 `coreURL`. This core is newer than the others; see its
 [known issues](#jspi-core-known-issues).
 :::

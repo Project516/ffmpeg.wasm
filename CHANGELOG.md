@@ -9,8 +9,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `load()` without `coreURL` loads the JSPI core where the runtime has JSPI
   (Chrome 137+, Firefox 153+, Safari 27+, Node.js 24+), and the Asyncify core
-  elsewhere. Under Node.js it does so when
-  `@project516/ffmpeg-wasm-core-jspi` is installed. The JSPI core runs the
+  elsewhere, or when the JSPI core fails to load. Under Node.js it does so
+  when `@project516/ffmpeg-wasm-core-jspi` is installed. The JSPI core runs the
   same FFmpeg faster, with a smaller wasm file and less memory. Pass the
   Asyncify core's `coreURL` to keep it.
 
