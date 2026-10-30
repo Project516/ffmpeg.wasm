@@ -150,6 +150,8 @@ export interface FFmpegCoreModule extends Partial<FSFilesystems> {
   ret: number;
   timeout: number;
   mainScriptUrlOrBlob: string;
+  /** Pthread workers the multithread core starts; see `FFMessageLoadConfig`. */
+  pthreadPoolSize?: number;
 
   exec: (...args: string[]) => number;
   ffprobe: (...args: string[]) => number;

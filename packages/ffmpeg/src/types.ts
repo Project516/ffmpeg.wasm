@@ -39,6 +39,20 @@ export interface FFMessageLoadConfig {
    * @defaultValue `./worker.js`
    */
   classWorkerURL?: string;
+  /**
+   * Pthread workers the multithread core starts up front. A command that
+   * needs more threads than the pool fails instead of hanging, because the
+   * pool cannot grow while the browser's main thread is blocked. Peak
+   * threads per command (1 s H.264 input, default `-threads`): remux 2,
+   * VP9 encode 14, MPEG-4 16, scale 18, x265 19, x264 and VP9 outputs 21,
+   * x265 and x264 outputs 26, three x264 outputs 28, two x265 outputs 31.
+   *
+   * Ignored by the single-thread and JSPI cores. Must be an integer of at
+   * least 1.
+   *
+   * @defaultValue `32` on the multithread core.
+   */
+  pthreadPoolSize?: number;
 }
 
 export interface FFMessageExecData {
