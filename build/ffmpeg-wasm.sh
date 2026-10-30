@@ -137,7 +137,7 @@ CONF_FLAGS=(
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library
   ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB} # start with a large initial memory, but still allow growth (capped at 4GB) so a single high-res frame (e.g. 4K) does not abort with OOM
-  ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE=32}    # use 32 threads
+  ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE=24}    # each pool worker costs startup time and memory; a two-output encode peaks at 21 threads
   ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE_STRICT=2} # fail instead of hanging when a command needs more threads than the pool has
   ${FFMPEG_MT:+ -sDEFAULT_PTHREAD_STACK_SIZE=2MB} # the 64KB default overflows in x264 and decoder threads
   ${FFMPEG_ST:+ -sINITIAL_MEMORY=48MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB} # Use just enough memory as memory usage can grow, plus headroom for pthread-fiber's per-thread stacks and Asyncify's own overhead
