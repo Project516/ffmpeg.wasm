@@ -253,17 +253,24 @@ COPY build/ffmpeg-wasm.sh build.sh
 # A classic worker that loads the UMD core with importScripts() has the
 # wrapper worker as self.location, and pthreads would spawn that script. Point
 # them at the core instead, via the mainScriptUrlOrBlob that
-# @project516/ffmpeg-wasm passes. The grep fails the build if emsdk changes the
-# line this relies on.
+# @project516/ffmpeg-wasm passes.
+# Under Node.js, emsdk's getWasmBinary copies the Buffer that readFileSync
+# returns into a new Uint8Array, about 50 ms for a 40 MB core. Pass the Buffer
+# to WebAssembly.instantiate as it is.
+# Each grep fails the build if emsdk changes the line its sed relies on.
 RUN . /src/preset.env && mkdir -p /src/dist/umd && bash -x /src/build.sh \
       ${FFMPEG_LIBS} ${FFMPEG_LINK_FLAGS:-} \
       -o dist/umd/ffmpeg-core.js && \
     sed -i 's/_scriptName=self.location.href/_scriptName=Module["mainScriptUrlOrBlob"]||self.location.href/' dist/umd/ffmpeg-core.js && \
-    grep -q 'mainScriptUrlOrBlob"\]||self.location.href' dist/umd/ffmpeg-core.js
+    grep -q 'mainScriptUrlOrBlob"\]||self.location.href' dist/umd/ffmpeg-core.js && \
+    sed -i 's/var response=await readAsync(binaryFile);return new Uint8Array(response)/return await readAsync(binaryFile)/' dist/umd/ffmpeg-core.js && \
+    grep -q 'return await readAsync(binaryFile)' dist/umd/ffmpeg-core.js
 RUN . /src/preset.env && mkdir -p /src/dist/esm && bash -x /src/build.sh \
       ${FFMPEG_LIBS} ${FFMPEG_LINK_FLAGS:-} \
       -sEXPORT_ES6 \
-      -o dist/esm/ffmpeg-core.js
+      -o dist/esm/ffmpeg-core.js && \
+    sed -i 's/var response=await readAsync(binaryFile);return new Uint8Array(response)/return await readAsync(binaryFile)/' dist/esm/ffmpeg-core.js && \
+    grep -q 'return await readAsync(binaryFile)' dist/esm/ffmpeg-core.js
 
 # Export ffmpeg-core.wasm to dist/, use `docker buildx build -o . .` to get assets
 FROM scratch AS exportor
