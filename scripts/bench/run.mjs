@@ -6,8 +6,8 @@
 // Uses the same 1-second H.264 sample the browser/Node tests already embed
 // (tests/test-helper-browser.js) so no extra sample download is needed. That
 // sample is video-only, so the fixed set covers a codec transcode (H.264 to
-// VP9), an x264 encode, a container remux to a different codec (H.264 to
-// MPEG-4/avi), and a scale filter, rather than the audio example from the issue.
+// VP9), an x264 encode, a re-encode to MPEG-4 in AVI, a scale filter and a
+// remux, rather than the audio example from the issue.
 //
 // Each sample (one case, one run) is a fresh `node` child process, spawned
 // under `/usr/bin/time -v -o <file>`, whether it runs native ffmpeg or a
