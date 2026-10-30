@@ -112,10 +112,9 @@ same external tool, rather than the core's own `process.hrtime`/
 report with a wasm/native time ratio per case, written as JSON
 (`bench-report.json`) and as a markdown table in the step summary.
 
-The jspi core (`packages/core-jspi`) runs on Node.js 24, since JSPI needs it,
-and joins `bench-report.json` when its run finishes. The st core also runs on
-Node.js 24 as a control, and that like-for-like comparison is a separate table
-in the step summary. The jspi run is optional, so a failed jspi run leaves the
+The benchmark job runs on Node.js 26, whose V8 has JSPI on by default, so the
+jspi core (`packages/core-jspi`) runs next to st and mt and joins
+`bench-report.json`. The jspi run is optional, so a failed jspi run leaves the
 report with st and mt only.
 
 A last case, `vp8-720p-to-mp4`, runs `-i input.webm output.mp4` on 10
@@ -221,7 +220,7 @@ node scripts/fate/run.mjs --core packages/core --label st --manifest manifest.js
 # Benchmarks: native, then each core, then combine.
 node scripts/bench/run.mjs --native --out bench-native.json
 node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json
-node scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json   # Node.js 24
+node scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json   # needs JSPI: Node.js 26, or 24 with --experimental-wasm-jspi
 node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-jspi.json --out bench-report.json --markdown-out bench-report.md
 
 # Compare with the committed baseline.
