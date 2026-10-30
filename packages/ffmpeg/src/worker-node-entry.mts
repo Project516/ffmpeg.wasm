@@ -34,6 +34,7 @@ import { FFMessageType } from "./const.js";
 import {
   ERROR_UNKNOWN_MESSAGE_TYPE,
   ERROR_NOT_LOADED,
+  ERROR_POOL_SIZE,
   wasmLoadError,
 } from "./errors.js";
 import { supportsJSPI } from "./utils.js";
@@ -86,7 +87,14 @@ const toURL = (location: string): string =>
 const doLoad = async ({
   coreURL: _coreURL,
   wasmURL: _wasmURL,
+  pthreadPoolSize,
 }: FFMessageLoadConfig): Promise<void> => {
+  if (
+    pthreadPoolSize !== undefined &&
+    !(Number.isInteger(pthreadPoolSize) && pthreadPoolSize >= 1)
+  ) {
+    throw ERROR_POOL_SIZE;
+  }
   const coreURL = _coreURL ? toURL(_coreURL) : defaultCoreURL();
   const wasmURL = _wasmURL
     ? toURL(_wasmURL)
@@ -121,6 +129,7 @@ const doLoad = async ({
       // Fix `Overload resolution failed.` when using multi-threaded ffmpeg-core.
       // Encoded wasmURL in the URL as a hack to fix locateFile issue.
       mainScriptUrlOrBlob: `${coreURL}#${btoa(JSON.stringify({ wasmURL }))}`,
+      pthreadPoolSize,
     });
   } catch (e) {
     throw wasmLoadError(wasmURL, e);

@@ -9,6 +9,10 @@ export const ERROR_CRASHED = new Error(
 export const ERROR_IMPORT_FAILURE = new Error(
   "failed to import ffmpeg-core.js"
 );
+// The core loops `while (pthreadPoolSize--)`, which never ends for a fraction or a negative size.
+export const ERROR_POOL_SIZE = new Error(
+  "pthreadPoolSize must be an integer of at least 1"
+);
 export const ERROR_WORKER = new Error(
   "worker encountered an error, this is most likely caused by the worker script failing to load (CORP, network error, 404, etc.)"
 );
