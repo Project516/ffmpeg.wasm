@@ -22,7 +22,7 @@ If you are a [vite](https://vitejs.dev/) user, use `esm` in **baseURL** instead 
 
 ```jsx live
 // import { FFmpeg } from '@project516/ffmpeg-wasm';
-// import { fetchFile, toBlobURL } from '@project516/ffmpeg-wasm-util';
+// import { fetchFile } from '@project516/ffmpeg-wasm-util';
 function() {
     const [loaded, setLoaded] = useState(false);
     const ffmpegRef = useRef(new FFmpeg());
@@ -36,11 +36,11 @@ function() {
             messageRef.current.innerHTML = message;
             console.log(message);
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // jsDelivr sends CORS headers, so the core loads from its URL
+        // directly, and the browser can reuse the compiled wasm next visit.
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: `${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
         });
         setLoaded(true);
     }
@@ -70,6 +70,14 @@ function() {
 }
 ```
 
+:::tip
+Load the core from its URL when its host sends CORS headers, as jsDelivr
+does. The browser can then reuse the compiled wasm on later visits, and the
+page does not re-read the 32 to 40 MB core into a new blob on every load,
+which `toBlobURL()` does. Use `toBlobURL()` for a host without CORS headers,
+and for the multithread core below.
+:::
+
 ## Transcode webm to mp4 video (multi-thread)
 
 :::caution
@@ -97,8 +105,9 @@ function() {
             messageRef.current.innerHTML = message;
             console.log(message);
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // The multithread core starts its threads from coreURL, and a page
+        // can only start workers from its own origin, so it loads through
+        // a same-origin blob: URL.
         await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -165,11 +174,11 @@ function() {
             messageRef.current.innerHTML = message;
             console.log(message);
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // jsDelivr sends CORS headers, so the core loads from its URL
+        // directly, and the browser can reuse the compiled wasm next visit.
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: `${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
         });
         setLoaded(true);
     }
@@ -225,11 +234,11 @@ function() {
         ffmpeg.on('progress', ({ progress, time }) => {
             messageRef.current.innerHTML = `${progress * 100} % (transcoded time: ${time / 1000000} s)`;
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // jsDelivr sends CORS headers, so the core loads from its URL
+        // directly, and the browser can reuse the compiled wasm next visit.
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: `${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
         });
         setLoaded(true);
     }
@@ -276,11 +285,11 @@ function() {
             messageRef.current.innerHTML = message;
             console.log(message);
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // jsDelivr sends CORS headers, so the core loads from its URL
+        // directly, and the browser can reuse the compiled wasm next visit.
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: `${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
         });
         setLoaded(true);
     }
@@ -346,11 +355,11 @@ function() {
             messageRef.current.innerHTML = message;
             console.log(message);
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // jsDelivr sends CORS headers, so the core loads from its URL
+        // directly, and the browser can reuse the compiled wasm next visit.
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: `${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
         });
         setLoaded(true);
     }
@@ -405,11 +414,11 @@ function() {
             messageRef.current.innerHTML = message;
             console.log(message);
         });
-        // toBlobURL is used to bypass CORS issue, urls with the same
-        // domain can be used directly.
+        // jsDelivr sends CORS headers, so the core loads from its URL
+        // directly, and the browser can reuse the compiled wasm next visit.
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: `${baseURL}/ffmpeg-core.js`,
+            wasmURL: `${baseURL}/ffmpeg-core.wasm`,
         });
         setLoaded(true);
     }
@@ -608,8 +617,8 @@ To load it from your own copy instead of the CDN, point `coreURL` and
 ```ts
 const baseURL = "https://cdn.jsdelivr.net/npm/@project516/ffmpeg-wasm-core-jspi@0.17.1/dist/umd";
 await ffmpeg.load({
-  coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-  wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+  coreURL: `${baseURL}/ffmpeg-core.js`,
+  wasmURL: `${baseURL}/ffmpeg-core.wasm`,
 });
 ```
 
