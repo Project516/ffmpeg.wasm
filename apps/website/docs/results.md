@@ -91,10 +91,11 @@ FFmpeg n9.0.2. The pass rate is pass divided by pass plus fail. A skipped test i
 
 Median of five runs on one GitHub Actions runner, against native ffmpeg version 6.1.1-3ubuntu5 from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full. A "-" means the case has no result for that core yet.
 
-| case | native (ms) | st (ms) | st ratio | st peak RSS (MB) | mt (ms) | mt ratio | mt peak RSS (MB) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| h264-to-vp9 | 130 | 590 | 4.54x | 195 | 1140 | 8.77x | 668 |
-| h264-to-mpeg4 | 100 | 460 | 4.60x | 168 | 1040 | 10.40x | 646 |
-| scale-half | 100 | 1330 | 13.30x | 342 | 1100 | 11.00x | 691 |
-| h264-remux-mkv | 90 | 300 | 3.33x | 169 | 1030 | 11.44x | 630 |
-| vp8-720p-to-mp4 | 5380 | 82830 | 15.40x | 439 | 35920 | 6.68x | 936 |
+| case | native (ms) | st (ms) | st ratio | st peak RSS (MB) | mt (ms) | mt ratio | mt peak RSS (MB) | jspi (ms) | jspi ratio | jspi peak RSS (MB) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| h264-to-vp9 | 120 | 520 | 4.33x | 216 | 1240 | 10.33x | 639 | 430 | 3.58x | 175 |
+| h264-to-x264 | 90 | 540 | 6.00x | 239 | 1200 | 13.33x | 650 | 460 | 5.11x | 200 |
+| h264-to-mpeg4 | 90 | 380 | 4.22x | 173 | 1110 | 12.33x | 613 | 280 | 3.11x | 147 |
+| scale-half | 100 | 540 | 5.40x | 227 | 1200 | 12.00x | 645 | 450 | 4.50x | 196 |
+| h264-remux-mkv | 80 | 270 | 3.38x | 156 | 1100 | 13.75x | 575 | 220 | 2.75x | 139 |
+| vp8-720p-to-mp4 | 5250 | 69180 | 13.18x | 408 | 31480 | 6.00x | 841 | 66410 | 12.65x | 343 |
