@@ -27,13 +27,14 @@ import type {
   FSNode,
   FileData,
 } from "./types";
-import { CORE_URL, FFMessageType } from "./const.js";
+import { CORE_JSPI_URL, CORE_URL, FFMessageType } from "./const.js";
 import {
   ERROR_UNKNOWN_MESSAGE_TYPE,
   ERROR_NOT_LOADED,
   ERROR_IMPORT_FAILURE,
   wasmLoadError,
 } from "./errors.js";
+import { supportsJSPI } from "./utils.js";
 
 // Set by importScripts() of the UMD core, or assigned from the ESM core's
 // default export.
@@ -49,32 +50,29 @@ let ffmpeg: FFmpegCoreModule | FFmpegCoreJspiModule;
 // Set while a load() is in flight or done; see load().
 let loading: Promise<void> | null = null;
 
-const doLoad = async ({
-  coreURL: _coreURL,
-  wasmURL: _wasmURL,
-}: FFMessageLoadConfig): Promise<void> => {
+// Loads the core script at url into self.createFFmpegCore and returns the URL
+// it came from.
+const importCore = async (url: string): Promise<string> => {
   try {
-    if (!_coreURL) _coreURL = CORE_URL;
     // when web worker type is `classic`.
-    importScripts(_coreURL);
+    importScripts(url);
+    return url;
   } catch (importScriptsError) {
     try {
-      // A UMD coreURL (default or caller-supplied) fails to parse as an ES
-      // module; retry any /umd/ URL under /esm/ instead of only the
-      // default CORE_URL. Re-defaulted here (already done above) because
-      // TS can't carry the narrowing across the try/catch boundary.
-      _coreURL = _coreURL || CORE_URL;
-      if (_coreURL.includes("/umd/")) _coreURL = _coreURL.replace('/umd/', '/esm/');
+      // A UMD core fails to parse as an ES module; retry any /umd/ URL under
+      // /esm/.
+      if (url.includes("/umd/")) url = url.replace('/umd/', '/esm/');
       // when web worker type is `module`.
       self.createFFmpegCore = (
         (await import(
-          /* @vite-ignore */ /* turbopackIgnore: true */ _coreURL
+          /* @vite-ignore */ /* turbopackIgnore: true */ url
         )) as ImportedFFmpegCoreModuleFactory
       ).default;
 
       if (!self.createFFmpegCore) {
         throw ERROR_IMPORT_FAILURE;
       }
+      return url;
     } catch (importError) {
       // Either failure can be the real one: importScripts() for a bad URL in
       // a classic worker, import() in a module worker. The caller only sees
@@ -87,9 +85,22 @@ const doLoad = async ({
       );
     }
   }
+};
 
-  const coreURL = _coreURL;
-  const wasmURL = _wasmURL ? _wasmURL : _coreURL.replace(/.js$/g, ".wasm");
+// The JSPI core runs the same FFmpeg faster than the Asyncify core, so it is
+// the default wherever the runtime can load it. If it does not load, for
+// example because its release is not on the CDN yet, the Asyncify core does.
+const importDefaultCore = (): Promise<string> =>
+  supportsJSPI()
+    ? importCore(CORE_JSPI_URL).catch(() => importCore(CORE_URL))
+    : importCore(CORE_URL);
+
+const doLoad = async ({
+  coreURL: _coreURL,
+  wasmURL: _wasmURL,
+}: FFMessageLoadConfig): Promise<void> => {
+  const coreURL = _coreURL ? await importCore(_coreURL) : await importDefaultCore();
+  const wasmURL = _wasmURL ? _wasmURL : coreURL.replace(/.js$/g, ".wasm");
 
   const createFFmpegCore = self.createFFmpegCore;
   if (!createFFmpegCore) throw ERROR_IMPORT_FAILURE;

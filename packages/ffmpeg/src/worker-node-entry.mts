@@ -36,6 +36,7 @@ import {
   ERROR_NOT_LOADED,
   wasmLoadError,
 } from "./errors.js";
+import { supportsJSPI } from "./utils.js";
 
 if (!parentPort) {
   throw new Error(
@@ -47,10 +48,17 @@ let ffmpeg: FFmpegCoreModule | FFmpegCoreJspiModule;
 // Set while a load() is in flight or done; see load().
 let loading: Promise<void> | null = null;
 
-// `@project516/ffmpeg-wasm-core` resolves relative to the consuming
-// project's own node_modules, not this package, so a bare specifier is
-// correct here.
+// The cores resolve relative to the consuming project's own node_modules, not
+// this package, so a bare specifier is correct here. The JSPI core is faster,
+// so it wins when it is installed and the runtime has JSPI.
 const defaultCoreURL = (): string => {
+  if (supportsJSPI()) {
+    try {
+      return import.meta.resolve("@project516/ffmpeg-wasm-core-jspi");
+    } catch {
+      // Not installed: fall back to the Asyncify core below.
+    }
+  }
   try {
     return import.meta.resolve("@project516/ffmpeg-wasm-core");
   } catch (e) {
