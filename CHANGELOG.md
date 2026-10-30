@@ -15,6 +15,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Asyncify core's `coreURL` to keep it.
 - Under Node.js, the cores pass the wasm file to `WebAssembly.instantiate`
   without copying it first, which takes about 50 ms off loading a core.
+- x264 encodes on the single-thread (Asyncify) core take about a third less
+  time. Asyncify no longer instruments x264, which never switches threads in
+  this core.
 
 ## 0.17.1
 

@@ -72,6 +72,9 @@ else
     # uses and nothing here calls. Each fiber carries its own asyncify stack
     # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
     -sASYNCIFY_STACK_SIZE=65536
+    # x264 has no threads here and only calls back to av_log, so no fiber
+    # switch happens inside it; instrumenting it only slows it down.
+    "-sASYNCIFY_REMOVE=['x264_*']"
   )
 fi
 
