@@ -65,6 +65,19 @@ test("bench: a case with no successful runs fails", () => {
   assert.equal(compareBench(benchBaseline, bench(null, null)).failures.length, 1);
 });
 
+test("bench: a core or case missing from the baseline warns, never fails", () => {
+  const r = compareBench(benchBaseline, {
+    caseNames: ["c", "new"],
+    native: { cases: [{ name: "c", medianWallMs: 100 }, { name: "new", medianWallMs: 100 }] },
+    cores: [
+      { label: "st", cases: [{ name: "c", medianWallMs: 410, medianPeakRssKb: 205000 }, { name: "new", medianWallMs: 400, medianPeakRssKb: 1 }] },
+      { label: "jspi", cases: [{ name: "c", medianWallMs: 400, medianPeakRssKb: 1 }, { name: "new", medianWallMs: 400, medianPeakRssKb: 1 }] },
+    ],
+  });
+  assert.equal(r.failures.length, 0);
+  assert.equal(r.warnings.length, 3);
+});
+
 test("bench: baseline stores the wasm/native ratio", () => {
   const b = benchBaselineFrom(bench(450, 1000));
   assert.equal(b.cores.st.c.ratio, 4.5);

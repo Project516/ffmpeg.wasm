@@ -79,7 +79,7 @@ function main() {
       out.push("### Benchmarks", "", `Warn above ${BENCH_WARN * 100}% over the baseline, fail above ${BENCH_FAIL * 100}%.`, "");
       out.push("| core and case | wasm/native | baseline | peak RSS (KB) | baseline |", "| --- | --- | --- | --- | --- |");
       for (const r of rows) {
-        out.push(`| ${r.where} | ${r.ratio.toFixed(2)}x | ${r.baseRatio?.toFixed(2) ?? "-"}x | ${r.rss == null ? "-" : Math.round(r.rss)} | ${r.baseRss ?? "-"} |`);
+        out.push(`| ${r.where} | ${r.ratio.toFixed(2)}x | ${r.baseRatio == null ? "-" : `${r.baseRatio.toFixed(2)}x`} | ${r.rss == null ? "-" : Math.round(r.rss)} | ${r.baseRss ?? "-"} |`);
       }
       out.push("");
       if (failures.length > 0) {

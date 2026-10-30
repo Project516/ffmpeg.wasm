@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pagePath = join(root, "apps", "website", "docs", "results.md");
 const CORES = ["st", "mt"];
+const BENCH_CORES = ["st", "mt", "jspi"];
 const SUBSETS = ["full", "fast"];
 
 function counts(groups) {
@@ -70,22 +71,23 @@ function fateSection(fate) {
 }
 
 function benchSection(bench) {
-  const cores = CORES.filter((c) => bench.cores[c]);
-  const cases = Object.keys(bench.cores[cores[0]]);
+  const cores = BENCH_CORES.filter((c) => bench.cores[c]);
+  const cases = [...new Set(cores.flatMap((c) => Object.keys(bench.cores[c])))];
   const lines = ["## Performance", ""];
   lines.push(
-    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full.`,
+    `Median of five runs on one GitHub Actions runner, against native ${bench.native.replace(/ Copyright.*/, "").replace(/[{}<>]/g, " ")} from the runner image, not the pinned tag. Most cases transcode a 1 second H.264 clip, so startup is a large part of their native time. The vp8-720p-to-mp4 case transcodes 10 seconds of 720p VP8 and is measured only on manual CI runs with subset=full. A "-" means the case has no result for that core yet.`,
     "",
   );
   lines.push(`| case | native (ms) | ${cores.map((c) => `${c} (ms) | ${c} ratio | ${c} peak RSS (MB)`).join(" | ")} |`);
   lines.push(`| --- | --- | ${cores.map(() => "--- | --- | ---").join(" | ")} |`);
   for (const name of cases) {
-    const native = bench.cores[cores[0]][name].nativeMs;
+    const native = cores.map((c) => bench.cores[c][name]?.nativeMs).find((ms) => ms != null);
     const cells = cores.map((c) => {
       const r = bench.cores[c][name];
+      if (!r) return "- | - | -";
       return `${r.wasmMs} | ${r.ratio.toFixed(2)}x | ${(r.peakRssKb / 1024).toFixed(0)}`;
     });
-    lines.push(`| ${name} | ${native} | ${cells.join(" | ")} |`);
+    lines.push(`| ${name} | ${native ?? "-"} | ${cells.join(" | ")} |`);
   }
   lines.push("");
   return lines;

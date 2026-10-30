@@ -573,8 +573,8 @@ jobs:
         with:
           name: ffmpeg-core-mt
           path: packages/core-mt/dist
-      # The experimental core must not fail the st and mt numbers, so its
-      # steps are skipped when its artifact is missing.
+      # The jspi core must not fail the st and mt numbers, so its steps are
+      # skipped when its artifact is missing.
       - name: Download ffmpeg-core-jspi
         id: jspi
         continue-on-error: true
@@ -587,7 +587,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -603,43 +603,23 @@ jobs:
         run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st.json $BENCH_FLAGS
       - name: Benchmark mt core
         run: node scripts/bench/run.mjs --core packages/core-mt --label mt --out bench-mt.json $BENCH_FLAGS
-      # jspi needs Node.js 24, so st is run again on it for a like-for-like
-      # comparison.
-      - name: Setup Node.js 24
-        if: steps.jspi.outcome == 'success'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - name: Benchmark st core on Node.js 24
-        id: bench-st24
-        if: steps.jspi.outcome == 'success'
-        continue-on-error: true
-        run: node scripts/bench/run.mjs --core packages/core --label st --out bench-st-node24.json $BENCH_FLAGS
       - name: Benchmark jspi core
-        id: bench-jspi
-        if: steps.bench-st24.outcome == 'success'
+        if: steps.jspi.outcome == 'success'
         continue-on-error: true
-        run: |
-          # V8 before 13.7 needs the flag; later ones no longer list it.
-          flag=$(node --v8-options | grep -o -m1 -e '--experimental-wasm-jspi' || true)
-          node $flag scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json $BENCH_FLAGS
+        run: node scripts/bench/run.mjs --core packages/core-jspi --label jspi --out bench-jspi.json $BENCH_FLAGS
+      # jspi is optional: a failed jspi run leaves no file, and the report
+      # then covers st and mt only.
       - name: Combine into a ratio report
-        run: node scripts/bench/report.mjs --native bench-native.json --core bench-st.json --core bench-mt.json --out bench-report.json --markdown-out bench-report.md
-      - name: Compare jspi with st
-        if: steps.bench-jspi.outcome == 'success'
-        run: node scripts/bench/report.mjs --native bench-native.json --core bench-st-node24.json --core bench-jspi.json --out bench-report-jspi.json --markdown-out bench-report-jspi.md
+        run: |
+          cores="--core bench-st.json --core bench-mt.json"
+          if [ -f bench-jspi.json ]; then cores="$cores --core bench-jspi.json"; fi
+          node scripts/bench/report.mjs --native bench-native.json $cores --out bench-report.json --markdown-out bench-report.md
       - name: Write step summary
         run: |
           {
             echo "## Benchmark results"
             echo
             cat bench-report.md
-            if [ -f bench-report-jspi.md ]; then
-              echo
-              echo "## Benchmark results, st and jspi"
-              echo
-              cat bench-report-jspi.md
-            fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload results
         if: always()

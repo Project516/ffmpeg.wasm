@@ -6,8 +6,8 @@
 // Uses the same 1-second H.264 sample the browser/Node tests already embed
 // (tests/test-helper-browser.js) so no extra sample download is needed. That
 // sample is video-only, so the fixed set covers a codec transcode (H.264 to
-// VP9), a container remux to a different codec (H.264 to MPEG-4/avi), and a
-// scale filter, rather than the audio example from the issue.
+// VP9), an x264 encode, a re-encode to MPEG-4 in AVI, a scale filter and a
+// remux, rather than the audio example from the issue.
 //
 // Each sample (one case, one run) is a fresh `node` child process, spawned
 // under `/usr/bin/time -v -o <file>`, whether it runs native ffmpeg or a
@@ -42,6 +42,8 @@ const BBB_720P = {
 
 const CASES = [
   { name: "h264-to-vp9", args: (inp, out) => ["-i", inp, "-c:v", "libvpx-vp9", "-b:v", "500k", out.replace(/\.\w+$/, ".webm")] },
+  // libx264 is the default MP4 encoder and the most common encode.
+  { name: "h264-to-x264", args: (inp, out) => ["-i", inp, "-c:v", "libx264", out.replace(/\.\w+$/, ".mp4")] },
   { name: "h264-to-mpeg4", args: (inp, out) => ["-i", inp, out.replace(/\.\w+$/, ".avi")] },
   {
     name: "scale-half",
