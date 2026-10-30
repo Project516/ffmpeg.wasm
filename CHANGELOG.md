@@ -13,6 +13,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   when `@project516/ffmpeg-wasm-core-jspi` is installed. The JSPI core runs the
   same FFmpeg faster, with a smaller wasm file and less memory. Pass the
   Asyncify core's `coreURL` to keep it.
+- Under Node.js, the cores pass the wasm file to `WebAssembly.instantiate`
+  without copying it first, which takes about 50 ms off loading a core.
 - The single-thread (Asyncify) core encodes with x264 about a third faster.
   Asyncify no longer instruments x264, which never switches threads in this
   core.
