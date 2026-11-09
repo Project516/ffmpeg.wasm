@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Changed
+
+- The cores are built with Emscripten 7.0.0.
+
 ## 0.18.0
 
 ### Added

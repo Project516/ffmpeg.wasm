@@ -11,8 +11,9 @@ CONF_FLAGS=(
   --disable-simd                   # disable simd optimization
 )
 
-# zimg reports errors by throwing.
-export CXXFLAGS="$CXXFLAGS -fexceptions"
+# zimg reports errors by throwing. libc++ 23 no longer includes <exception>
+# for zimg.cpp.
+export CXXFLAGS="$CXXFLAGS -fexceptions -include exception"
 
 emconfigure ./autogen.sh
 
