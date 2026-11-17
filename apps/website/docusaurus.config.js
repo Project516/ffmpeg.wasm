@@ -14,6 +14,7 @@ const config = {
     "ffmpeg.wasm is a pure WebAssembly / JavaScript port of FFmpeg enabling video & audio record, convert and stream right inside browsers!",
   url: "https://project516.dev",
   baseUrl,
+  trailingSlash: true,
   onBrokenLinks: "throw",
   markdown: {
     hooks: {
