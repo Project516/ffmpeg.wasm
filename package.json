@@ -29,9 +29,9 @@
     "@project516/ffmpeg-wasm-core-mt": "workspace:*",
     "@project516/ffmpeg-wasm-util": "workspace:*",
     "chai": "^6.3.0",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "globals": "^17.14.0",
     "mocha": "^12.0.3",
-    "playwright": "^1.65.0"
+    "playwright": "^1.65.1"
   }
 }
