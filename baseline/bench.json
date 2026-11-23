@@ -3,116 +3,116 @@
   "cores": {
     "st": {
       "h264-to-vp9": {
-        "nativeMs": 110,
-        "wasmMs": 530,
-        "ratio": 4.82,
-        "peakRssKb": 220740
+        "nativeMs": 80,
+        "wasmMs": 320,
+        "ratio": 4,
+        "peakRssKb": 220076
       },
       "h264-to-x264": {
-        "nativeMs": 80,
-        "wasmMs": 530,
-        "ratio": 6.63,
-        "peakRssKb": 247560
+        "nativeMs": 60,
+        "wasmMs": 340,
+        "ratio": 5.67,
+        "peakRssKb": 246748
       },
       "h264-to-mpeg4": {
-        "nativeMs": 80,
-        "wasmMs": 380,
-        "ratio": 4.75,
-        "peakRssKb": 175756
+        "nativeMs": 60,
+        "wasmMs": 250,
+        "ratio": 4.17,
+        "peakRssKb": 177248
       },
       "scale-half": {
-        "nativeMs": 80,
-        "wasmMs": 510,
-        "ratio": 6.38,
-        "peakRssKb": 238692
+        "nativeMs": 60,
+        "wasmMs": 350,
+        "ratio": 5.83,
+        "peakRssKb": 237292
       },
       "h264-remux-mkv": {
-        "nativeMs": 70,
-        "wasmMs": 260,
-        "ratio": 3.71,
-        "peakRssKb": 161532
+        "nativeMs": 50,
+        "wasmMs": 170,
+        "ratio": 3.4,
+        "peakRssKb": 160676
       },
       "vp8-720p-to-mp4": {
-        "nativeMs": 5120,
-        "wasmMs": 68900,
-        "ratio": 13.46,
-        "peakRssKb": 418060
+        "nativeMs": 3000,
+        "wasmMs": 42530,
+        "ratio": 14.18,
+        "peakRssKb": 436728
       }
     },
     "mt": {
       "h264-to-vp9": {
-        "nativeMs": 110,
-        "wasmMs": 1200,
-        "ratio": 10.91,
-        "peakRssKb": 652744
+        "nativeMs": 80,
+        "wasmMs": 770,
+        "ratio": 9.63,
+        "peakRssKb": 658980
       },
       "h264-to-x264": {
-        "nativeMs": 80,
-        "wasmMs": 1250,
-        "ratio": 15.63,
-        "peakRssKb": 682456
+        "nativeMs": 60,
+        "wasmMs": 800,
+        "ratio": 13.33,
+        "peakRssKb": 679296
       },
       "h264-to-mpeg4": {
-        "nativeMs": 80,
-        "wasmMs": 1120,
-        "ratio": 14,
-        "peakRssKb": 635620
+        "nativeMs": 60,
+        "wasmMs": 750,
+        "ratio": 12.5,
+        "peakRssKb": 635836
       },
       "scale-half": {
-        "nativeMs": 80,
-        "wasmMs": 1150,
-        "ratio": 14.38,
-        "peakRssKb": 664668
+        "nativeMs": 60,
+        "wasmMs": 790,
+        "ratio": 13.17,
+        "peakRssKb": 670508
       },
       "h264-remux-mkv": {
-        "nativeMs": 70,
-        "wasmMs": 1050,
-        "ratio": 15,
-        "peakRssKb": 589652
+        "nativeMs": 50,
+        "wasmMs": 760,
+        "ratio": 15.2,
+        "peakRssKb": 599372
       },
       "vp8-720p-to-mp4": {
-        "nativeMs": 5120,
-        "wasmMs": 31590,
-        "ratio": 6.17,
-        "peakRssKb": 853672
+        "nativeMs": 3000,
+        "wasmMs": 17630,
+        "ratio": 5.88,
+        "peakRssKb": 861472
       }
     },
     "jspi": {
       "h264-to-vp9": {
-        "nativeMs": 110,
-        "wasmMs": 420,
-        "ratio": 3.82,
-        "peakRssKb": 180448
-      },
-      "h264-to-x264": {
-        "nativeMs": 80,
-        "wasmMs": 440,
-        "ratio": 5.5,
-        "peakRssKb": 206020
-      },
-      "h264-to-mpeg4": {
         "nativeMs": 80,
         "wasmMs": 260,
         "ratio": 3.25,
-        "peakRssKb": 151568
+        "peakRssKb": 177208
+      },
+      "h264-to-x264": {
+        "nativeMs": 60,
+        "wasmMs": 270,
+        "ratio": 4.5,
+        "peakRssKb": 204088
+      },
+      "h264-to-mpeg4": {
+        "nativeMs": 60,
+        "wasmMs": 170,
+        "ratio": 2.83,
+        "peakRssKb": 152256
       },
       "scale-half": {
-        "nativeMs": 80,
-        "wasmMs": 450,
-        "ratio": 5.63,
-        "peakRssKb": 203100
+        "nativeMs": 60,
+        "wasmMs": 290,
+        "ratio": 4.83,
+        "peakRssKb": 192340
       },
       "h264-remux-mkv": {
-        "nativeMs": 70,
-        "wasmMs": 220,
-        "ratio": 3.14,
-        "peakRssKb": 142868
+        "nativeMs": 50,
+        "wasmMs": 140,
+        "ratio": 2.8,
+        "peakRssKb": 142976
       },
       "vp8-720p-to-mp4": {
-        "nativeMs": 5120,
-        "wasmMs": 66610,
-        "ratio": 13.01,
-        "peakRssKb": 371392
+        "nativeMs": 3000,
+        "wasmMs": 41180,
+        "ratio": 13.73,
+        "peakRssKb": 365632
       }
     }
   }
