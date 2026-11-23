@@ -3,11 +3,11 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## 0.19.0
 
 ### Changed
 
-- Both cores build FFmpeg 9.1 (was 9.0.2).
+- Both cores build FFmpeg 9.1 (was 9.0.2). The wasm files are 1 to 3 percent larger.
 - The cores are built with Emscripten 7.0.0.
 
 ## 0.18.0
