@@ -7,7 +7,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Both cores build FFmpeg 9.1 (was 9.0.2). The wasm files are 1 to 3 percent larger.
+- Both cores build FFmpeg 9.1 (was 9.0.2). The wasm files are about 1.4 percent larger than in 0.18.0.
 - The cores are built with Emscripten 7.0.0.
 
 ## 0.18.0
