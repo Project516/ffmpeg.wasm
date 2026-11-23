@@ -72,9 +72,10 @@ else
     # uses and nothing here calls. Each fiber carries its own asyncify stack
     # for fiber swaps; see PFIBER_ASYNCIFY_STACK_SIZE in pthread_fiber.c.
     -sASYNCIFY_STACK_SIZE=65536
-    # x264 has no threads here and only calls back to av_log, so no fiber
-    # switch happens inside it; instrumenting it only slows it down.
-    "-sASYNCIFY_REMOVE=['x264_*']"
+    # These libraries have no threads here and only call back to av_log, so no
+    # fiber switch happens inside them; instrumenting them only costs size and
+    # speed. libdav1d and libwebp are not listed: -threads N starts threads there.
+    "-sASYNCIFY_REMOVE=['x264_*','vpx_*','vp8_*','vp9_*','lame_*','opus_*','celt_*','silk_*','vorbis_*','ogg_*','th_*','zimg*','FT_*','hb_*','ass_*','fribidi_*']"
   )
 fi
 
