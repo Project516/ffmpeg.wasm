@@ -7,16 +7,16 @@ ARG EXTRA_LDFLAGS
 ARG FFMPEG_ST
 ARG FFMPEG_MT
 ENV INSTALL_DIR=/opt
-# Both cores build the same FFmpeg release now: n9.0.2's fftools has needed
+# Both cores build the same FFmpeg release now: n9.1's fftools has needed
 # real threads (the fftools scheduler) since n6.0, and the st core gets them
 # via src/pthread-fiber, a cooperative pthread shim on Emscripten fibers,
 # since it has no SharedArrayBuffer for real ones. See "FFmpeg upgrade plan"
-# in AGENTS.md. Kept as two variables, both n9.0.2, only so a future version
+# in AGENTS.md. Kept as two variables, both n9.1, only so a future version
 # bump can stage st and mt separately again if needed.
-ENV FFMPEG_VERSION_ST=n9.0.2
-ENV FFMPEG_VERSION_MT=n9.0.2
-ENV FFMPEG_COMMIT_ST=946fcce07b6dcd0331c8cc609192aeff5e1924f8
-ENV FFMPEG_COMMIT_MT=946fcce07b6dcd0331c8cc609192aeff5e1924f8
+ENV FFMPEG_VERSION_ST=n9.1
+ENV FFMPEG_VERSION_MT=n9.1
+ENV FFMPEG_COMMIT_ST=74e4393595cf2b5857f0da925c4e0dd74ea306e5
+ENV FFMPEG_COMMIT_MT=74e4393595cf2b5857f0da925c4e0dd74ea306e5
 # Clang in current emsdk releases defaults several legacy-C88/C89 patterns
 # (implicit function declarations, mismatched function pointer types, and
 # int/pointer conversions) to hard errors. Some of the bundled third-party

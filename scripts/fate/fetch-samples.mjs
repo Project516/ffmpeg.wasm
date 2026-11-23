@@ -4,7 +4,7 @@
 // nothing (and needs no network) for a manifest that only has synthetic
 // tests, e.g. the "fast" subset used on pushes to master.
 //
-// Usage: node scripts/fate/fetch-samples.mjs --manifest manifest.json --tag n9.0.2
+// Usage: node scripts/fate/fetch-samples.mjs --manifest manifest.json --tag n9.1
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

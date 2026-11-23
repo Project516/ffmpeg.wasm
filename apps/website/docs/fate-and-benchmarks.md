@@ -206,13 +206,13 @@ where that download is unwanted.
 
 ```sh
 # 1. Fetch FFmpeg's tests/ directory for the pinned tag (sparse checkout).
-node scripts/fate/fetch-defs.mjs --tag n9.0.2
+node scripts/fate/fetch-defs.mjs --tag n9.1
 
 # 2. Pick a subset and write it as a manifest.
-node scripts/fate/select.mjs --tag n9.0.2 --subset fast --out manifest.json
+node scripts/fate/select.mjs --tag n9.1 --subset fast --out manifest.json
 
 # 3. Fetch any samples that subset's tests reference (no-op for "fast").
-node scripts/fate/fetch-samples.mjs --manifest manifest.json --tag n9.0.2
+node scripts/fate/fetch-samples.mjs --manifest manifest.json --tag n9.1
 
 # 4. Run it against a built core and write results.
 node scripts/fate/run.mjs --core packages/core --label st --manifest manifest.json --out results.json

@@ -3,7 +3,7 @@
 // framemd5, crc, md5 and md5pipe tests from the allowlisted files in
 // config.mjs, and writes a manifest of the chosen subset as JSON.
 //
-// Usage: node scripts/fate/select.mjs --tag n9.0.2 --subset fast --out manifest.json
+// Usage: node scripts/fate/select.mjs --tag n9.1 --subset fast --out manifest.json
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
