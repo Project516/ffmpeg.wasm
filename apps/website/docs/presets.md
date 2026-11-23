@@ -18,17 +18,17 @@ copy one to start your own.
 
 ## Size
 
-Measured in CI at FFmpeg n9.0.2, from `dist/umd`. Gzip is level 9. The last
+Measured in CI at FFmpeg n9.1, from `dist/umd`. Gzip is level 9. The last
 column adds the gzipped `ffmpeg-core.js`.
 
 | preset | core | wasm (MB) | wasm gzip (MB) | wasm and js gzip (MB) |
 | --- | --- | --- | --- | --- |
-| `full` | single-thread | 39.96 | 13.44 | 13.48 |
-| `full` | multi-thread | 32.36 | 11.05 | 11.08 |
-| `web` | single-thread | 14.89 | 4.84 | 4.87 |
-| `web` | multi-thread | 12.30 | 4.01 | 4.04 |
-| `decode` | single-thread | 25.31 | 9.00 | 9.04 |
-| `decode` | multi-thread | 20.22 | 7.46 | 7.50 |
+| `full` | single-thread | 40.37 | 13.62 | 13.65 |
+| `full` | multi-thread | 33.25 | 11.35 | 11.38 |
+| `web` | single-thread | 15.70 | 5.13 | 5.16 |
+| `web` | multi-thread | 13.27 | 4.35 | 4.38 |
+| `decode` | single-thread | 25.85 | 9.22 | 9.25 |
+| `decode` | multi-thread | 20.93 | 7.73 | 7.76 |
 
 Each `build-preset` job in the CI workflow prints its row in the job summary,
 so a change that moves these numbers shows up in a pull request.

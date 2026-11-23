@@ -7,7 +7,7 @@ set -euo pipefail
 
 EXPORT_NAME="createFFmpegCore"
 
-# Both cores now build FFmpeg n9.0.2 (which dropped libpostproc) and link the
+# Both cores now build FFmpeg n9.1 (libpostproc is gone since 9.0) and link the
 # fftools objects that build/ffmpeg.sh already compiled from FFmpeg's own
 # patched source tree (see build/patches/n9). The st core additionally links
 # a small cooperative pthread shim (src/pthread-fiber) so fftools' scheduler

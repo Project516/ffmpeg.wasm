@@ -3,7 +3,7 @@
 // via a sparse, blobless checkout of just tests/ from the FFmpeg source
 // tree. Run once per tag before select.mjs.
 //
-// Usage: node scripts/fate/fetch-defs.mjs --tag n9.0.2
+// Usage: node scripts/fate/fetch-defs.mjs --tag n9.1
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";

@@ -14,7 +14,7 @@ maintained fork of the abandoned `ffmpegwasm/ffmpeg.wasm`.
 
 ## FFmpeg upgrade plan
 
-Both cores build FFmpeg n9.0.2. The ffmpeg CLI in fftools has needed a
+Both cores build FFmpeg n9.1. The ffmpeg CLI in fftools has needed a
 threaded scheduler since 6.0; the mt core has real pthreads, the st core has
 none (no `SharedArrayBuffer`), so it runs the scheduler on a cooperative
 pthread shim instead.
@@ -61,7 +61,7 @@ Lessons from the shim, so they are not rediscovered:
   core links so fftools' scheduler runs without `SharedArrayBuffer`.
   With `PFIBER_JSPI` (`make prd-jspi`, the opt-in `packages/core-jspi`) a switch
   suspends the wasm stack with JSPI instead; see `build/ffmpeg-wasm.sh`.
-- `build/patches/n9`: patches applied to FFmpeg n9.0.2's own fftools sources
+- `build/patches/n9`: patches applied to FFmpeg n9.1's own fftools sources
   for both cores; see the comment in the Dockerfile's `ffmpeg-base` stage.
 - `src/bind`: JS glue passed to emcc when building the core.
 - `build/`: per-library build scripts used by the Dockerfile.
