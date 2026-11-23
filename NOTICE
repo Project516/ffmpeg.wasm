@@ -50,8 +50,7 @@ FFmpeg and third-party libraries built into the core packages
 FFmpeg
   https://ffmpeg.org
   License: LGPL-2.1-or-later; GPL-2.0-or-later when built with --enable-gpl
-  (this project's build). Versions used: n5.1.10 (single-thread core),
-  n9.1 (multi-thread core). See Dockerfile.
+  (this project's build). Version used: n9.1 (both cores). See Dockerfile.
 
 x264
   https://www.videolan.org/developers/x264.html
