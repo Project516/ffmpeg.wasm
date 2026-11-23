@@ -1,5 +1,5 @@
 {
-  "tag": "n9.0.2",
+  "tag": "n9.1",
   "cores": {
     "mt": {
       "fast": {
@@ -13,10 +13,7 @@
             "filter-afade-iqsin",
             "filter-afade-esin",
             "filter-afade-hsin",
-            "filter-afade-exp",
-            "filter-afade-log",
-            "filter-agate",
-            "filter-alimiter"
+            "filter-afade-exp"
           ]
         },
         "filter-video.mak": {
@@ -28,11 +25,7 @@
             "filter-allrgb",
             "filter-allyuv",
             "filter-pal75bars",
-            "filter-pal100bars",
-            "filter-rgbtestsrc",
-            "filter-rgbtestsrc-rgba",
-            "filter-rgbtestsrc-gbrp",
-            "filter-rgbtestsrc-gbrap"
+            "filter-pal100bars"
           ]
         },
         "ffmpeg.mak": {
@@ -40,6 +33,7 @@
             "ffmpeg-filter_complex",
             "ffmpeg-filter_complex_audio",
             "ffmpeg-lavfi",
+            "ffmpeg-chroma-location",
             "shortest",
             "ffmpeg-filter-in-eof"
           ]
@@ -47,7 +41,11 @@
         "libswscale.mak": {
           "pass": [
             "sws-yuv-colorspace",
-            "sws-yuv-range"
+            "sws-yuv-range",
+            "sws-monob-ed-tail",
+            "sws-monow-ed-tail",
+            "sws-monob-ed-tail-bilinear",
+            "sws-monow-ed-tail-bilinear"
           ]
         },
         "libswresample.mak": {
@@ -65,12 +63,14 @@
         "ac3.mak": {
           "pass": [
             "ac3-fixed-encode",
-            "ac3-fixed-encode-2"
+            "ac3-fixed-encode-2",
+            "ac3-fixed-encode-3"
           ]
         },
         "acodec.mak": {
           "pass": [
-            "acodec-dca"
+            "acodec-dca",
+            "acodec-dca-lfe"
           ]
         },
         "opus.mak": {
@@ -197,6 +197,7 @@
             "filter-yuvtestsrc-xv36",
             "filter-yuvtestsrc-xv48",
             "filter-scale-fast-bilinear-wide-edge",
+            "filter-scale-fast-bilinear-wide-wrap",
             "filter-feedback-hflip",
             "filter-framerate-up",
             "filter-framerate-down",
@@ -204,6 +205,9 @@
             "filter-framerate-12bit-down",
             "filter-minterpolate-up",
             "filter-minterpolate-down",
+            "filter-thistogram-scroll",
+            "filter-photosensitivity-blend",
+            "filter-blend-expr-clipping",
             "filter-tpad-add",
             "filter-tpad-clone",
             "filter-tpad-add-duration",
@@ -219,6 +223,8 @@
             "filter-mpdecimate-keep1",
             "filter-mpdecimate-maxdrop-pos",
             "filter-mpdecimate-maxdrop-neg",
+            "filter-mpdecimate-mode-1",
+            "filter-mpdecimate-mode-1-min-3",
             "filter-fps-up",
             "filter-fps-up-round-down",
             "filter-fps-up-round-up",
@@ -228,12 +234,43 @@
             "filter-fps-down-eof-pass",
             "filter-fps-start-drop",
             "filter-fps-start-fill",
+            "filter-fps-single",
+            "filter-fps-single-before-start",
+            "filter-fps-single-end-at-start",
             "filter-fps-cfr",
             "filter-fps",
+            "filter-scalechroma-yuyv422",
+            "filter-scalechroma-uyvy422",
+            "filter-scalechroma-yuyv422-topleft",
+            "filter-scalechroma-nv24",
+            "filter-scalechroma-infer",
             "filter-scalechroma",
-            "filter-scale-premultiply"
+            "filter-scalechroma-alphablend",
+            "filter-scalechroma-alphablend-scaled",
+            "filter-scalechroma-matrix",
+            "filter-scalechroma-downscale",
+            "filter-scalechroma-setparams",
+            "filter-scalechroma-ref",
+            "filter-scalechroma-untagged",
+            "filter-scalechroma-untagged-422",
+            "filter-noformat-chroma",
+            "filter-zscale-chroma-input-override",
+            "filter-scale-premultiply",
+            "filter-xfade-slideleft",
+            "filter-xfade-slideup",
+            "filter-xfade-revealleft",
+            "filter-xfade-revealup",
+            "filter-xfade-squeezeh",
+            "filter-xfade-squeezev",
+            "filter-xfade-slideup16",
+            "filter-xfade-duration0"
           ],
+          "fail": {
+            "filter-scale_cuda-resize-step-p010": "ffmpeg exited -28"
+          },
           "skip": {
+            "filter-fps-single-zero-duration": "no reference file",
+            "filter-fps-single-cross-start": "no reference file",
             "filter-frei0r-filter": "known failure: frei0r is not built into the cores",
             "filter-frei0r-filter-unaligned": "known failure: frei0r is not built into the cores",
             "filter-frei0r-source": "known failure: frei0r is not built into the cores"
@@ -244,6 +281,7 @@
             "ffmpeg-filter_complex",
             "ffmpeg-filter_complex_audio",
             "ffmpeg-lavfi",
+            "ffmpeg-chroma-location",
             "force_key_frames-source",
             "force_key_frames-source-drop",
             "force_key_frames-source-dup",
@@ -256,6 +294,60 @@
             "limited_input_seek-copyts",
             "ffmpeg-streamloop-copy",
             "ffmpeg-setts-bsf",
+            "ffmpeg-trim-bsf-pts",
+            "ffmpeg-trim-bsf-dts",
+            "ffmpeg-trim-bsf-dts-pts",
+            "ffmpeg-trim-bsf-pts-dts",
+            "ffmpeg-trim-bsf-pts-duration",
+            "ffmpeg-trim-bsf-dts-duration",
+            "ffmpeg-trim-bsf-pkt",
+            "ffmpeg-trim-bsf-samples",
+            "ffmpeg-trim-bsf-msec",
+            "ffmpeg-trim-bsf-rel",
+            "ffmpeg-trim-bsf-duration-zero",
+            "ffmpeg-trim-bsf-pkt-rel",
+            "ffmpeg-trim-bsf-untrimmed",
+            "ffmpeg-trim-bsf-skip-samples",
+            "ffmpeg-trim-bsf-gap-end",
+            "ffmpeg-trim-bsf-gap-start",
+            "ffmpeg-trim-bsf-opus-gap-end",
+            "ffmpeg-trim-bsf-opus-gap-start",
+            "ffmpeg-trim-bsf-priming",
+            "ffmpeg-trim-bsf-priming-nodur",
+            "ffmpeg-trim-bsf-priming-gap",
+            "ffmpeg-trim-bsf-priming-nopts",
+            "ffmpeg-trim-bsf-priming-gap-duration",
+            "ffmpeg-trim-bsf-priming-duration",
+            "ffmpeg-trim-bsf-priming-untrimmed",
+            "ffmpeg-side-data-bsf-remove",
+            "ffmpeg-side-data-bsf-select",
+            "ffmpeg-side-data-bsf-select-none",
+            "ffmpeg-trim-bsf-skip-samples-empty",
+            "ffmpeg-trim-bsf-video-pts",
+            "ffmpeg-trim-bsf-video-dts",
+            "ffmpeg-trim-bsf-video-dts-pts",
+            "ffmpeg-trim-bsf-video-pts-dts",
+            "ffmpeg-trim-bsf-video-dts-duration",
+            "ffmpeg-trim-bsf-video-pts-duration",
+            "ffmpeg-trim-bsf-video-pkt",
+            "ffmpeg-trim-bsf-video-samples",
+            "ffmpeg-trim-bsf-video-untrimmed",
+            "ffmpeg-trim-bsf-video-reordered",
+            "ffmpeg-trim-bsf-video-preroll",
+            "ffmpeg-trim-bsf-video-preroll-overflow",
+            "ffmpeg-trim-bsf-video-preroll-decoded",
+            "ffmpeg-trim-bsf-video-preroll-keyframe",
+            "ffmpeg-trim-bsf-video-preroll-on-keyframe",
+            "ffmpeg-trim-bsf-video-flush",
+            "ffmpeg-trim-bsf-video-flush-rel",
+            "ffmpeg-trim-bsf-video-mixed-axes",
+            "ffmpeg-trim-bsf-video-mixed-axes-empty",
+            "ffmpeg-trim-bsf-video-nopts-duration",
+            "ffmpeg-trim-bsf-video-nopts-rel",
+            "ffmpeg-trim-bsf-video-nopts-empty",
+            "ffmpeg-trim-bsf-video-partial-dts-duration",
+            "ffmpeg-trim-bsf-video-reordered-nodts",
+            "ffmpeg-trim-bsf-video-reordered-count",
             "time_base",
             "ffmpeg-input-r",
             "ffmpeg-bsf-input",
@@ -269,7 +361,11 @@
         "libswscale.mak": {
           "pass": [
             "sws-yuv-colorspace",
-            "sws-yuv-range"
+            "sws-yuv-range",
+            "sws-monob-ed-tail",
+            "sws-monow-ed-tail",
+            "sws-monob-ed-tail-bilinear",
+            "sws-monow-ed-tail-bilinear"
           ]
         },
         "libswresample.mak": {
@@ -359,6 +455,7 @@
             "mov-bbi-elst-starts-b",
             "mov-neg-firstpts-discard-frames",
             "mov-stream-shorter-than-movie",
+            "mov-aac-2048-priming-seek",
             "mov-gpmf-remux",
             "mov-avif-demux-still-image-1-item",
             "mov-avif-demux-still-image-multiple-items",
@@ -398,7 +495,8 @@
             "matroska-wavpack-missing-codecprivate",
             "matroska-zlib-decompression",
             "matroska-lzo-decompression",
-            "matroska-flac-channel-mapping"
+            "matroska-flac-channel-mapping",
+            "matroska-track-timescale"
           ],
           "skip": {
             "matroska-prores-header-insertion-bz2": "known failure: needs bzip2, which the cores are built without"
@@ -631,6 +729,9 @@
             "h264-attachment-631",
             "h264-skip-nokey",
             "h264-skip-nointra",
+            "h264-data-partitioning",
+            "h264-data-partitioning-ab",
+            "h264-data-partitioning-cip",
             "h264-intra-refresh-recovery",
             "h264-invalid-ref-mod",
             "h264-lossless",
@@ -651,6 +752,8 @@
             "hevc-bsf-dovi-split-el",
             "hevc-bsf-dovi-split-el-rpu",
             "hevc-skiploopfilter",
+            "hevc-skipframe-dslice",
+            "hevc-skipframe-slices",
             "hevc-extradata-reload",
             "hevc-cabac-tudepth",
             "hevc-small422chroma",
@@ -688,13 +791,16 @@
             "vp8-sign-bias",
             "vp8-size-change",
             "vp9-05-resize",
+            "vp9-trim-preroll",
             "vp9-superframe-bsf"
           ]
         },
         "vvc.mak": {
           "pass": [
             "vvc-frames-with-ltr",
-            "vvc-wpp-single-slice-pic"
+            "vvc-wpp-single-slice-pic",
+            "vvc-curr-ltrp-alias",
+            "vvc-mv-clip-wrap"
           ]
         },
         "mpeg4.mak": {
@@ -830,7 +936,8 @@
             "smvjpeg",
             "vqc",
             "rv60-512x512",
-            "rv60-72x72"
+            "rv60-72x72",
+            "imm6"
           ]
         },
         "image.mak": {
@@ -1100,12 +1207,14 @@
           "pass": [
             "ac3-fixed-encode",
             "ac3-fixed-encode-2",
+            "ac3-fixed-encode-3",
             "eac3-core-bsf"
           ]
         },
         "acodec.mak": {
           "pass": [
-            "acodec-dca"
+            "acodec-dca",
+            "acodec-dca-lfe"
           ]
         },
         "opus.mak": {
@@ -1119,8 +1228,10 @@
             "delphine-cin-audio",
             "dss-lp",
             "dss-sp",
+            "dsf-dst-dsd",
             "on2avc",
             "paf-audio",
+            "rhetorex",
             "sierra-vmd-audio",
             "smacker-audio",
             "ws_snd"
@@ -1143,6 +1254,8 @@
             "adpcm-ea-r3",
             "adpcm-ima-amv",
             "adpcm-ima-apc",
+            "adpcm-ima-citrix-mono",
+            "adpcm-ima-citrix-stereo",
             "adpcm-ima-dk3",
             "adpcm-ima-dk4",
             "adpcm-ima-ea-eacs",
@@ -1186,6 +1299,7 @@
           "pass": [
             "iff-pcm",
             "pcm_dvd",
+            "pcm_dvda",
             "pcm-planar",
             "pcm_s16be-stereo",
             "pcm_s16le-stereo",
@@ -1265,6 +1379,8 @@
             "wavpack-lossless-32bit",
             "wavpack-lossless-float",
             "wavpack-lossless-dsd",
+            "wavpack-dsd",
+            "wavpack-dsd-pcm",
             "wavpack-lossy-8bit",
             "wavpack-lossy-16bit",
             "wavpack-lossy-24bit",
@@ -1291,8 +1407,6 @@
         },
         "dca.mak": {
           "pass": [
-            "dca-xll",
-            "dca-xll-coded",
             "dca-core-bsf"
           ]
         }
@@ -1310,10 +1424,7 @@
             "filter-afade-iqsin",
             "filter-afade-esin",
             "filter-afade-hsin",
-            "filter-afade-exp",
-            "filter-afade-log",
-            "filter-agate",
-            "filter-alimiter"
+            "filter-afade-exp"
           ]
         },
         "filter-video.mak": {
@@ -1325,11 +1436,7 @@
             "filter-allrgb",
             "filter-allyuv",
             "filter-pal75bars",
-            "filter-pal100bars",
-            "filter-rgbtestsrc",
-            "filter-rgbtestsrc-rgba",
-            "filter-rgbtestsrc-gbrp",
-            "filter-rgbtestsrc-gbrap"
+            "filter-pal100bars"
           ]
         },
         "ffmpeg.mak": {
@@ -1337,6 +1444,7 @@
             "ffmpeg-filter_complex",
             "ffmpeg-filter_complex_audio",
             "ffmpeg-lavfi",
+            "ffmpeg-chroma-location",
             "shortest",
             "ffmpeg-filter-in-eof"
           ]
@@ -1344,7 +1452,11 @@
         "libswscale.mak": {
           "pass": [
             "sws-yuv-colorspace",
-            "sws-yuv-range"
+            "sws-yuv-range",
+            "sws-monob-ed-tail",
+            "sws-monow-ed-tail",
+            "sws-monob-ed-tail-bilinear",
+            "sws-monow-ed-tail-bilinear"
           ]
         },
         "libswresample.mak": {
@@ -1362,12 +1474,14 @@
         "ac3.mak": {
           "pass": [
             "ac3-fixed-encode",
-            "ac3-fixed-encode-2"
+            "ac3-fixed-encode-2",
+            "ac3-fixed-encode-3"
           ]
         },
         "acodec.mak": {
           "pass": [
-            "acodec-dca"
+            "acodec-dca",
+            "acodec-dca-lfe"
           ]
         },
         "opus.mak": {
@@ -1494,6 +1608,7 @@
             "filter-yuvtestsrc-xv36",
             "filter-yuvtestsrc-xv48",
             "filter-scale-fast-bilinear-wide-edge",
+            "filter-scale-fast-bilinear-wide-wrap",
             "filter-feedback-hflip",
             "filter-framerate-up",
             "filter-framerate-down",
@@ -1501,6 +1616,9 @@
             "filter-framerate-12bit-down",
             "filter-minterpolate-up",
             "filter-minterpolate-down",
+            "filter-thistogram-scroll",
+            "filter-photosensitivity-blend",
+            "filter-blend-expr-clipping",
             "filter-tpad-add",
             "filter-tpad-clone",
             "filter-tpad-add-duration",
@@ -1516,6 +1634,8 @@
             "filter-mpdecimate-keep1",
             "filter-mpdecimate-maxdrop-pos",
             "filter-mpdecimate-maxdrop-neg",
+            "filter-mpdecimate-mode-1",
+            "filter-mpdecimate-mode-1-min-3",
             "filter-fps-up",
             "filter-fps-up-round-down",
             "filter-fps-up-round-up",
@@ -1525,12 +1645,43 @@
             "filter-fps-down-eof-pass",
             "filter-fps-start-drop",
             "filter-fps-start-fill",
+            "filter-fps-single",
+            "filter-fps-single-before-start",
+            "filter-fps-single-end-at-start",
             "filter-fps-cfr",
             "filter-fps",
+            "filter-scalechroma-yuyv422",
+            "filter-scalechroma-uyvy422",
+            "filter-scalechroma-yuyv422-topleft",
+            "filter-scalechroma-nv24",
+            "filter-scalechroma-infer",
             "filter-scalechroma",
-            "filter-scale-premultiply"
+            "filter-scalechroma-alphablend",
+            "filter-scalechroma-alphablend-scaled",
+            "filter-scalechroma-matrix",
+            "filter-scalechroma-downscale",
+            "filter-scalechroma-setparams",
+            "filter-scalechroma-ref",
+            "filter-scalechroma-untagged",
+            "filter-scalechroma-untagged-422",
+            "filter-noformat-chroma",
+            "filter-zscale-chroma-input-override",
+            "filter-scale-premultiply",
+            "filter-xfade-slideleft",
+            "filter-xfade-slideup",
+            "filter-xfade-revealleft",
+            "filter-xfade-revealup",
+            "filter-xfade-squeezeh",
+            "filter-xfade-squeezev",
+            "filter-xfade-slideup16",
+            "filter-xfade-duration0"
           ],
+          "fail": {
+            "filter-scale_cuda-resize-step-p010": "ffmpeg exited -28"
+          },
           "skip": {
+            "filter-fps-single-zero-duration": "no reference file",
+            "filter-fps-single-cross-start": "no reference file",
             "filter-frei0r-filter": "known failure: frei0r is not built into the cores",
             "filter-frei0r-filter-unaligned": "known failure: frei0r is not built into the cores",
             "filter-frei0r-source": "known failure: frei0r is not built into the cores"
@@ -1541,6 +1692,7 @@
             "ffmpeg-filter_complex",
             "ffmpeg-filter_complex_audio",
             "ffmpeg-lavfi",
+            "ffmpeg-chroma-location",
             "force_key_frames-source",
             "force_key_frames-source-drop",
             "force_key_frames-source-dup",
@@ -1553,6 +1705,60 @@
             "limited_input_seek-copyts",
             "ffmpeg-streamloop-copy",
             "ffmpeg-setts-bsf",
+            "ffmpeg-trim-bsf-pts",
+            "ffmpeg-trim-bsf-dts",
+            "ffmpeg-trim-bsf-dts-pts",
+            "ffmpeg-trim-bsf-pts-dts",
+            "ffmpeg-trim-bsf-pts-duration",
+            "ffmpeg-trim-bsf-dts-duration",
+            "ffmpeg-trim-bsf-pkt",
+            "ffmpeg-trim-bsf-samples",
+            "ffmpeg-trim-bsf-msec",
+            "ffmpeg-trim-bsf-rel",
+            "ffmpeg-trim-bsf-duration-zero",
+            "ffmpeg-trim-bsf-pkt-rel",
+            "ffmpeg-trim-bsf-untrimmed",
+            "ffmpeg-trim-bsf-skip-samples",
+            "ffmpeg-trim-bsf-gap-end",
+            "ffmpeg-trim-bsf-gap-start",
+            "ffmpeg-trim-bsf-opus-gap-end",
+            "ffmpeg-trim-bsf-opus-gap-start",
+            "ffmpeg-trim-bsf-priming",
+            "ffmpeg-trim-bsf-priming-nodur",
+            "ffmpeg-trim-bsf-priming-gap",
+            "ffmpeg-trim-bsf-priming-nopts",
+            "ffmpeg-trim-bsf-priming-gap-duration",
+            "ffmpeg-trim-bsf-priming-duration",
+            "ffmpeg-trim-bsf-priming-untrimmed",
+            "ffmpeg-side-data-bsf-remove",
+            "ffmpeg-side-data-bsf-select",
+            "ffmpeg-side-data-bsf-select-none",
+            "ffmpeg-trim-bsf-skip-samples-empty",
+            "ffmpeg-trim-bsf-video-pts",
+            "ffmpeg-trim-bsf-video-dts",
+            "ffmpeg-trim-bsf-video-dts-pts",
+            "ffmpeg-trim-bsf-video-pts-dts",
+            "ffmpeg-trim-bsf-video-dts-duration",
+            "ffmpeg-trim-bsf-video-pts-duration",
+            "ffmpeg-trim-bsf-video-pkt",
+            "ffmpeg-trim-bsf-video-samples",
+            "ffmpeg-trim-bsf-video-untrimmed",
+            "ffmpeg-trim-bsf-video-reordered",
+            "ffmpeg-trim-bsf-video-preroll",
+            "ffmpeg-trim-bsf-video-preroll-overflow",
+            "ffmpeg-trim-bsf-video-preroll-decoded",
+            "ffmpeg-trim-bsf-video-preroll-keyframe",
+            "ffmpeg-trim-bsf-video-preroll-on-keyframe",
+            "ffmpeg-trim-bsf-video-flush",
+            "ffmpeg-trim-bsf-video-flush-rel",
+            "ffmpeg-trim-bsf-video-mixed-axes",
+            "ffmpeg-trim-bsf-video-mixed-axes-empty",
+            "ffmpeg-trim-bsf-video-nopts-duration",
+            "ffmpeg-trim-bsf-video-nopts-rel",
+            "ffmpeg-trim-bsf-video-nopts-empty",
+            "ffmpeg-trim-bsf-video-partial-dts-duration",
+            "ffmpeg-trim-bsf-video-reordered-nodts",
+            "ffmpeg-trim-bsf-video-reordered-count",
             "time_base",
             "ffmpeg-input-r",
             "ffmpeg-bsf-input",
@@ -1566,7 +1772,11 @@
         "libswscale.mak": {
           "pass": [
             "sws-yuv-colorspace",
-            "sws-yuv-range"
+            "sws-yuv-range",
+            "sws-monob-ed-tail",
+            "sws-monow-ed-tail",
+            "sws-monob-ed-tail-bilinear",
+            "sws-monow-ed-tail-bilinear"
           ]
         },
         "libswresample.mak": {
@@ -1656,6 +1866,7 @@
             "mov-bbi-elst-starts-b",
             "mov-neg-firstpts-discard-frames",
             "mov-stream-shorter-than-movie",
+            "mov-aac-2048-priming-seek",
             "mov-gpmf-remux",
             "mov-avif-demux-still-image-1-item",
             "mov-avif-demux-still-image-multiple-items",
@@ -1695,7 +1906,8 @@
             "matroska-wavpack-missing-codecprivate",
             "matroska-zlib-decompression",
             "matroska-lzo-decompression",
-            "matroska-flac-channel-mapping"
+            "matroska-flac-channel-mapping",
+            "matroska-track-timescale"
           ],
           "skip": {
             "matroska-prores-header-insertion-bz2": "known failure: needs bzip2, which the cores are built without"
@@ -1928,6 +2140,9 @@
             "h264-attachment-631",
             "h264-skip-nokey",
             "h264-skip-nointra",
+            "h264-data-partitioning",
+            "h264-data-partitioning-ab",
+            "h264-data-partitioning-cip",
             "h264-intra-refresh-recovery",
             "h264-invalid-ref-mod",
             "h264-lossless",
@@ -1948,6 +2163,8 @@
             "hevc-bsf-dovi-split-el",
             "hevc-bsf-dovi-split-el-rpu",
             "hevc-skiploopfilter",
+            "hevc-skipframe-dslice",
+            "hevc-skipframe-slices",
             "hevc-extradata-reload",
             "hevc-cabac-tudepth",
             "hevc-small422chroma",
@@ -1985,13 +2202,16 @@
             "vp8-sign-bias",
             "vp8-size-change",
             "vp9-05-resize",
+            "vp9-trim-preroll",
             "vp9-superframe-bsf"
           ]
         },
         "vvc.mak": {
           "pass": [
             "vvc-frames-with-ltr",
-            "vvc-wpp-single-slice-pic"
+            "vvc-wpp-single-slice-pic",
+            "vvc-curr-ltrp-alias",
+            "vvc-mv-clip-wrap"
           ]
         },
         "mpeg4.mak": {
@@ -2127,7 +2347,8 @@
             "smvjpeg",
             "vqc",
             "rv60-512x512",
-            "rv60-72x72"
+            "rv60-72x72",
+            "imm6"
           ]
         },
         "image.mak": {
@@ -2397,12 +2618,14 @@
           "pass": [
             "ac3-fixed-encode",
             "ac3-fixed-encode-2",
+            "ac3-fixed-encode-3",
             "eac3-core-bsf"
           ]
         },
         "acodec.mak": {
           "pass": [
-            "acodec-dca"
+            "acodec-dca",
+            "acodec-dca-lfe"
           ]
         },
         "opus.mak": {
@@ -2416,8 +2639,10 @@
             "delphine-cin-audio",
             "dss-lp",
             "dss-sp",
+            "dsf-dst-dsd",
             "on2avc",
             "paf-audio",
+            "rhetorex",
             "sierra-vmd-audio",
             "smacker-audio",
             "ws_snd"
@@ -2440,6 +2665,8 @@
             "adpcm-ea-r3",
             "adpcm-ima-amv",
             "adpcm-ima-apc",
+            "adpcm-ima-citrix-mono",
+            "adpcm-ima-citrix-stereo",
             "adpcm-ima-dk3",
             "adpcm-ima-dk4",
             "adpcm-ima-ea-eacs",
@@ -2483,6 +2710,7 @@
           "pass": [
             "iff-pcm",
             "pcm_dvd",
+            "pcm_dvda",
             "pcm-planar",
             "pcm_s16be-stereo",
             "pcm_s16le-stereo",
@@ -2562,6 +2790,8 @@
             "wavpack-lossless-32bit",
             "wavpack-lossless-float",
             "wavpack-lossless-dsd",
+            "wavpack-dsd",
+            "wavpack-dsd-pcm",
             "wavpack-lossy-8bit",
             "wavpack-lossy-16bit",
             "wavpack-lossy-24bit",
@@ -2588,8 +2818,6 @@
         },
         "dca.mak": {
           "pass": [
-            "dca-xll",
-            "dca-xll-coded",
             "dca-core-bsf"
           ]
         }
