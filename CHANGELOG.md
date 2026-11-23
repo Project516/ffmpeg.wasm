@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+### Changed
+
+- The single-thread (Asyncify) core is smaller, from leaving more codec libraries out of Asyncify instrumentation.
+
 ## 0.19.0
 
 ### Changed
