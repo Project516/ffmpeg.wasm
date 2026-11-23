@@ -74,8 +74,9 @@ else
     -sASYNCIFY_STACK_SIZE=65536
     # These libraries have no threads here and only call back to av_log, so no
     # fiber switch happens inside them; instrumenting them only costs size and
-    # speed. libdav1d and libwebp are not listed: -threads N starts threads there.
-    "-sASYNCIFY_REMOVE=['x264_*','vpx_*','vp8_*','vp9_*','lame_*','opus_*','celt_*','silk_*','vorbis_*','ogg_*','th_*','zimg*','FT_*','hb_*','ass_*','fribidi_*']"
+    # speed. libdav1d, libwebp and the vp8_/vp9_ prefixes (FFmpeg's own decoders
+    # too) are not listed: -threads N makes them start or wait on threads.
+    "-sASYNCIFY_REMOVE=['x264_*','vpx_*','lame_*','opus_*','celt_*','silk_*','vorbis_*','ogg_*','th_*','zimg*','FT_*','hb_*','ass_*','fribidi_*']"
   )
 fi
 
