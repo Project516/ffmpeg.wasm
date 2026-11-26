@@ -8,6 +8,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - The single-thread (Asyncify) core is smaller, from leaving more codec libraries out of Asyncify instrumentation.
+- The cores are built with Emscripten 7.0.1.
 
 ## 0.19.0
 

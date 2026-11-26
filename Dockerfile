@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.10@sha256:865e5dd094beca432e8c0a1d5e1c465db5f998dca4e439981029b3b81fb39ed5
 
 # Base emsdk image with environment variables.
-FROM emscripten/emsdk:7.0.0@sha256:6bd7aef93408b10bf7b36642cb7c91119b302f720b9ec2d20439f73cf07fe894 AS emsdk-base
+FROM emscripten/emsdk:7.0.1@sha256:73aece2e0ab748487945ad117b79fc4d277e9f656e54fc800a9b1a0a6562715b AS emsdk-base
 ARG EXTRA_CFLAGS
 ARG EXTRA_LDFLAGS
 ARG FFMPEG_ST
